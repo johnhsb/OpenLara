@@ -2721,13 +2721,8 @@ struct Lara : Character {
     virtual int getStateHang() {
         if (input & LEFT)  return STATE_HANG_LEFT;
         if (input & RIGHT) return STATE_HANG_RIGHT;
-        if (input & FORTH) {
-            // possibility check
-            TR::Level::FloorInfo info;
-            getFloorInfo(getRoomIndex(), pos + getDir() * (LARA_RADIUS + 2.0f), info);
-            if (info.floor - info.ceiling >= LARA_HEIGHT)
-                return (input & WALK) ? STATE_HANDSTAND : STATE_HANG_UP;            
-        }
+        if (input & FORTH)
+            return (input & WALK) ? STATE_HANDSTAND : STATE_HANG_UP;
         return STATE_HANG;
     }
 
@@ -3658,9 +3653,26 @@ struct Lara : Character {
 
         if (standHang) {
             maxHeight = 0;
-            maxAscent = maxDescent = 64;
             offset    = getDir() * (LARA_RADIUS + 32.0f);
             offset.y  -= LARA_HANG_OFFSET + 32;
+            maxAscent = maxDescent = 64;
+            if ((input & LEFT) || (input & RIGHT)) {
+                // Use unequal values to disable checkHeight's global slant check
+                // (which blocks ANY slant > 2 when maxAscent == maxDescent).
+                // We handle slant blocking ourselves using lateral projection only.
+                maxAscent = 256, maxDescent = 255;
+                // Block lateral movement only when ledge surface slants sideways > 36.9deg
+                // (forward/backward slant is ignored for lateral hang movement)
+                // Probe toward the wall at ledge level — same position as standup check
+                TR::Level::FloorInfo slantInfo;
+                vec3 probe = pos + getDir() * (LARA_RADIUS + 2.0f);
+                probe.y = pos.y - (float)LARA_HANG_OFFSET;
+                getFloorInfo(getRoomIndex(), probe, slantInfo);
+                vec3 fwd = getDir();
+                float lateralSlant = slantInfo.slantX * fwd.z - slantInfo.slantZ * fwd.x;
+                if (fabsf(lateralSlant) > 2.0f)
+                    maxAscent = maxDescent = 64;
+            }
         }
         if (stand == STAND_UNDERWATER) {
             offset.y += LARA_HEIGHT_WATER * 0.5f;
@@ -3673,15 +3685,17 @@ struct Lara : Character {
             rotateY((collision.side == Collision::LEFT) ? rot : -rot);
         }
 
-        if (standHang && collision.side != Collision::FRONT) {
-            offset.x = offset.z = 0.0f;
-            minHeight  = LARA_HANG_OFFSET;
-            maxDescent = 0xFFFFFF;
-            maxAscent  = -LARA_HANG_OFFSET;
-            vec3 p = pos;
-            collision  = Collision(this, room, p, offset, vec3(0.0f), radius, angleExt, minHeight, maxHeight, maxAscent, maxDescent);
-            if (collision.side == Collision::FRONT)
-                pos = opos;
+        if (standHang) {
+            if (collision.side != Collision::FRONT) {
+                offset.x = offset.z = 0.0f;
+                minHeight  = LARA_HANG_OFFSET;
+                maxDescent = 0xFFFFFF;
+                maxAscent  = -LARA_HANG_OFFSET;
+                vec3 p = pos;
+                collision  = Collision(this, room, p, offset, vec3(0.0f), radius, angleExt, minHeight, maxHeight, maxAscent, maxDescent);
+                if (collision.side == Collision::FRONT)
+                    pos = opos;
+            }
         }
 
         bool isLeftFoot = getLeadingFoot();
