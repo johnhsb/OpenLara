@@ -30,6 +30,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# xcode-select 가 Command Line Tools 를 가리키면 xcodebuild 를 쓸 수 없으므로 Xcode.app 을 직접 지정
+if ! xcodebuild -version >/dev/null 2>&1; then
+    if [[ -d /Applications/Xcode.app/Contents/Developer ]]; then
+        export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+    else
+        echo "[ERROR] Xcode 를 찾을 수 없습니다. Xcode 를 설치하거나 xcode-select -s 로 경로를 지정하세요."
+        exit 1
+    fi
+fi
+
 echo "==> 빌드 설정: $CONFIG"
 echo "==> 프로젝트: $PROJECT"
 echo "==> 출력 디렉토리: $BUILD_DIR/$CONFIG"
@@ -45,19 +55,20 @@ if [[ $CLEAN -eq 1 ]]; then
 fi
 
 echo "==> 빌드 중..."
-xcodebuild \
-    -project "$PROJECT" \
-    -scheme OpenLara \
-    -configuration "$CONFIG" \
-    -derivedDataPath "$BUILD_DIR" \
-    MACOSX_DEPLOYMENT_TARGET=11.5 \
-    build 2>&1 | xcpretty 2>/dev/null || xcodebuild \
-        -project "$PROJECT" \
-        -scheme OpenLara \
-        -configuration "$CONFIG" \
-        -derivedDataPath "$BUILD_DIR" \
-        MACOSX_DEPLOYMENT_TARGET=11.5 \
-        build
+BUILD_CMD=(xcodebuild
+    -project "$PROJECT"
+    -scheme OpenLara
+    -configuration "$CONFIG"
+    -derivedDataPath "$BUILD_DIR"
+    MACOSX_DEPLOYMENT_TARGET=12.0
+    build)
+
+if command -v xcpretty >/dev/null 2>&1; then
+    set -o pipefail
+    "${BUILD_CMD[@]}" 2>&1 | xcpretty
+else
+    "${BUILD_CMD[@]}"
+fi
 
 APP_PATH=$(find "$BUILD_DIR" -name "OpenLara.app" -maxdepth 6 | head -1)
 

@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# Xcode
+src/platform/osx/build/
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# Object files
+*.o
