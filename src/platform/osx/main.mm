@@ -555,7 +555,16 @@ int main() {
 
     joyInit();
     sndInit();
-    Game::init();
+
+    // optional level file to start with (relative to the content folder), e.g. open OpenLara.app --args data/WALL.TR2
+    static char levelName[1024];
+    levelName[0] = 0;
+    for (NSString *arg in [[NSProcessInfo processInfo] arguments]) {
+        NSString *ext = [[arg pathExtension] lowercaseString];
+        if ([ext isEqualToString:@"phd"] || [ext isEqualToString:@"tr2"] || [ext isEqualToString:@"psx"] || [ext isEqualToString:@"sat"] || [ext isEqualToString:@"tr4"])
+            [arg getCString:levelName maxLength:sizeof(levelName) encoding:NSUTF8StringEncoding];
+    }
+    Game::init(levelName[0] ? levelName : NULL);
 
     if (!Core::isQuit) {
         [application run];
