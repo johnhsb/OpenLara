@@ -350,6 +350,16 @@ const char *STR_PT[] = { ""
     , "Cidade Perdida De Tinnos"
     , "Caverna do Meteorito"
     , "Todos os Santos"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif

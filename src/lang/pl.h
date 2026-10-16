@@ -350,6 +350,16 @@ const char *STR_PL[] = { ""
     , "Zaginione miasto Tinnos"
     , "Grota meteorytu"
     , "Wszyscy )Swi|eci"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif

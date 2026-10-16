@@ -353,6 +353,16 @@ const char *STR_CN[] = { "简体中文"
     , "失落的天诺城"
     , "陨石巨穴"
     , "诸圣堂"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 #endif
 
@@ -759,6 +769,16 @@ const char *STR_CN[] = { "\x11\x02\x8A\x02\x6C\x01\x54\x03\x02\xFF\xFF"
     , "\x11\x01\xE6\x01\xCD\x01\x01\x01\xCB\x02\xE5\x01\xAD\xFF\xFF"
     , "\x11\x02\xE1\x01\xA6\x02\x6D\x01\xB7\xFF\xFF"
     , "\x11\x02\xDC\x01\x6C\x01\xEB\xFF\xFF"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif

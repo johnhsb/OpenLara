@@ -1239,6 +1239,8 @@ struct Level : IGame {
             case TR::Entity::TRAP_LAVA             : return new TrapLava(this, index);
             case TR::Entity::BUBBLE                : return new Bubble(this, index);
             case TR::Entity::EXPLOSION             : return new Explosion(this, index);
+            case TR::Entity::GRENADE_BULLET        :
+            case TR::Entity::HARPOON_BULLET        : return new Projectile(this, index);
             case TR::Entity::WATER_SPLASH          :
             case TR::Entity::BLOOD                 :
             case TR::Entity::SMOKE                 :

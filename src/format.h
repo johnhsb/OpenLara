@@ -8,7 +8,7 @@
 #define MAX_RESERVED_ENTITIES 128
 #define MAX_TRIGGER_COMMANDS  32
 #define MAX_MESHES            1024
-#define MAX_WEAPONS           4
+#define MAX_WEAPONS           8
 #define MAX_JOINTS            32
 
 // Lara's height in units / height in meters
@@ -2480,6 +2480,15 @@ namespace TR {
                 || type == INV_AMMO_SHOTGUN
                 || type == INV_AMMO_MAGNUMS
                 || type == INV_AMMO_UZIS
+                || type == INV_AUTOPISTOLS
+                || type == INV_HARPOON
+                || type == INV_M16
+                || type == INV_GRENADE
+                || type == INV_AMMO_AUTOPISTOLS
+                || type == INV_AMMO_HARPOON
+                || type == INV_AMMO_M16
+                || type == INV_AMMO_GRENADE
+                || type == INV_FLARES
                 || type == INV_EXPLOSIVE
                 || type == INV_MEDIKIT_SMALL
                 || type == INV_MEDIKIT_BIG
@@ -3066,7 +3075,7 @@ namespace TR {
         struct Extra {
 
             static int getWeaponIndex(Entity::Type type) {
-                #if MAX_WEAPONS != 4
+                #if MAX_WEAPONS != 8
                     #error update this func first
                 #endif
 
@@ -3095,6 +3104,30 @@ namespace TR {
                     case Entity::INV_AMMO_UZIS     : 
                     case Entity::AMMO_UZIS         : 
                     case Entity::UZIS              : return  3;
+                // automatic pistols
+                    case Entity::LARA_AUTOPISTOLS  :
+                    case Entity::INV_AUTOPISTOLS   :
+                    case Entity::INV_AMMO_AUTOPISTOLS :
+                    case Entity::AMMO_AUTOPISTOLS  :
+                    case Entity::AUTOPISTOLS       : return  4;
+                // harpoon gun
+                    case Entity::LARA_HARPOON      :
+                    case Entity::INV_HARPOON       :
+                    case Entity::INV_AMMO_HARPOON  :
+                    case Entity::AMMO_HARPOON      :
+                    case Entity::HARPOON           : return  5;
+                // M16
+                    case Entity::LARA_M16          :
+                    case Entity::INV_M16           :
+                    case Entity::INV_AMMO_M16      :
+                    case Entity::AMMO_M16          :
+                    case Entity::M16               : return  6;
+                // grenade launcher
+                    case Entity::LARA_GRENADE      :
+                    case Entity::INV_GRENADE       :
+                    case Entity::INV_AMMO_GRENADE  :
+                    case Entity::AMMO_GRENADE      :
+                    case Entity::GRENADE           : return  7;
 
                     default : ASSERT(false);
                 }
@@ -3148,6 +3181,7 @@ namespace TR {
                 } ammo;
 
                 int16 medikit[2];
+                int16 flares;
                 int16 puzzle[4];
                 int16 key[4];
 
@@ -4875,17 +4909,31 @@ namespace TR {
                     case Entity::LARA_PISTOLS        :
                     case Entity::LARA_SHOTGUN        :
                     case Entity::LARA_MAGNUMS        :
-                    case Entity::LARA_UZIS           : extra.weapons[type]     = i; break;
+                    case Entity::LARA_UZIS           :
+                    case Entity::LARA_AUTOPISTOLS    :
+                    case Entity::LARA_HARPOON        :
+                    case Entity::LARA_M16            :
+                    case Entity::LARA_GRENADE        : extra.weapons[type]     = i; break;
 
                     case Entity::INV_PISTOLS         :
                     case Entity::INV_SHOTGUN         :
                     case Entity::INV_MAGNUMS         :
-                    case Entity::INV_UZIS            : extra.inv.weapons[type] = i; break;
+                    case Entity::INV_UZIS            :
+                    case Entity::INV_AUTOPISTOLS     :
+                    case Entity::INV_HARPOON         :
+                    case Entity::INV_M16             :
+                    case Entity::INV_GRENADE         : extra.inv.weapons[type] = i; break;
 
                     case Entity::INV_AMMO_PISTOLS    :
                     case Entity::INV_AMMO_SHOTGUN    :
                     case Entity::INV_AMMO_MAGNUMS    :
-                    case Entity::INV_AMMO_UZIS       : extra.inv.ammo[type]  = i; break;
+                    case Entity::INV_AMMO_UZIS       :
+                    case Entity::INV_AMMO_AUTOPISTOLS:
+                    case Entity::INV_AMMO_HARPOON    :
+                    case Entity::INV_AMMO_M16        :
+                    case Entity::INV_AMMO_GRENADE    : extra.inv.ammo[type]  = i; break;
+
+                    case Entity::INV_FLARES          : extra.inv.flares      = i; break;
 
                     case Entity::INV_MEDIKIT_SMALL   : extra.inv.medikit[0]  = i; break;
                     case Entity::INV_MEDIKIT_BIG     : extra.inv.medikit[1]  = i; break;

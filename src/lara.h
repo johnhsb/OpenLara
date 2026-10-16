@@ -45,6 +45,12 @@
 #define CLIMB_NO_HEIGHT     (TR::NO_FLOOR * 256)
 #define CLIMB_LADDER_JUMP   -116.0f // up jump speed to reach a high ladder
 
+// TR2+ weapons
+#define SND_TR2_AUTOPISTOLS 21
+#define SND_TR2_M16_FIRE    78
+#define SND_TR2_M16_STOP    104
+#define HARPOON_RELOAD      4       // harpoon gun reloads after this count of shots
+
 #define LARA_WATER_ACCEL    2.0f
 #define LARA_SURF_SPEED     15.0f
 #define LARA_SWIM_SPEED     50.0f
@@ -300,6 +306,8 @@ struct Lara : Character {
 
     struct Weapon {
         enum State { IS_HIDDEN, IS_ARMED, IS_FIRING };
+        // TR2+ two-handed weapon animation states ("U" - while moving or underwater)
+        enum RifleState { RIFLE_AIM, RIFLE_DRAW, RIFLE_RECOIL, RIFLE_UNDRAW, RIFLE_UNAIM, RIFLE_RELOAD, RIFLE_UAIM, RIFLE_UUNAIM, RIFLE_URECOIL, RIFLE_SURF_UNDRAW };
         struct Anim {
             enum Type { NONE, PREPARE, UNHOLSTER, HOLSTER, HOLD, AIM, FIRE };
         };
@@ -307,7 +315,13 @@ struct Lara : Character {
 
     TR::Entity::Type wpnCurrent;
     TR::Entity::Type wpnNext;
+    TR::Entity::Type wpnBack;   // two-handed weapon on the back
     Weapon::State    wpnState;
+    int              wpnShots;
+    int              wpnGoal;   // goal animation state of two-handed weapons
+    bool             wpnReload;
+    bool             wpnAuto;   // automatic fire is in progress
+    bool             wpnFired;  // the shot of the current recoil cycle is done
 
     struct Arm {
         Controller      *tracking;       // tracking target (main target)
@@ -520,7 +534,7 @@ struct Lara : Character {
 
     } *braid[2];
 
-    Lara(IGame *game, int entity) : Character(game, entity, LARA_MAX_HEALTH), wpnCurrent(TR::Entity::NONE), wpnNext(TR::Entity::NONE) {
+    Lara(IGame *game, int entity) : Character(game, entity, LARA_MAX_HEALTH), wpnCurrent(TR::Entity::NONE), wpnNext(TR::Entity::NONE), wpnBack(TR::Entity::NONE), wpnShots(0), wpnGoal(0), wpnReload(false), wpnAuto(false), wpnFired(false) {
         camera = new Camera(game, this);
 
         braid[0] = braid[1] = NULL;
@@ -688,9 +702,25 @@ struct Lara : Character {
     }
 
     TR::Entity::Type getItemBack() {
-        if (game->invCount(TR::Entity::INV_SHOTGUN) && (wpnCurrent != TR::Entity::SHOTGUN || wpnState == Weapon::IS_HIDDEN))
-            return TR::Entity::SHOTGUN;
+        TR::Entity::Type back = wpnBack;
+        if (back == TR::Entity::NONE && game->invCount(TR::Entity::INV_SHOTGUN))
+            back = TR::Entity::SHOTGUN;
+        if (back != TR::Entity::NONE && (wpnCurrent != back || wpnState == Weapon::IS_HIDDEN))
+            return back;
         return TR::Entity::NONE;
+    }
+
+    static bool isRifle(TR::Entity::Type wType) {
+        return wType == TR::Entity::SHOTGUN || wType == TR::Entity::M16 || wType == TR::Entity::GRENADE || wType == TR::Entity::HARPOON;
+    }
+
+    bool wpnIsRifle() const {
+        return isRifle(wpnCurrent);
+    }
+
+    // TR2+ two-handed weapons are driven by the state changes of their animations as in the original
+    bool wpnUseStates() const {
+        return wpnIsRifle() && !(level->version & TR::VER_TR1);
     }
 
     virtual bool getSaveData(SaveEntity &data) {
@@ -736,6 +766,7 @@ struct Lara : Character {
             wpnSet(TR::Entity::Type(data.extra.lara.itemWeapon));
 
         wpnCurrent  = TR::Entity::Type(data.extra.lara.itemWeapon);
+        wpnBack     = TR::Entity::Type(data.extra.lara.itemBack);
         itemHolster = TR::Entity::Type(data.extra.lara.itemHolster);
         wpnState    = Weapon::IS_HIDDEN;
 
@@ -822,7 +853,13 @@ struct Lara : Character {
         wpnCurrent = wType;
         wpnState   = Weapon::IS_FIRING;
 
-        arms[0].animation = arms[1].animation = Animation(level, &level->models[wType == TR::Entity::SHOTGUN ? TR::MODEL_SHOTGUN : TR::MODEL_PISTOLS]);
+        wpnReload = wpnAuto = false;
+
+    // pistol-like weapons share the pistols animations
+        int model = level->extra.weapons[isRifle(wType) ? wType : TR::Entity::PISTOLS];
+        if (model < 0)
+            model = isRifle(wType) ? TR::MODEL_SHOTGUN : TR::MODEL_PISTOLS;
+        arms[0].animation = arms[1].animation = Animation(level, &level->models[model]);
 
         wpnSetAnim(arms[0], Weapon::IS_HIDDEN, Weapon::Anim::NONE, 0.0f, 0.0f);
         wpnSetAnim(arms[1], Weapon::IS_HIDDEN, Weapon::Anim::NONE, 0.0f, 0.0f);
@@ -853,6 +890,10 @@ struct Lara : Character {
             case TR::Entity::SHOTGUN : return 3;
             case TR::Entity::MAGNUMS : return 2;
             case TR::Entity::UZIS    : return 1;
+            case TR::Entity::AUTOPISTOLS : return 2;
+            case TR::Entity::M16     : return 3;
+            case TR::Entity::HARPOON : return 4;
+            case TR::Entity::GRENADE : return 30;
             default : ;
         }
         return 0;
@@ -866,6 +907,7 @@ struct Lara : Character {
             case TR::Entity::PISTOLS :
             case TR::Entity::MAGNUMS :
             case TR::Entity::UZIS    :
+            case TR::Entity::AUTOPISTOLS :
                 switch (wState) {
                     case Weapon::IS_HIDDEN : mask = JOINT_MASK_LEG_L1 | JOINT_MASK_LEG_R1;              break;
                     case Weapon::IS_ARMED  : mask = JOINT_MASK_ARM_L3 | JOINT_MASK_ARM_R3;              break;
@@ -873,6 +915,9 @@ struct Lara : Character {
                 }
                 break;
             case TR::Entity::SHOTGUN :
+            case TR::Entity::M16     :
+            case TR::Entity::GRENADE :
+            case TR::Entity::HARPOON :
                 switch (wState) {
                     case Weapon::IS_HIDDEN : mask = JOINT_MASK_CHEST;                             break;
                     case Weapon::IS_ARMED  : mask = JOINT_MASK_ARM_L3 | JOINT_MASK_ARM_R3;              break;
@@ -892,12 +937,19 @@ struct Lara : Character {
     // 3 - angry (head)
 
         // swap weapon parts
-        if (wpnCurrent != TR::Entity::SHOTGUN) {
+        if (!wpnIsRifle()) {
             meshSwap(1, level->extra.weapons[wpnCurrent], mask);
-            // have a shotgun in inventory place it on the back if another weapon is in use
-            meshSwap(2, level->extra.weapons[TR::Entity::SHOTGUN], game->invCount(TR::Entity::INV_SHOTGUN) ? JOINT_MASK_CHEST : 0);
+            // have a two-handed weapon in inventory place it on the back if another weapon is in use
+            wpnState = wState;
+            TR::Entity::Type back = getItemBack();
+            if (back != TR::Entity::NONE)
+                meshSwap(2, level->extra.weapons[back], JOINT_MASK_CHEST);
+            else
+                layers[2].mask = 0;
             itemHolster = (wState == Weapon::IS_HIDDEN) ? wpnCurrent : TR::Entity::NONE;
         } else {
+            if (wState == Weapon::IS_HIDDEN)
+                wpnBack = wpnCurrent;
             meshSwap(2, level->extra.weapons[wpnCurrent], mask);
         }
 
@@ -925,6 +977,9 @@ struct Lara : Character {
             return false;
 
         if (dozy) return true;
+
+        if (wpnCurrent == TR::Entity::HARPOON && (stand == STAND_UNDERWATER || stand == STAND_ONWATER))
+            return state != STATE_UNDERWATER_DEATH && state != STATE_DIVE && state != STATE_WATER_OUT && state != STATE_PICK_UP && state != STATE_SWITCH_DOWN && state != STATE_SWITCH_UP && state != STATE_USE_KEY && state != STATE_USE_PUZZLE;
 
         return    animation.index != ANIM_CLIMB_3
                && animation.index != ANIM_CLIMB_2
@@ -979,7 +1034,12 @@ struct Lara : Character {
         if (!canDrawWeapon()) return;
 
         if (wpnReady() && emptyHands()) {
-            if (wpnCurrent != TR::Entity::SHOTGUN) {
+            if (wpnUseStates()) {
+                wpnRifleDraw(instant);
+                return;
+            }
+
+            if (!wpnIsRifle()) {
                 wpnSetAnim(arms[0], wpnState, instant ? Weapon::Anim::AIM : Weapon::Anim::PREPARE, 0.0f, 1.0f);
                 wpnSetAnim(arms[1], wpnState, instant ? Weapon::Anim::AIM : Weapon::Anim::PREPARE, 0.0f, 1.0f);
             } else
@@ -989,7 +1049,12 @@ struct Lara : Character {
 
     void wpnHide() {
         if (wpnReady() && !emptyHands()) {
-            if (wpnCurrent != TR::Entity::SHOTGUN) {
+            if (wpnUseStates()) {
+                arms[0].anim = Weapon::Anim::HOLSTER; // the animation states will lead to undraw
+                return;
+            }
+
+            if (!wpnIsRifle()) {
                 wpnSetAnim(arms[0], wpnState, Weapon::Anim::UNHOLSTER, 0.0f, -1.0f);
                 wpnSetAnim(arms[1], wpnState, Weapon::Anim::UNHOLSTER, 0.0f, -1.0f);
             } else
@@ -1008,7 +1073,7 @@ struct Lara : Character {
     }
 
     int wpnGetAnimIndex(Weapon::Anim::Type wAnim) {
-        if (wpnCurrent == TR::Entity::SHOTGUN) {
+        if (wpnIsRifle()) {
             switch (wAnim) {
                 case Weapon::Anim::PREPARE   : ASSERT(false); break;    // rifle has no prepare animation
                 case Weapon::Anim::UNHOLSTER : return 1;
@@ -1037,6 +1102,7 @@ struct Lara : Character {
             case TR::Entity::SHOTGUN : return TR::SND_SHOTGUN_SHOT;
             case TR::Entity::MAGNUMS : return TR::SND_MAGNUMS_SHOT;
             case TR::Entity::UZIS    : return TR::SND_UZIS_SHOT;
+            case TR::Entity::AUTOPISTOLS : return SND_TR2_AUTOPISTOLS;
             default                  : return TR::SND_NO;
         }
     }
@@ -1071,22 +1137,28 @@ struct Lara : Character {
             doShot(armShot[0], armShot[1]);
     }
 
+    void wpnOutOfAmmo() {
+        game->playSound(TR::SND_EMPTY, pos, Sound::PAN);
+        if (game->invCount(TR::Entity::PISTOLS)) // some TR2 levels take the pistols away
+            wpnChange(TR::Entity::PISTOLS);
+        else
+            wpnHide();
+    }
+
     void doShot(bool rightHand, bool leftHand) {
         int *wpnAmmo = game->invCount(wpnCurrent);
 
-        if (wpnAmmo && *wpnAmmo != UNLIMITED_AMMO && *wpnAmmo <= 0) { // check for no ammo
-            game->playSound(TR::SND_EMPTY, pos, Sound::PAN);
-            wpnChange(TR::Entity::PISTOLS);
-        }
+        if (wpnAmmo && *wpnAmmo != UNLIMITED_AMMO && *wpnAmmo <= 0) // check for no ammo
+            wpnOutOfAmmo();
 
-        int count = wpnCurrent == TR::Entity::SHOTGUN ? 6 : 2;
+        int count = wpnCurrent == TR::Entity::SHOTGUN ? 6 : (wpnIsRifle() ? 1 : 2);
         float nearDist = 32.0f * 1024.0f;
         vec3  nearPos;
         int   shots = 0, hits = 0;
 
         for (int i = 0; i < count; i++) {
             int armIndex;
-            if (wpnCurrent == TR::Entity::SHOTGUN) {
+            if (wpnIsRifle()) {
                 if (!rightHand) continue;
                 armIndex = 0;
             } else {
@@ -1098,19 +1170,19 @@ struct Lara : Character {
             if (wpnAmmo && *wpnAmmo != UNLIMITED_AMMO) {
                 if (*wpnAmmo <= 0)
                     continue;
-                if (wpnCurrent != TR::Entity::SHOTGUN)
+                if (!wpnIsRifle())
                     *wpnAmmo -= 1;
             }
 
             shots++;
 
-            if (wpnCurrent != TR::Entity::SHOTGUN)
+            if (!wpnIsRifle())
                 game->addMuzzleFlash(this, i ? LARA_LGUN_JOINT : LARA_RGUN_JOINT, i ? LARA_LGUN_OFFSET : LARA_RGUN_OFFSET, 1 + camera->cameraIndex);
 
         // TODO: use new trace code
-            int joint = wpnCurrent == TR::Entity::SHOTGUN ? 8 : (i ? 11 : 8);
+            int joint = wpnIsRifle() ? 8 : (i ? 11 : 8);
             vec3 p = getJoint(joint).pos;
-            vec3 d = arm->rotAbs * vec3(0, 0, 1);
+            vec3 d = (wpnUseStates() && !arm->target) ? getDir() : arm->rotAbs * vec3(0, 0, 1);
             vec3 t = p + d * (24.0f * 1024.0f) + ((vec3(randf(), randf(), randf()) * 2.0f) - vec3(1.0f)) * 1024.0f;
 
             int room;
@@ -1135,19 +1207,22 @@ struct Lara : Character {
         }
 
         if (shots) {
-            saveStats.ammoUsed += ((wpnCurrent == TR::Entity::SHOTGUN) ? 1 : 2);
+            saveStats.ammoUsed += (wpnIsRifle() ? 1 : 2);
 
-            game->playSound(wpnGetSound(), pos, Sound::PAN);
+            if (!wpnUseStates()) // TR2+ rifles play their sounds by animation commands
+                game->playSound(wpnGetSound(), pos, Sound::PAN);
             if (shots != hits)
                 game->playSound(TR::SND_RICOCHET, nearPos, Sound::PAN);
 
-             if (wpnAmmo && *wpnAmmo != UNLIMITED_AMMO && wpnCurrent == TR::Entity::SHOTGUN)
+             if (wpnAmmo && *wpnAmmo != UNLIMITED_AMMO && wpnIsRifle())
                 *wpnAmmo -= 1;
         }
     }
 
     void updateWeapon() {
         if (level->isCutsceneLevel()) return;
+
+        wpnStopLoopSounds();
 
         if (wpnNext != TR::Entity::NONE && emptyHands()) {
             wpnSet(wpnNext);
@@ -1163,8 +1238,13 @@ struct Lara : Character {
                 wpnHide();
         }
 
+        if (!emptyHands() && wpnUseStates()) {
+            wpnRifleUpdate();
+            return;
+        }
+
         if (!emptyHands()) {
-            bool isRifle = wpnCurrent == TR::Entity::SHOTGUN;
+            bool isRifle = wpnIsRifle();
 
             for (int i = 0; i < 2; i++) {
                 Arm &arm = arms[i];
@@ -1251,6 +1331,254 @@ struct Lara : Character {
                 wpnSetAnim(arm, Weapon::IS_ARMED, Weapon::Anim::HOLD, 0.0f, 1.0f, false);
     }
 
+// TR2+ two-handed weapons
+    int wpnRifleFindAnim(int rifleState) {
+        Animation &a = arms[0].animation;
+        for (int i = 0; i < 16 && a.model->animation + i < level->animsCount; i++)
+            if (a.anims[i].state == rifleState)
+                return i;
+        return 0;
+    }
+
+    bool wpnRifleHasState(int rifleState) {
+        Animation &a = arms[0].animation;
+        TR::Animation *anim = a;
+        for (int i = 0; i < anim->scCount; i++)
+            if (level->states[anim->scOffset + i].state == rifleState)
+                return true;
+        return false;
+    }
+
+    bool wpnCanFireMoving() {
+        return wpnCurrent == TR::Entity::M16 || wpnCurrent == TR::Entity::HARPOON;
+    }
+
+    // the weapon is held low for the shots while moving (M16) or swimming (harpoon)
+    bool wpnRifleLow() {
+        if (stand == STAND_UNDERWATER)
+            return true;
+        return wpnCurrent == TR::Entity::M16 && (velocity.x != 0.0f || velocity.z != 0.0f);
+    }
+
+    void wpnRifleDraw(bool instant) {
+        Arm &arm = arms[0];
+        wpnGoal  = instant ? Weapon::RIFLE_AIM : Weapon::RIFLE_DRAW;
+        wpnFired = wpnAuto = false;
+        arm.animation.setAnim(wpnRifleFindAnim(wpnGoal));
+        arm.anim = arms[1].anim = instant ? Weapon::Anim::HOLD : Weapon::Anim::UNHOLSTER;
+        if (instant)
+            wpnSetState(Weapon::IS_ARMED);
+    }
+
+    void wpnRifleStopAuto() {
+        if (wpnAuto) {
+            wpnAuto = false;
+            Sound::stop(SND_TR2_M16_FIRE);
+            game->playSound(SND_TR2_M16_STOP, pos, Sound::PAN);
+        }
+    }
+
+    // TR2+ uzi and M16 shots are looped sounds, the original plays them only while the shooting goes on
+    void wpnStopLoopSounds() {
+        if (level->version & TR::VER_TR1)
+            return;
+
+        bool uzis = wpnCurrent == TR::Entity::UZIS && !emptyHands() && (arms[0].anim == Weapon::Anim::FIRE || arms[1].anim == Weapon::Anim::FIRE);
+        if (!uzis)
+            Sound::stop(TR::SND_UZIS_SHOT);
+
+        if (wpnAuto && (wpnCurrent != TR::Entity::M16 || emptyHands()))
+            wpnRifleStopAuto();
+        else if (!wpnAuto)
+            Sound::stop(SND_TR2_M16_FIRE);
+    }
+
+    bool wpnRifleFire(bool low) {
+        int *wpnAmmo = game->invCount(wpnCurrent);
+        if (wpnAmmo && *wpnAmmo != UNLIMITED_AMMO && *wpnAmmo <= 0) {
+            wpnOutOfAmmo();
+            return false;
+        }
+
+        switch (wpnCurrent) {
+            case TR::Entity::SHOTGUN :
+                if (low) return false;
+                doShot(true, false);
+                break;
+            case TR::Entity::M16 :
+                doShot(true, false);
+                game->playSound(SND_TR2_M16_FIRE, pos, Sound::PAN);
+                wpnAuto = true;
+                break;
+            case TR::Entity::GRENADE :
+                if (low) return false;
+                wpnFireProjectile(TR::Entity::GRENADE_BULLET);
+                break;
+            case TR::Entity::HARPOON :
+                wpnFireProjectile(TR::Entity::HARPOON_BULLET);
+                wpnShots++;
+                if (wpnShots % HARPOON_RELOAD == 0 && wpnAmmo && *wpnAmmo > 0)
+                    wpnReload = true;
+                break;
+            default : return false;
+        }
+        return true;
+    }
+
+    void wpnFireProjectile(TR::Entity::Type type) {
+        int *wpnAmmo = game->invCount(wpnCurrent);
+        if (wpnAmmo && *wpnAmmo != UNLIMITED_AMMO) {
+            if (*wpnAmmo <= 0) return;
+            *wpnAmmo -= 1;
+        }
+        saveStats.ammoUsed++;
+
+        Arm &arm = arms[0];
+        vec3 dir = arm.rotAbs * vec3(0, 0, 1);
+        if (!arm.target) // shoot straight ahead
+            dir = getDir().normal();
+        vec3 p = getJoint(JOINT_ARM_R3).pos + dir * 128.0f;
+
+    // don't start inside the wall
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), p, info);
+        if (p.y >= info.floor || p.y <= info.ceiling)
+            p = vec3(pos.x, getJoint(JOINT_ARM_R3).pos.y, pos.z);
+
+        Projectile *projectile = (Projectile*)game->addEntity(type, getRoomIndex(), p, 0);
+        if (projectile)
+            projectile->launch(this, dir, wpnGetDamage());
+    }
+
+    void wpnPlayAnimSounds(Animation &a) {
+        TR::Animation *anim = a;
+        int16 *ptr = &level->commands[anim->animCommand];
+        for (int i = 0; i < anim->acCount; i++) {
+            int cmd = *ptr++;
+            switch (cmd) {
+                case TR::ANIM_CMD_OFFSET : ptr += 3; break;
+                case TR::ANIM_CMD_JUMP   : ptr += 2; break;
+                case TR::ANIM_CMD_SOUND  :
+                case TR::ANIM_CMD_EFFECT : {
+                    int frame = (*ptr++) - anim->frameStart;
+                    int sfx   = (*ptr++);
+                    if (cmd != TR::ANIM_CMD_SOUND || !a.isFrameActive(frame))
+                        break;
+                    if ((sfx & 0x8000) && waterDepth <= 0.0f) break;
+                    if ((sfx & 0x4000) && waterDepth > 0.0f)  break;
+                    game->playSound(sfx & 0x3FFF, pos, Sound::PAN);
+                    break;
+                }
+                default : ;
+            }
+        }
+        a.framePrev = a.frameIndex;
+    }
+
+    void wpnRifleUpdate() {
+        Arm &arm = arms[0];
+        Animation &a = arm.animation;
+
+        bool action = (input & ACTION) != 0;
+        bool low    = wpnRifleLow();
+        bool canAim = (action && !arm.tracking) || arm.target;
+
+    // choose the goal state like the original game does
+        if (arm.anim == Weapon::Anim::HOLSTER) {
+            wpnRifleStopAuto();
+            wpnGoal = (stand == STAND_ONWATER && wpnRifleHasState(Weapon::RIFLE_SURF_UNDRAW)) ? Weapon::RIFLE_SURF_UNDRAW : Weapon::RIFLE_UNDRAW;
+        } else if (arm.anim == Weapon::Anim::UNHOLSTER) {
+            if (stand == STAND_UNDERWATER)
+                wpnGoal = Weapon::RIFLE_UAIM;
+        } else {
+            switch (a.state) {
+                case Weapon::RIFLE_AIM :
+                case Weapon::RIFLE_UAIM : {
+                    bool isLow = a.state == Weapon::RIFLE_UAIM;
+                    wpnRifleStopAuto();
+                    if (wpnReload) {
+                        wpnGoal   = Weapon::RIFLE_RELOAD;
+                        wpnReload = false;
+                    } else if (low != isLow)
+                        wpnGoal = low ? Weapon::RIFLE_UAIM : Weapon::RIFLE_AIM;
+                    else if (canAim)
+                        wpnGoal = isLow ? Weapon::RIFLE_URECOIL : Weapon::RIFLE_RECOIL;
+                    else
+                        wpnGoal = isLow ? Weapon::RIFLE_UUNAIM : Weapon::RIFLE_UNAIM;
+                    break;
+                }
+                case Weapon::RIFLE_RECOIL  :
+                case Weapon::RIFLE_URECOIL : {
+                    bool isLow = a.state == Weapon::RIFLE_URECOIL;
+                    if (a.frameIndex == 0) {
+                        if (!wpnFired) {
+                            wpnGoal = isLow ? Weapon::RIFLE_UUNAIM : Weapon::RIFLE_UNAIM;
+                            if (low == isLow && !wpnReload) {
+                                if (action) {
+                                    if ((!arm.tracking || arm.target) && wpnRifleFire(isLow)) {
+                                        wpnGoal  = a.state;
+                                        wpnFired = true;
+                                    }
+                                } else if (arm.target)
+                                    wpnGoal = isLow ? Weapon::RIFLE_UAIM : Weapon::RIFLE_AIM;
+                            }
+                            if (wpnGoal != a.state)
+                                wpnRifleStopAuto();
+                        }
+                    } else
+                        wpnFired = false;
+                    break;
+                }
+                case Weapon::RIFLE_RELOAD :
+                    wpnGoal = low ? Weapon::RIFLE_UAIM : Weapon::RIFLE_AIM; // don't reload again after the reload animation
+                    break;
+                default : ;
+            }
+        }
+
+        a.update();
+
+    // weapon is fully hidden
+        if (a.isEnded && (a.state == Weapon::RIFLE_UNDRAW || a.state == Weapon::RIFLE_SURF_UNDRAW)) {
+            wpnSetState(Weapon::IS_HIDDEN);
+            arm.anim = arms[1].anim = Weapon::Anim::NONE;
+            arm.tracking = arm.target = NULL;
+            return;
+        }
+
+        if (a.isEnded)
+            a.playNext();
+        a.setState(wpnGoal);
+        wpnPlayAnimSounds(a);
+
+    // the weapon is in hands from the middle of the draw animation and till the middle of the undraw animation
+        int frame = a.frameIndex;
+        switch (a.state) {
+            case Weapon::RIFLE_DRAW :
+                if (frame >= (wpnCurrent == TR::Entity::GRENADE ? 13 : 10))
+                    wpnSetState(Weapon::IS_ARMED);
+                break;
+            case Weapon::RIFLE_UNDRAW      :
+            case Weapon::RIFLE_SURF_UNDRAW :
+                if (frame >= (wpnCurrent == TR::Entity::GRENADE ? 14 : 21))
+                    wpnSetState(Weapon::IS_HIDDEN);
+                break;
+            case Weapon::RIFLE_RECOIL  :
+            case Weapon::RIFLE_URECOIL :
+                wpnSetState(action ? Weapon::IS_FIRING : Weapon::IS_ARMED);
+                break;
+            default :
+                if (wpnState != Weapon::IS_HIDDEN)
+                    wpnSetState(Weapon::IS_ARMED);
+        }
+
+    // drawn and ready to aim
+        if (arm.anim == Weapon::Anim::UNHOLSTER && (a.state == Weapon::RIFLE_AIM || a.state == Weapon::RIFLE_UAIM)) {
+            wpnSetState(Weapon::IS_ARMED);
+            arm.anim = arms[1].anim = Weapon::Anim::HOLD;
+        }
+    }
+
     void updateOverrides() {
         // Copy all current animation joints
         for (int i = 0; i < JOINT_MAX; i++)
@@ -1288,14 +1616,22 @@ struct Lara : Character {
         }
 
         // arms
-        if (!emptyHands()) {
+        if (!emptyHands() && wpnUseStates()) {
+            // TR2+ two-handed weapons animate the arms relative to the torso, M16 animates the torso too while it's held high
+            Animation &wa = arms[0].animation;
+            if (wpnCurrent == TR::Entity::M16 && (wa.state == Weapon::RIFLE_AIM || wa.state == Weapon::RIFLE_RECOIL))
+                animation.overrides[JOINT_CHEST] = wa.getJointRot(JOINT_CHEST);
+            for (int j = JOINT_ARM_R1; j <= JOINT_ARM_L3; j++)
+                animation.overrides[j] = wa.getJointRot(j);
+            overrideMask |= (JOINT_MASK_ARM_R | JOINT_MASK_ARM_L);
+        } else if (!emptyHands()) {
             // right arm
             Arm *arm = &arms[0];
             animation.overrides[JOINT_ARM_R1] = animation.overrides[JOINT_CHEST].inverse() * animation.overrides[JOINT_HIPS].inverse() * arm->animation.getJointRot(JOINT_ARM_R1);
             animation.overrides[JOINT_ARM_R2] = arm->animation.getJointRot(JOINT_ARM_R2);
             animation.overrides[JOINT_ARM_R3] = arm->animation.getJointRot(JOINT_ARM_R3);
             // left arm
-            if (wpnCurrent != TR::Entity::SHOTGUN) arm = &arms[1];
+            if (!wpnIsRifle()) arm = &arms[1];
 
             animation.overrides[JOINT_ARM_L1] = animation.overrides[JOINT_CHEST].inverse() * animation.overrides[JOINT_HIPS].inverse() * arm->animation.getJointRot(JOINT_ARM_L1);
             animation.overrides[JOINT_ARM_L2] = arm->animation.getJointRot(JOINT_ARM_L2);
@@ -1332,7 +1668,9 @@ struct Lara : Character {
             Character::lookAt(lookTarget);
 
         if (wpnReady() && !emptyHands()) {
-            if (wpnCurrent == TR::Entity::SHOTGUN)
+            if (wpnUseStates())
+                aimRifle();
+            else if (wpnIsRifle())
                 aimShotgun();
             else
                 aimPistols();
@@ -1348,6 +1686,14 @@ struct Lara : Character {
                 camera->setAngle(0, 0);
             }
         }
+    }
+
+    // TR2+ two-handed weapons follow the torso turned to the target, only the shot direction is needed
+    void aimRifle() {
+        quat rot;
+        Arm &arm = arms[0];
+        if (!aim(arm.target, JOINT_ARM_R1, vec4(-PI * 0.4f, PI * 0.4f, -PI * 0.25f, PI * 0.25f), rot, &arm.rotAbs))
+            arm.target = NULL;
     }
 
     void aimShotgun() {
@@ -1429,7 +1775,7 @@ struct Lara : Character {
                 }
         }
 
-        int count = wpnCurrent != TR::Entity::SHOTGUN ? 2 : 1;
+        int count = !wpnIsRifle() ? 2 : 1;
         if (!(input & ACTION) || retarget) {
             getTargets(arms[0].tracking, arms[1].tracking);
             if (count == 1)
@@ -1748,6 +2094,10 @@ struct Lara : Character {
             case TR::Entity::INV_SHOTGUN       : wpnChange(TR::Entity::SHOTGUN); break;
             case TR::Entity::INV_MAGNUMS       : wpnChange(TR::Entity::MAGNUMS); break;
             case TR::Entity::INV_UZIS          : wpnChange(TR::Entity::UZIS);    break;
+            case TR::Entity::INV_AUTOPISTOLS   : wpnChange(TR::Entity::AUTOPISTOLS); break;
+            case TR::Entity::INV_HARPOON       : wpnChange(TR::Entity::HARPOON); break;
+            case TR::Entity::INV_M16           : wpnChange(TR::Entity::M16);     break;
+            case TR::Entity::INV_GRENADE       : wpnChange(TR::Entity::GRENADE); break;
             case TR::Entity::INV_MEDIKIT_SMALL :
             case TR::Entity::INV_MEDIKIT_BIG   :
                 saveStats.mediUsed += (item == TR::Entity::INV_MEDIKIT_SMALL) ? 1 : 2;
@@ -2342,7 +2692,8 @@ struct Lara : Character {
             if (waterDepth > LARA_WADE_MAX_DEPTH || (waterLevel == 0.0f && waterDepth == 0.0f)) {
                 if (stand == STAND_GROUND)
                     return STAND_AIR;
-                wpnHide();
+                if (wpnCurrent != TR::Entity::HARPOON)
+                    wpnHide();
                 if (stand == STAND_UNDERWATER || stand == STAND_ONWATER)
                     return stand;
                 if (stand == STAND_AIR) {

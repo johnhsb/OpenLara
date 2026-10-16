@@ -251,6 +251,16 @@ enum StringID {
     , STR_TR3_CITY
     , STR_TR3_CHAMBER
     , STR_TR3_STPAUL
+// TR2+ inventory items
+    , STR_AUTOPISTOLS
+    , STR_HARPOON
+    , STR_M16
+    , STR_GRENADE
+    , STR_AMMO_AUTOPISTOLS
+    , STR_AMMO_HARPOON
+    , STR_AMMO_M16
+    , STR_AMMO_GRENADE
+    , STR_FLARES
 
     , STR_MAX
 };

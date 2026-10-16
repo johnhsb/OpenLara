@@ -286,11 +286,20 @@ struct Inventory {
                 case TR::Entity::INV_SHOTGUN         : desc = Desc( STR_SHOTGUN,         PAGE_INVENTORY, level->extra.inv.weapons[type]   ); break;
                 case TR::Entity::INV_MAGNUMS         : desc = Desc( STR_MAGNUMS,         PAGE_INVENTORY, level->extra.inv.weapons[type]   ); break;
                 case TR::Entity::INV_UZIS            : desc = Desc( STR_UZIS,            PAGE_INVENTORY, level->extra.inv.weapons[type]   ); break;
+                case TR::Entity::INV_AUTOPISTOLS     : desc = Desc( STR_AUTOPISTOLS,     PAGE_INVENTORY, level->extra.inv.weapons[type]   ); break;
+                case TR::Entity::INV_HARPOON         : desc = Desc( STR_HARPOON,         PAGE_INVENTORY, level->extra.inv.weapons[type]   ); break;
+                case TR::Entity::INV_M16             : desc = Desc( STR_M16,             PAGE_INVENTORY, level->extra.inv.weapons[type]   ); break;
+                case TR::Entity::INV_GRENADE         : desc = Desc( STR_GRENADE,         PAGE_INVENTORY, level->extra.inv.weapons[type]   ); break;
                                                                                    
                 case TR::Entity::INV_AMMO_PISTOLS    : desc = Desc( STR_AMMO_PISTOLS,    PAGE_INVENTORY, level->extra.inv.ammo[type]      ); break;
                 case TR::Entity::INV_AMMO_SHOTGUN    : desc = Desc( STR_AMMO_SHOTGUN,    PAGE_INVENTORY, level->extra.inv.ammo[type]      ); break;
                 case TR::Entity::INV_AMMO_MAGNUMS    : desc = Desc( STR_AMMO_MAGNUMS,    PAGE_INVENTORY, level->extra.inv.ammo[type]      ); break;
                 case TR::Entity::INV_AMMO_UZIS       : desc = Desc( STR_AMMO_UZIS,       PAGE_INVENTORY, level->extra.inv.ammo[type]      ); break;
+                case TR::Entity::INV_AMMO_AUTOPISTOLS: desc = Desc( STR_AMMO_AUTOPISTOLS,PAGE_INVENTORY, level->extra.inv.ammo[type]      ); break;
+                case TR::Entity::INV_AMMO_HARPOON    : desc = Desc( STR_AMMO_HARPOON,    PAGE_INVENTORY, level->extra.inv.ammo[type]      ); break;
+                case TR::Entity::INV_AMMO_M16        : desc = Desc( STR_AMMO_M16,        PAGE_INVENTORY, level->extra.inv.ammo[type]      ); break;
+                case TR::Entity::INV_AMMO_GRENADE    : desc = Desc( STR_AMMO_GRENADE,    PAGE_INVENTORY, level->extra.inv.ammo[type]      ); break;
+                case TR::Entity::INV_FLARES          : desc = Desc( STR_FLARES,          PAGE_INVENTORY, level->extra.inv.flares          ); break;
 
                 case TR::Entity::INV_MEDIKIT_SMALL   : desc = Desc( STR_MEDI_SMALL,      PAGE_INVENTORY, level->extra.inv.medikit[0]      ); break;
                 case TR::Entity::INV_MEDIKIT_BIG     : desc = Desc( STR_MEDI_BIG,        PAGE_INVENTORY, level->extra.inv.medikit[1]      ); break;
@@ -707,6 +716,19 @@ struct Inventory {
             add(TR::Entity::INV_MAGNUMS, 20);
             add(TR::Entity::INV_UZIS,    100);
         }
+
+        if (level->version & TR::VER_TR2) {
+            add(TR::Entity::INV_PISTOLS,     UNLIMITED_AMMO);
+            add(TR::Entity::INV_SHOTGUN,     50);
+            add(TR::Entity::INV_AUTOPISTOLS, 10);
+            add(TR::Entity::INV_UZIS,        10);
+            add(TR::Entity::INV_HARPOON,     20);
+            add(TR::Entity::INV_M16,         10);
+            add(TR::Entity::INV_GRENADE,     10);
+            add(TR::Entity::INV_FLARES,      2);
+            add(TR::Entity::INV_MEDIKIT_SMALL, 5);
+            add(TR::Entity::INV_MEDIKIT_BIG,   5);
+        }
     }
 
     void startVideo() {
@@ -781,6 +803,26 @@ struct Inventory {
                 case TR::Entity::INV_UZIS         :
                 case TR::Entity::INV_AMMO_UZIS    :
                     addAmmo(type, count, 50, TR::Entity::INV_UZIS, TR::Entity::INV_AMMO_UZIS);
+                    break;
+            // TR2+
+                case TR::Entity::INV_AUTOPISTOLS      :
+                case TR::Entity::INV_AMMO_AUTOPISTOLS :
+                    addAmmo(type, count, 40, TR::Entity::INV_AUTOPISTOLS, TR::Entity::INV_AMMO_AUTOPISTOLS);
+                    break;
+                case TR::Entity::INV_HARPOON      :
+                case TR::Entity::INV_AMMO_HARPOON :
+                    addAmmo(type, count,  3, TR::Entity::INV_HARPOON, TR::Entity::INV_AMMO_HARPOON);
+                    break;
+                case TR::Entity::INV_M16          :
+                case TR::Entity::INV_AMMO_M16     :
+                    addAmmo(type, count, 40, TR::Entity::INV_M16, TR::Entity::INV_AMMO_M16);
+                    break;
+                case TR::Entity::INV_GRENADE      :
+                case TR::Entity::INV_AMMO_GRENADE :
+                    addAmmo(type, count,  2, TR::Entity::INV_GRENADE, TR::Entity::INV_AMMO_GRENADE);
+                    break;
+                case TR::Entity::INV_FLARES       :
+                    count *= 6;
                     break;
                 default : ;
             }
@@ -1349,7 +1391,12 @@ struct Inventory {
                 case TR::Entity::INV_AMMO_PISTOLS    :
                 case TR::Entity::INV_AMMO_SHOTGUN    :
                 case TR::Entity::INV_AMMO_MAGNUMS    :
-                case TR::Entity::INV_AMMO_UZIS       : break;
+                case TR::Entity::INV_AMMO_UZIS       :
+                case TR::Entity::INV_AMMO_AUTOPISTOLS:
+                case TR::Entity::INV_AMMO_HARPOON    :
+                case TR::Entity::INV_AMMO_M16        :
+                case TR::Entity::INV_AMMO_GRENADE    :
+                case TR::Entity::INV_FLARES          : break; // TODO flares
                 default :
                     game->invUse(playerIndex, type);
                     toggle();
@@ -1372,7 +1419,11 @@ struct Inventory {
             case TR::Entity::INV_PISTOLS  :
             case TR::Entity::INV_SHOTGUN  :
             case TR::Entity::INV_MAGNUMS  :
-            case TR::Entity::INV_UZIS     : game->playSound(TR::SND_INV_WEAPON);    break;
+            case TR::Entity::INV_UZIS     :
+            case TR::Entity::INV_AUTOPISTOLS :
+            case TR::Entity::INV_HARPOON  :
+            case TR::Entity::INV_M16      :
+            case TR::Entity::INV_GRENADE  : game->playSound(TR::SND_INV_WEAPON);    break;
             default                       : game->playSound(TR::SND_INV_SHOW);      break;
         }
         item->choose();

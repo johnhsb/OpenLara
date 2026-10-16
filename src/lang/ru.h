@@ -354,6 +354,16 @@ const char *STR_RU[] = { ""
     , "Lost City Of Tinnos"
     , "Meteorite Cavern"
     , "All Hallows"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 inline bool isCyrillic(char c) {

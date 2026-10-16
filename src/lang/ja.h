@@ -281,6 +281,16 @@ const char *STR_JA[] = { "日本語"
     , "滅びたティノス"
     , "クレーター"
     , "セイントデイ"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 #endif
 
@@ -592,6 +602,16 @@ const char *STR_JA[] = { "\x11\x02\x70\x01\x97\x01\xD6\xFF\xFF"
     , "\x11\x01\xBA\x01\x8C\x01\x0E\x01\x24\x01\x29\x01\xF6\x01\x17\xFF\xFF"
     , "\x11\x01\x21\x01\x41\x01\x03\x01\x13\x01\x03\xFF\xFF"
     , "\x11\x01\x5F\x01\x3C\x01\x02\x01\x20\x01\x5A\x01\x3C\xFF\xFF"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif

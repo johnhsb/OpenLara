@@ -1680,7 +1680,7 @@ struct Bubble : Sprite {
 struct Explosion : Sprite {
 
     Explosion(IGame *game, int entity) : Sprite(game, entity, true, Sprite::FRAME_ANIMATED) {
-        game->playSound(TR::SND_EXPLOSION, pos, Sound::PAN);
+        game->playSound((level->version & TR::VER_TR1) ? TR::SND_EXPLOSION : 105, pos, Sound::PAN); // TR2+ explosion sound id
         level->spriteSequences[-(getEntity().modelIndex + 1)].transp = 2; // fix blending mode to additive
     }
 
@@ -1837,6 +1837,122 @@ struct Bullet : Controller {
             game->playSound(lara->stand == Character::STAND_UNDERWATER ? TR::SND_HIT_UNDERWATER : TR::SND_HIT, lara->pos, Sound::PAN);
 
         game->removeEntity(this);
+    }
+};
+
+
+// TR2 grenade launcher and harpoon gun projectiles (speeds are in units per 1/30 s)
+#define GRENADE_SPEED       200.0f
+#define GRENADE_FALL_SPEED  190.0f // starts to fall below this speed
+#define GRENADE_RADIUS      512.0f
+#define HARPOON_SPEED       150.0f
+
+struct Projectile : Controller {
+    Controller *owner;
+    float      speed;
+    float      fallSpeed;
+    float      damage;
+
+    Projectile(IGame *game, int entity) : Controller(game, entity), owner(NULL), speed(0.0f), fallSpeed(0.0f), damage(0.0f) {
+        activate();
+    }
+
+    virtual bool getSaveData(SaveEntity &data) {
+        return false;
+    }
+
+    bool isGrenade() {
+        return getEntity().type == TR::Entity::GRENADE_BULLET;
+    }
+
+    void launch(Controller *owner, const vec3 &dir, float damage) {
+        this->owner  = owner;
+        this->damage = damage;
+        angle = vec3(-asinf(clamp(dir.y, -1.0f, 1.0f)), atan2f(dir.x, dir.z), 0.0f);
+        if (isGrenade()) {
+            speed     = GRENADE_SPEED;
+            fallSpeed = 0.0f;
+        } else {
+            speed     = HARPOON_SPEED * cosf(angle.x);
+            fallSpeed = HARPOON_SPEED * -sinf(angle.x);
+            angle.x   = 0.0f;
+        }
+    }
+
+    // the enemy on the way from "from" to "to" (expanded by radius)
+    Character* getTarget(const vec3 &from, const vec3 &to, float radius) {
+        Controller *c = Controller::first;
+        while (c) {
+            if (c != owner && c->getEntity().isEnemy() && ((Character*)c)->isActiveTarget()) {
+                Box box = c->getBoundingBoxLocal();
+                box.expand(vec3(radius));
+                float t;
+                if (box.intersect(c->getMatrix(), from, to - from, t) && t <= 1.0f)
+                    return (Character*)c;
+            }
+            c = c->next;
+        }
+        return NULL;
+    }
+
+    void explode(const vec3 &p) {
+        Controller *c = Controller::first;
+        while (c) {
+            if (c != owner && c->getEntity().isEnemy() && ((Character*)c)->isActiveTarget()) {
+                if (c->getBoundingBox().intersect(Sphere(p, GRENADE_RADIUS)))
+                    ((Character*)c)->hit(damage, owner);
+            }
+            c = c->next;
+        }
+
+        game->addEntity(TR::Entity::EXPLOSION, getRoomIndex(), p);
+        game->removeEntity(this);
+    }
+
+    virtual void update() {
+        float k = Core::deltaTime * 30.0f;
+        bool underwater = getRoom().flags.water;
+
+        if (isGrenade()) {
+            speed = max(0.0f, speed - k);
+            if (speed < GRENADE_FALL_SPEED)
+                fallSpeed += k;
+        } else {
+            if (!underwater)
+                fallSpeed += GRAVITY * 0.5f * k;
+            angle.z += 35.0f * DEG2RAD * k; // spin
+        }
+
+        vec3 opos = pos;
+        pos += getDir() * (speed * k);
+        pos.y += fallSpeed * k;
+
+        TR::Room::Sector *sector = level->getSector(roomIndex, pos);
+        float floor   = level->getFloor(sector, pos);
+        float ceiling = level->getCeiling(sector, pos);
+
+        Character *target = getTarget(opos, pos, 0.0f);
+
+        if (isGrenade()) {
+            if (target || pos.y >= floor || pos.y <= ceiling)
+                explode(opos);
+            return;
+        }
+
+        if (target) {
+            target->hit(damage, owner);
+            game->addEntity(TR::Entity::BLOOD, getRoomIndex(), pos);
+            game->removeEntity(this);
+            return;
+        }
+
+        if (pos.y >= floor || pos.y <= ceiling) {
+            game->removeEntity(this);
+            return;
+        }
+
+        if (underwater && randf() < 0.2f)
+            game->addEntity(TR::Entity::BUBBLE, getRoomIndex(), pos);
     }
 };
 

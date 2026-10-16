@@ -349,6 +349,16 @@ const char *STR_DE[] = { ""
     , "Die vergessene Stadt Tinnos"
     , "H~ohle des Meteoriten"
     , "All Hallows"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif

@@ -350,6 +350,16 @@ const char *STR_FI[] = { "Suomi"
     , "Tinnosin Kadonnut Kaupunki"
     , "Meteoriittiluola"
     , "All Hallows"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif
