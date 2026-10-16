@@ -1295,8 +1295,11 @@ namespace TR {
                     track = remapTrack(version, track);
                     sprintf(title, "track_%02d", track);
                     if (!checkTrack("", title) && !checkTrack("audio/2/", title) && !checkTrack("audio/", title)) {
-                        callback(NULL, userData);
-                        return;
+                        sprintf(title, "Track%02d", track); // PC music pack
+                        if (!checkTrack("music/", title)) {
+                            callback(NULL, userData);
+                            return;
+                        }
                     }
                     break;
                 case VER_TR3_PC  :
