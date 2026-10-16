@@ -26,6 +26,7 @@
 #define LARA_TILT_SPEED     (DEG2RAD * 37.5f)
 #define LARA_TILT_MAX       (DEG2RAD * 10.0f)
 
+
 #define LARA_MAX_HEALTH     1000.0f
 #define LARA_MAX_OXYGEN     60.0f
 
@@ -50,6 +51,16 @@
 #define SND_TR2_M16_FIRE    78
 #define SND_TR2_M16_STOP    104
 #define HARPOON_RELOAD      4       // harpoon gun reloads after this count of shots
+
+// frames of the TR2+ flare arm animations (hold, throw, draw, ignite and hold again)
+#define FLARE_FRAME_HOLD    0
+#define FLARE_FRAME_THROW   1
+#define FLARE_FRAME_RELEASE 21
+#define FLARE_FRAME_DRAW    33
+#define FLARE_FRAME_GOT_IT  46
+#define FLARE_FRAME_IGNITE  72
+#define FLARE_FRAME_HOLD2   95
+#define FLARE_FRAME_END     110
 
 #define LARA_WATER_ACCEL    2.0f
 #define LARA_SURF_SPEED     15.0f
@@ -323,6 +334,19 @@ struct Lara : Character {
     bool             wpnAuto;   // automatic fire is in progress
     bool             wpnFired;  // the shot of the current recoil cycle is done
 
+// TR2+ flare in the left hand
+    enum FlareState { FLARE_NONE, FLARE_DRAW, FLARE_HOLD, FLARE_THROW };
+
+    int              flareState;
+    float            flareFrame;
+    float            flareAge;          // seconds of burning, < 0 - not lit yet
+    bool             flareControl;      // the arm is animated by the flare animations
+    bool             flarePending;      // light a flare as soon as the hands are free
+    bool             flareThenWeapon;   // draw the weapon after the flare is thrown
+    int              flareLightRoom;
+    Animation        flareAnim;
+    FlareFlame       *flareFlame;
+
     struct Arm {
         Controller      *tracking;       // tracking target (main target)
         Controller      *target;         // target for shooting
@@ -541,6 +565,15 @@ struct Lara : Character {
 
         itemHolster  = TR::Entity::NONE;
         hitTimer     = 0.0f;
+
+        flareState      = FLARE_NONE;
+        flareFrame      = 0.0f;
+        flareAge        = -1.0f;
+        flareControl    = flarePending = flareThenWeapon = false;
+        flareLightRoom  = -1;
+        flareFlame      = NULL;
+        if (level->extra.laraFlare > -1)
+            flareAnim = Animation(level, &level->models[level->extra.laraFlare]);
         networkInput = -1;
 
         dozy    = false;
@@ -1031,6 +1064,12 @@ struct Lara : Character {
     }
 
     void wpnDraw(bool instant = false) {
+        if (flareState != FLARE_NONE) {
+            flareThrow();
+            flareThenWeapon = true;
+            return;
+        }
+
         if (!canDrawWeapon()) return;
 
         if (wpnReady() && emptyHands()) {
@@ -1223,8 +1262,12 @@ struct Lara : Character {
         if (level->isCutsceneLevel()) return;
 
         wpnStopLoopSounds();
+        flareUpdate();
 
-        if (wpnNext != TR::Entity::NONE && emptyHands()) {
+        if (wpnNext != TR::Entity::NONE && flareState != FLARE_NONE)
+            flareThrow();
+
+        if (wpnNext != TR::Entity::NONE && emptyHands() && flareState == FLARE_NONE) {
             wpnSet(wpnNext);
             wpnDraw();
             wpnNext = TR::Entity::NONE;
@@ -1641,8 +1684,228 @@ struct Lara : Character {
         } else
             overrideMask &= ~(JOINT_MASK_ARM_R | JOINT_MASK_ARM_L);
 
+    // TR2+ flare in the left hand, the arm is animated relative to the torso
+        if (flareState != FLARE_NONE && flareControl && emptyHands()) {
+            flareSetArm();
+            for (int j = JOINT_ARM_L1; j <= JOINT_ARM_L3; j++)
+                animation.overrides[j] = flareAnim.getJointRot(j);
+            overrideMask |= JOINT_MASK_ARM_L;
+        }
+
         animation.overrideMask = overrideMask;
         jointsFrame = -1;
+    }
+
+// TR2+ flares
+    bool flareHoldState() {
+        switch (state) {
+            case STATE_WALK       :
+            case STATE_STOP       :
+            case STATE_TURN_RIGHT :
+            case STATE_TURN_LEFT  :
+            case STATE_BACK       :
+            case STATE_FAST_TURN  :
+            case STATE_STEP_LEFT  :
+            case STATE_STEP_RIGHT :
+            case STATE_WADE       :
+            case STATE_PICK_UP    :
+            case STATE_SWITCH_DOWN:
+            case STATE_SWITCH_UP  : return true;
+            default               : return false;
+        }
+    }
+
+    // both hands are needed, drop the flare
+    bool flareMustDrop() {
+        return health <= 0.0f || stand == STAND_HANG || isLadderState() || state == STATE_HANG_UP || state == STATE_HANDSTAND
+            || state == STATE_PUSH_BLOCK || state == STATE_PULL_BLOCK || state == STATE_PUSH_PULL_READY;
+    }
+
+    bool flareInHand() {
+        switch (flareState) {
+            case FLARE_DRAW  : return flareFrame >= FLARE_FRAME_GOT_IT;
+            case FLARE_HOLD  : return true;
+            case FLARE_THROW : return flareFrame < FLARE_FRAME_RELEASE;
+            default          : return false;
+        }
+    }
+
+    bool flareUse() {
+        if (level->extra.laraFlare < 0 || stand == STAND_HANG || isLadderState())
+            return true; // keep the flare in the inventory
+
+        if (flareState != FLARE_NONE) { // throw the current one and light a new one
+            flareThrow();
+            flarePending = true;
+        } else if (!emptyHands()) {
+            wpnHide();
+            flarePending = true;
+        } else
+            flareStart();
+
+        return true;
+    }
+
+    void flareStart() {
+        flareState   = FLARE_DRAW;
+        flareFrame   = FLARE_FRAME_DRAW;
+        flareAge     = -1.0f;
+        flareControl = true;
+        flarePending = false;
+    }
+
+    void flareThrow() {
+        if (flareState == FLARE_DRAW && flareFrame < FLARE_FRAME_GOT_IT) { // not taken yet
+            flareState   = FLARE_NONE;
+            flareControl = false;
+            return;
+        }
+
+        if (flareState == FLARE_DRAW || flareState == FLARE_HOLD) {
+            flareState   = FLARE_THROW;
+            flareFrame   = FLARE_FRAME_THROW;
+            flareControl = true;
+        }
+    }
+
+    void flareSetMesh(bool enable) {
+        if (!layers) initMeshOverrides();
+        if (enable)
+            meshSwap(4, level->extra.laraFlare, JOINT_MASK_ARM_L3);
+        else
+            layers[4].mask = 0;
+    }
+
+    void flareLightOff() {
+        if (flareLightRoom > -1)
+            level->rooms[flareLightRoom].removeDynLight(entity);
+        flareLightRoom = -1;
+        Sound::stop(SND_TR2_FLARE_BURN);
+        flareFlameRemove(game, flareFlame);
+    }
+
+    void flareDispose(bool thrown) {
+        vec3 p = getJoint(JOINT_ARM_L3).pos;
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), p, info);
+        if (p.y >= info.floor || p.y <= info.ceiling) // don't start inside the wall
+            p = vec3(pos.x, p.y, pos.z);
+
+        float speed = sqrtf(velocity.x * velocity.x + velocity.z * velocity.z);
+
+        FlareItem *flare = (FlareItem*)game->addEntity(TR::Entity::FLARE, getRoomIndex(), p, 0.0f);
+        if (flare) {
+            if (thrown)
+                flare->launch(angle.y, speed + 50.0f, velocity.y - 50.0f, flareAge);
+            else
+                flare->launch(angle.y - PI * 0.25f, speed + 10.0f, velocity.y + 50.0f, flareAge);
+        }
+
+        flareSetMesh(false);
+        flareLightOff();
+        flareAge = -1.0f;
+    }
+
+    void flareSetArm() {
+        int frame = int(flareFrame);
+        int index;
+        if (frame < FLARE_FRAME_THROW)
+            index = 0;
+        else if (frame < FLARE_FRAME_DRAW)
+            index = 1;
+        else if (frame < FLARE_FRAME_IGNITE)
+            index = 2;
+        else if (frame < FLARE_FRAME_HOLD2)
+            index = 3;
+        else
+            index = 4;
+
+        flareAnim.setAnim(index, 0, false);
+        flareAnim.time = clamp(flareFrame - flareAnim.anims[index].frameStart, 0.0f, flareAnim.timeMax * 30.0f - EPS) / 30.0f;
+        flareAnim.updateInfo();
+    }
+
+    void flareUpdate() {
+        if (level->extra.laraFlare < 0)
+            return;
+
+        if (flareState == FLARE_NONE) {
+            if (flarePending && emptyHands() && wpnNext == TR::Entity::NONE && !flareMustDrop())
+                flareStart();
+            return;
+        }
+
+        if (flareMustDrop()) {
+            if (flareInHand())
+                flareDispose(false);
+            flareState   = FLARE_NONE;
+            flareControl = flarePending = flareThenWeapon = false;
+            return;
+        }
+
+        float prev = flareFrame;
+        flareFrame += Core::deltaTime * 30.0f;
+
+        switch (flareState) {
+            case FLARE_DRAW :
+                flareControl = true;
+                if (prev < FLARE_FRAME_GOT_IT && flareFrame >= FLARE_FRAME_GOT_IT) {
+                    flareSetMesh(true);
+                    inventory->remove(TR::Entity::INV_FLARES);
+                }
+                if (prev < FLARE_FRAME_IGNITE && flareFrame >= FLARE_FRAME_IGNITE) {
+                    flareAge = 0.0f;
+                    game->playSound(SND_TR2_FLARE_IGNITE, pos, Sound::PAN);
+                }
+                if (flareFrame >= FLARE_FRAME_HOLD2 - 1) {
+                    flareState = FLARE_HOLD;
+                    flareFrame = FLARE_FRAME_HOLD;
+                }
+                break;
+            case FLARE_HOLD :
+                if (flareHoldState()) {
+                    if (!flareControl) { // raise the arm back
+                        flareControl = true;
+                        flareFrame   = FLARE_FRAME_HOLD2;
+                    } else if (flareFrame < FLARE_FRAME_HOLD2 || flareFrame >= FLARE_FRAME_END)
+                        flareFrame = FLARE_FRAME_HOLD;
+                } else {
+                    flareControl = false;
+                    flareFrame   = FLARE_FRAME_HOLD;
+                }
+                if (flareAge >= FLARE_MAX_AGE)
+                    flareThrow();
+                break;
+            case FLARE_THROW :
+                flareControl = true;
+                if (prev < FLARE_FRAME_RELEASE && flareFrame >= FLARE_FRAME_RELEASE)
+                    flareDispose(true);
+                if (flareFrame >= FLARE_FRAME_DRAW) {
+                    flareState   = FLARE_NONE;
+                    flareControl = false;
+                    flareFrame   = 0.0f;
+                    if (flareThenWeapon) {
+                        flareThenWeapon = false;
+                        wpnDraw();
+                    }
+                }
+                break;
+        }
+
+    // the burning flare in the hand lights the room
+        if (flareAge >= 0.0f && flareInHand()) {
+            flareAge += Core::deltaTime;
+            vec3 p = getJoint(JOINT_ARM_L3).pos;
+            int room = getRoomIndex();
+            if (flareLightRoom != room && flareLightRoom > -1)
+                level->rooms[flareLightRoom].removeDynLight(entity);
+            flareLightRoom = room;
+            level->rooms[room].addDynLight(entity, vec4(p, 0.0f), flareLightColor(flareBrightness(flareAge)), true);
+            if (!flareFlame)
+                flareFlame = flareFlameAdd(game, this, JOINT_ARM_L3, vec3(11.0f, 32.0f, 41.0f));
+            game->playSound(SND_TR2_FLARE_BURN, p, Sound::PAN | Sound::UNIQUE);
+        }
     }
 
     vec3 getAngle(const vec3 &dir) {
@@ -2098,6 +2361,7 @@ struct Lara : Character {
             case TR::Entity::INV_HARPOON       : wpnChange(TR::Entity::HARPOON); break;
             case TR::Entity::INV_M16           : wpnChange(TR::Entity::M16);     break;
             case TR::Entity::INV_GRENADE       : wpnChange(TR::Entity::GRENADE); break;
+            case TR::Entity::INV_FLARES        : return flareUse();
             case TR::Entity::INV_MEDIKIT_SMALL :
             case TR::Entity::INV_MEDIKIT_BIG   :
                 saveStats.mediUsed += (item == TR::Entity::INV_MEDIKIT_SMALL) ? 1 : 2;
@@ -2219,6 +2483,9 @@ struct Lara : Character {
 
     bool canPickup(Controller *controller) {
         TR::Entity::Type type = controller->getEntity().type;
+
+        if (type == TR::Entity::FLARE) // TODO pick up the burning flares
+            return false;
 
         // get limits
         TR::Limits::Limit *limit;

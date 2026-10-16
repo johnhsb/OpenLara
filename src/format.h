@@ -3140,6 +3140,7 @@ namespace TR {
             int16 laraSpec;
             int16 laraSkin;
             int16 laraJoints;
+            int16 laraFlare;
             int16 meshSwap[3];
             int16 sky;
             int16 smoke;
@@ -4934,6 +4935,7 @@ namespace TR {
                     case Entity::INV_AMMO_GRENADE    : extra.inv.ammo[type]  = i; break;
 
                     case Entity::INV_FLARES          : extra.inv.flares      = i; break;
+                    case Entity::LARA_FLARE          : extra.laraFlare       = i; break;
 
                     case Entity::INV_MEDIKIT_SMALL   : extra.inv.medikit[0]  = i; break;
                     case Entity::INV_MEDIKIT_BIG     : extra.inv.medikit[1]  = i; break;

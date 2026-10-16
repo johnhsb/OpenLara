@@ -1395,8 +1395,7 @@ struct Inventory {
                 case TR::Entity::INV_AMMO_AUTOPISTOLS:
                 case TR::Entity::INV_AMMO_HARPOON    :
                 case TR::Entity::INV_AMMO_M16        :
-                case TR::Entity::INV_AMMO_GRENADE    :
-                case TR::Entity::INV_FLARES          : break; // TODO flares
+                case TR::Entity::INV_AMMO_GRENADE    : break;
                 default :
                     game->invUse(playerIndex, type);
                     toggle();

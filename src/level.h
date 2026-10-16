@@ -1147,6 +1147,11 @@ struct Level : IGame {
         if (level.entities[index].type == TR::Entity::CUT_1 && (level.version & TR::VER_TR1))
             return new Lara(this, index);
 
+        if (level.entities[index].type == TR::Entity::FLARE && index >= level.entitiesBaseCount)
+            return new FlareItem(this, index); // flare thrown by Lara
+        if (level.entities[index].type == TR::Entity::FLARE_SPARKLES && index >= level.entitiesBaseCount)
+            return new FlareFlame(this, index);
+
         switch (level.entities[index].type) {
             case TR::Entity::LARA                  : return new Lara(this, index);
             case TR::Entity::ENEMY_DOPPELGANGER    : return new Doppelganger(this, index);

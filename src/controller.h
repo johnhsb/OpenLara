@@ -9,7 +9,7 @@
 #define GRAVITY     6.0f
 #define SPRITE_FPS  10.0f
 
-#define MAX_LAYERS  4
+#define MAX_LAYERS  5
 
 #define UNLIMITED_AMMO  10000
 

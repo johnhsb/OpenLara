@@ -1841,6 +1841,200 @@ struct Bullet : Controller {
 };
 
 
+// TR2 flares
+#define FLARE_MAX_AGE           60.0f   // burn time in seconds
+#define FLARE_LIGHT_RADIUS      4096.0f
+#define SND_TR2_FLARE_IGNITE    11
+#define SND_TR2_FLARE_BURN      12
+
+// brightness of the burning flare of "age" seconds, it flares up first and flickers before going out
+inline float flareBrightness(float age) {
+    if (age < 0.0f || age >= FLARE_MAX_AGE)
+        return 0.0f;
+    if (age < 1.0f)
+        return 0.5f + age * 0.5f;
+    if (age > FLARE_MAX_AGE - 2.0f)
+        return randf() < 0.75f ? 1.0f - randf() * 0.1f : 0.5f;
+    return 1.0f;
+}
+
+inline vec4 flareLightColor(float brightness) {
+    return vec4(vec3(1.4f, 0.75f, 0.6f) * brightness, 1.0f / FLARE_LIGHT_RADIUS);
+}
+
+// the burning end of a flare held by Lara or thrown
+struct FlareFlame : Controller {
+    Controller *owner;
+    int        joint;
+    vec3       offset;
+
+    FlareFlame(IGame *game, int entity) : Controller(game, entity), owner(NULL), joint(0), offset(0.0f) {
+        activate();
+    }
+
+    virtual bool getSaveData(SaveEntity &data) {
+        return false;
+    }
+
+    virtual void update() {
+        if (!owner) {
+            game->removeEntity(this);
+            return;
+        }
+        pos = owner->getJoint(joint) * offset;
+        updateRoom();
+    }
+
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {
+        if (!owner) return;
+
+        Basis b = owner->getJoint(joint);
+        b.w = 1.0f;
+        b.translate(offset);
+        b.rotate(quat(vec3(1, 0, 0), -PI * 0.5f));
+        b.rotate(quat(vec3(0, 1, 0), randf() * PI * 2.0f));
+
+        float alpha = 0.8f + randf() * 0.2f;
+        game->setShader(Core::pass, Shader::FLASH, false, false);
+        Core::setMaterial(alpha, 0.0f, 0.0f, alpha);
+        Core::setBasis(&b, 1);
+        Core::setDepthWrite(false);
+        mesh->renderModel(getEntity().modelIndex - 1);
+        Core::setDepthWrite(true);
+    }
+};
+
+inline FlareFlame* flareFlameAdd(IGame *game, Controller *owner, int joint, const vec3 &offset) {
+    FlareFlame *flame = (FlareFlame*)game->addEntity(TR::Entity::FLARE_SPARKLES, owner->getRoomIndex(), owner->pos, 0.0f);
+    if (flame) {
+        flame->owner  = owner;
+        flame->joint  = joint;
+        flame->offset = offset;
+    }
+    return flame;
+}
+
+inline void flareFlameRemove(IGame *game, FlareFlame *&flame) {
+    if (flame)
+        game->removeEntity(flame);
+    flame = NULL;
+}
+
+struct FlareItem : Controller {
+    float      age;
+    float      speed;     // units per 1/30 s
+    float      fallSpeed;
+    int        lightRoom;
+    FlareFlame *flame;
+
+    FlareItem(IGame *game, int entity) : Controller(game, entity), age(FLARE_MAX_AGE), speed(0.0f), fallSpeed(0.0f), lightRoom(-1), flame(NULL) {
+        activate();
+    }
+
+    virtual ~FlareItem() {
+        if (lightRoom > -1)
+            level->rooms[lightRoom].removeDynLight(entity);
+        if (flame)
+            flame->owner = NULL; // removes itself
+    }
+
+    virtual bool getSaveData(SaveEntity &data) {
+        return false;
+    }
+
+    void launch(float yaw, float speed, float fallSpeed, float age) {
+        angle = vec3(0.0f, yaw, 0.0f);
+        this->speed     = speed;
+        this->fallSpeed = fallSpeed;
+        this->age       = age;
+
+        if (flareBrightness(age) > 0.0f) {
+            Box box = getBoundingBoxLocal();
+            flame = flareFlameAdd(game, this, 0, box.min - box.max);
+        }
+    }
+
+    void lightOff() {
+        if (lightRoom > -1)
+            level->rooms[lightRoom].removeDynLight(entity);
+        lightRoom = -1;
+        flareFlameRemove(game, flame);
+    }
+
+    virtual void update() {
+        float k = Core::deltaTime * 30.0f;
+
+        if (fallSpeed != 0.0f) {
+            angle.x += 3.0f * DEG2RAD * k;
+            angle.z += 5.0f * DEG2RAD * k;
+        } else
+            angle.x = angle.z = 0.0f;
+
+        vec3 opos = pos;
+        pos.x += sinf(angle.y) * speed * k;
+        pos.z += cosf(angle.y) * speed * k;
+
+        if (getRoom().flags.water) {
+            float t = min(1.0f, 0.5f * k);
+            fallSpeed += (5.0f - fallSpeed) * t;
+            speed     += (5.0f - speed)     * t;
+        } else
+            fallSpeed += GRAVITY * k;
+
+        pos.y += fallSpeed * k;
+
+        int16 room = roomIndex;
+        TR::Room::Sector *sector = level->getSector(room, pos);
+        float floor = level->getFloor(sector, pos);
+
+        if (floor < opos.y - 128.0f) { // hit the wall, bounce back
+            pos.x = opos.x;
+            pos.z = opos.z;
+            angle.y += PI;
+            speed *= 0.5f;
+            room   = roomIndex;
+            sector = level->getSector(room, pos);
+            floor  = level->getFloor(sector, pos);
+        }
+
+        float ceiling = level->getCeiling(sector, pos);
+
+        if (pos.y >= floor) {
+            pos.y = floor;
+            if (fallSpeed > 30.0f) { // bounce off the floor
+                fallSpeed = -fallSpeed * 0.25f;
+                speed *= 0.5f;
+            } else {
+                fallSpeed = 0.0f;
+                speed = max(0.0f, speed - 2.0f * k);
+            }
+        } else if (pos.y <= ceiling) {
+            pos.y = ceiling + 1.0f;
+            if (fallSpeed < 0.0f)
+                fallSpeed = 0.0f;
+        }
+
+        updateRoom();
+
+        age += Core::deltaTime;
+
+        float brightness = flareBrightness(age);
+        if (brightness <= 0.0f) {
+            lightOff();
+            if (fallSpeed == 0.0f && speed == 0.0f) {
+                game->removeEntity(this);
+                return;
+            }
+        } else {
+            if (lightRoom != getRoomIndex() && lightRoom > -1)
+                level->rooms[lightRoom].removeDynLight(entity);
+            lightRoom = getRoomIndex();
+            // raise the light a bit, the lighting depends on the surface angle and the flare lies on the floor
+            level->rooms[lightRoom].addDynLight(entity, vec4(pos - vec3(0.0f, 256.0f, 0.0f), 0.0f), flareLightColor(brightness));
+        }
+    }
+};
+
 // TR2 grenade launcher and harpoon gun projectiles (speeds are in units per 1/30 s)
 #define GRENADE_SPEED       200.0f
 #define GRENADE_FALL_SPEED  190.0f // starts to fall below this speed
