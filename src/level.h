@@ -2682,6 +2682,9 @@ struct Level : IGame {
         if (water) {
             screen = (waterCache && waterCache->visible) ? waterCache->getScreenTex() : NULL;
 
+        // under water the background takes the fog color so the distant geometry doesn't end with a sharp edge
+            Core::setClearColor(camera->isUnderwater() ? vec4(underwaterFogParams.xyz(), 0.0f) : vec4(0.0f));
+
             int clearFlags = RT_STORE_COLOR;
 
             if (screen) {
@@ -2694,6 +2697,7 @@ struct Level : IGame {
 
             Core::setTarget(screen, NULL, clearFlags); // render to screen texture or back buffer
             Core::validateRenderState();
+            Core::setClearColor(vec4(0.0f));
             setupBinding();
         }
 
