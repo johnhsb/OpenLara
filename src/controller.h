@@ -1251,7 +1251,8 @@ struct Controller {
 
                 if (explode) {
                     explodeMask &= ~(1 << i);
-                    game->addEntity(TR::Entity::EXPLOSION, part.roomIndex, p);
+                    if (explodeFx())
+                        game->addEntity(TR::Entity::EXPLOSION, part.roomIndex, p);
                 }
             }
 
@@ -1347,6 +1348,9 @@ struct Controller {
         }
         return matrix;
     }
+
+    // the pieces burst into an explosion when they land
+    virtual bool explodeFx() { return true; }
 
     void explode(int32 mask, float damage) {
         const TR::Model *model = getModel();

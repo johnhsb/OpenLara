@@ -1245,7 +1245,13 @@ struct Lara : Character {
 
             int room;
             vec3 hit = trace(getRoomIndex(), p, t, room, false);
-            if (arm->target && checkHit(arm->target, p, hit, hit)) {
+
+        // a window in the way stops the bullet and breaks
+            BreakableWindow *window = getWindowHit(p, hit, hit);
+            if (window) {
+                window->smash();
+                hits++;
+            } else if (arm->target && checkHit(arm->target, p, hit, hit)) {
                 hits++;
                 TR::Entity::Type type = arm->target->getEntity().type;
                 ((Character*)arm->target)->hit(wpnGetDamage(), this);
@@ -2180,6 +2186,32 @@ struct Lara : Character {
         int room;
         vec3 d = trace(getRoomIndex(), from, to, room, false); // check occlusion
         return ((d - from).length() > (dist - 512.0f));
+    }
+
+    // the nearest unbroken window on the way from -> to
+    BreakableWindow* getWindowHit(const vec3 &from, const vec3 &to, vec3 &point) {
+        BreakableWindow *window = NULL;
+        float nearT = 1.0f;
+        vec3  v = to - from;
+
+        for (int i = 0; i < level->entitiesCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.type != TR::Entity::WINDOW_1 || !e.controller)
+                continue;
+            BreakableWindow *w = (BreakableWindow*)e.controller;
+            if (w->isSmashed())
+                continue;
+
+            float t;
+            if (w->getBoundingBoxLocal().intersect(w->getMatrix(), from, v, t) && t >= 0.0f && t < nearT) {
+                nearT  = t;
+                window = w;
+            }
+        }
+
+        if (window)
+            point = from + v * nearT;
+        return window;
     }
 
     bool checkHit(Controller *target, const vec3 &from, const vec3 &to, vec3 &point) {
@@ -4834,6 +4866,17 @@ struct Lara : Character {
             }
 
             if (e.type == TR::Entity::TRAP_BOULDER && !controller->flags.unused) continue; // boulder should stay still
+
+            if (e.type == TR::Entity::WINDOW_1 && fabsf(speed * cosf(angle.y - controller->angle.y)) >= WINDOW_SMASH_SPEED) {
+                vec3 dir = pos - vec3(0.0f, 128.0f, 0.0f) - controller->pos;
+                Box box = controller->getBoundingBoxLocal();
+                box.expand(vec3(LARA_RADIUS + 50.0f, 0.0f, LARA_RADIUS + 50.0f));
+                box.max.y += LARA_HEIGHT;
+                if (box.contains(dir.rotateY(controller->angle.y))) {
+                    ((BreakableWindow*)controller)->smash();
+                    continue;
+                }
+            }
 
             vec3 dir = pos - vec3(0.0f, 128.0f, 0.0f) - controller->pos;
             vec3 p   = dir.rotateY(controller->angle.y);

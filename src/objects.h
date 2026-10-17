@@ -1897,11 +1897,52 @@ struct Explosion : Sprite {
 };
 
 
+#define SND_TR2_GLASS_BREAK     58
+#define WINDOW_SMASH_SPEED      50.0f
+
+// TR2 smashable windows: the first mesh is the whole pane, the other ones are its pieces
+// WINDOW_1 breaks when shot or when Lara runs into it, WINDOW_2 when triggered
 struct BreakableWindow : Controller {
+    enum { FLAG_SMASHED = 1 };
 
     BreakableWindow(IGame *game, int entity) : Controller(game, entity) {
         initMeshOverrides();
         layers[0].mask = 0x00000001;
+    }
+
+    bool isSmashed() const {
+        return (flags.unused & FLAG_SMASHED) != 0;
+    }
+
+    virtual bool isCollider() {
+        return !isSmashed();
+    }
+
+    virtual bool explodeFx() {
+        return false;
+    }
+
+    void smash() {
+        if (isSmashed())
+            return;
+        flags.unused |= FLAG_SMASHED;
+        layers[0].mask = ~1;
+        explode(~((1 << 0) | (1 << 8)), 0.0f); // the frame (mesh 8) stays
+        game->playSound(SND_TR2_GLASS_BREAK, pos, Sound::PAN);
+        activate(); // to animate the pieces
+    }
+
+    virtual void update() {
+        if (getEntity().type == TR::Entity::WINDOW_2 && !isSmashed() && isActive())
+            smash();
+        Controller::update();
+        if (isSmashed() && !explodeMask)
+            deactivate(true);
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Controller::setSaveData(data);
+        layers[0].mask = isSmashed() ? (1 << 8) : 1;
     }
 };
 
