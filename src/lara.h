@@ -4410,6 +4410,8 @@ struct Lara : Character {
         if (laraStartPos.set && camera->cameraIndex == 0) {
             laraStartPos.set = false;
             reset(laraStartPos.room, laraStartPos.pos, laraStartPos.angle * DEG2RAD);
+            updateRoom(); // the given room may not contain the position
+            updateZone();
         }
 
         if (Input::state[camera->cameraIndex][cLook] && Input::lastState[camera->cameraIndex] == cAction)
