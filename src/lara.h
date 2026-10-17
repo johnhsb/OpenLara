@@ -5068,6 +5068,9 @@ struct Lara : Character {
                     mountBoat((SpeedBoat*)controller, getOn);
                     return false;
                 }
+                // falling down onto it (from a dock), let her drop in to get on
+                if (stand == STAND_AIR && velocity.y > 0.0f && pos.y <= controller->pos.y)
+                    continue;
             }
 
         // push Lara out of objects and walking enemies (flying ones and the dead don't block, except the huge T-Rex body as in the original)
