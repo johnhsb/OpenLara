@@ -1873,6 +1873,50 @@ inline vec4 flareLightColor(float brightness) {
     return vec4(vec3(1.4f, 0.75f, 0.6f) * brightness, 1.0f / FLARE_LIGHT_RADIUS);
 }
 
+#define FLARE_LIGHT_ROOMS 8
+
+// the flare light goes to its room and the rooms seen through its portals (a shaft above, the next corridor)
+struct FlareLight {
+    int rooms[FLARE_LIGHT_ROOMS];
+    int count;
+
+    FlareLight() : count(0) {}
+
+    bool has(int room) const {
+        for (int i = 0; i < count; i++)
+            if (rooms[i] == room)
+                return true;
+        return false;
+    }
+
+    void set(TR::Level *level, int id, int room, const vec3 &pos, const vec4 &color, bool priority = false) {
+        FlareLight next;
+        next.rooms[next.count++] = room;
+
+        const TR::Room &r = level->rooms[room];
+        for (int i = 0; i < r.portalsCount && next.count < FLARE_LIGHT_ROOMS; i++) {
+            int index = r.portals[i].roomIndex;
+            if (!next.has(index))
+                next.rooms[next.count++] = index;
+        }
+
+        for (int i = 0; i < count; i++)
+            if (!next.has(rooms[i]))
+                level->rooms[rooms[i]].removeDynLight(id);
+
+        for (int i = 0; i < next.count; i++)
+            level->rooms[next.rooms[i]].addDynLight(id, vec4(pos, 0.0f), color, priority);
+
+        *this = next;
+    }
+
+    void off(TR::Level *level, int id) {
+        for (int i = 0; i < count; i++)
+            level->rooms[rooms[i]].removeDynLight(id);
+        count = 0;
+    }
+};
+
 // the burning end of a flare held by Lara or thrown
 struct FlareFlame : Controller {
     Controller *owner;
@@ -1935,16 +1979,15 @@ struct FlareItem : Controller {
     float      age;
     float      speed;     // units per 1/30 s
     float      fallSpeed;
-    int        lightRoom;
+    FlareLight light;
     FlareFlame *flame;
 
-    FlareItem(IGame *game, int entity) : Controller(game, entity), age(FLARE_MAX_AGE), speed(0.0f), fallSpeed(0.0f), lightRoom(-1), flame(NULL) {
+    FlareItem(IGame *game, int entity) : Controller(game, entity), age(FLARE_MAX_AGE), speed(0.0f), fallSpeed(0.0f), flame(NULL) {
         activate();
     }
 
     virtual ~FlareItem() {
-        if (lightRoom > -1)
-            level->rooms[lightRoom].removeDynLight(entity);
+        light.off(level, entity);
         if (flame)
             flame->owner = NULL; // removes itself
     }
@@ -1966,9 +2009,7 @@ struct FlareItem : Controller {
     }
 
     void lightOff() {
-        if (lightRoom > -1)
-            level->rooms[lightRoom].removeDynLight(entity);
-        lightRoom = -1;
+        light.off(level, entity);
         flareFlameRemove(game, flame);
     }
 
@@ -2037,11 +2078,8 @@ struct FlareItem : Controller {
                 return;
             }
         } else {
-            if (lightRoom != getRoomIndex() && lightRoom > -1)
-                level->rooms[lightRoom].removeDynLight(entity);
-            lightRoom = getRoomIndex();
             // raise the light a bit, the lighting depends on the surface angle and the flare lies on the floor
-            level->rooms[lightRoom].addDynLight(entity, vec4(pos - vec3(0.0f, 256.0f, 0.0f), 0.0f), flareLightColor(brightness));
+            light.set(level, entity, getRoomIndex(), pos - vec3(0.0f, 256.0f, 0.0f), flareLightColor(brightness));
         }
     }
 };

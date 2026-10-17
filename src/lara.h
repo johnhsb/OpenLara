@@ -351,7 +351,7 @@ struct Lara : Character {
     bool             flareControl;      // the arm is animated by the flare animations
     bool             flarePending;      // light a flare as soon as the hands are free
     bool             flareThenWeapon;   // draw the weapon after the flare is thrown
-    int              flareLightRoom;
+    FlareLight       flareLight;
     Animation        flareAnim;
     FlareFlame       *flareFlame;
 
@@ -578,7 +578,6 @@ struct Lara : Character {
         flareFrame      = 0.0f;
         flareAge        = -1.0f;
         flareControl    = flarePending = flareThenWeapon = false;
-        flareLightRoom  = -1;
         flareFlame      = NULL;
         if (level->extra.laraFlare > -1)
             flareAnim = Animation(level, &level->models[level->extra.laraFlare]);
@@ -1785,9 +1784,7 @@ struct Lara : Character {
     }
 
     void flareLightOff() {
-        if (flareLightRoom > -1)
-            level->rooms[flareLightRoom].removeDynLight(entity);
-        flareLightRoom = -1;
+        flareLight.off(level, entity);
         Sound::stop(SND_TR2_FLARE_BURN);
         flareFlameRemove(game, flareFlame);
     }
@@ -1905,11 +1902,7 @@ struct Lara : Character {
         if (flareAge >= 0.0f && flareInHand()) {
             flareAge += Core::deltaTime;
             vec3 p = getJoint(JOINT_ARM_L3).pos;
-            int room = getRoomIndex();
-            if (flareLightRoom != room && flareLightRoom > -1)
-                level->rooms[flareLightRoom].removeDynLight(entity);
-            flareLightRoom = room;
-            level->rooms[room].addDynLight(entity, vec4(p, 0.0f), flareLightColor(flareBrightness(flareAge)), true);
+            flareLight.set(level, entity, getRoomIndex(), p, flareLightColor(flareBrightness(flareAge)), true);
             if (!flareFlame)
                 flareFlame = flareFlameAdd(game, this, JOINT_ARM_L3, vec3(11.0f, 32.0f, 41.0f));
             game->playSound(SND_TR2_FLARE_BURN, p, Sound::PAN | Sound::UNIQUE);
