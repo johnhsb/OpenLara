@@ -3405,6 +3405,222 @@ struct MaskedGoon : Human {
     }
 };
 
+// TR2 club thugs of Venice, the Opera House and the rig ("worker_3" in the original), they climb up to a block
+#define THUG_HIT_DAMAGE     80
+#define THUG_SWIPE_DAMAGE   100
+#define THUG_WALK_TURN      (DEG2RAD * 5 * 30)
+#define THUG_RUN_TURN       (DEG2RAD * 6 * 30)
+#define THUG_DIST_ATTACK_0  512
+#define THUG_DIST_ATTACK_1  1024
+#define THUG_DIST_ATTACK_2  1536
+#define THUG_DIST_WALK      2048
+#define THUG_WALK_CHANCE    0x100
+#define THUG_WAIT_CHANCE    0x100
+#define THUG_VAULT_SHIFT    260
+
+struct ClubThug : Enemy {
+
+    enum {
+        HIT_MASK = 0x600,
+    };
+
+    enum {
+        ANIM_DEATH   = 26,
+        ANIM_CLIMB_3 = 27,
+        ANIM_CLIMB_1 = 28,
+        ANIM_CLIMB_2 = 29,
+        ANIM_FALL_3  = 30,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_WALK,
+        STATE_PUNCH_2,
+        STATE_AIM_2,
+        STATE_WAIT,
+        STATE_AIM_1,
+        STATE_AIM_0,
+        STATE_PUNCH_1,
+        STATE_PUNCH_0,
+        STATE_RUN,
+        STATE_DEATH,
+        STATE_CLIMB_3,
+        STATE_CLIMB_1,
+        STATE_CLIMB_2,
+        STATE_FALL_3,
+    };
+
+    ClubThug(IGame *game, int entity) : Enemy(game, entity, 27, 102, 0.0f, 0.25f) {
+        stepHeight =  1024;
+        dropHeight = -1024;
+        jointChest = 1;
+        jointHead  = 5;
+        nextState  = STATE_EMPTY;
+    }
+
+    void punch(float damage, int hitFlag) {
+        if (flags.unused == hitFlag || !(collide(target) & HIT_MASK))
+            return;
+        bite(10, vec3(247.0f, 10.0f, 11.0f), damage);
+        flags.unused = hitFlag;
+    }
+
+    virtual int getStateGround() {
+        if (!think(false))
+            return state;
+
+        wound = false; // only the moment of a hit may scare it away, like in the original
+
+        if (nextState == state)
+            nextState = STATE_EMPTY;
+
+        bool bored = mood == MOOD_SLEEP;
+        bool reach = targetCanAttack; // ahead and about Lara's height
+
+        switch (state) {
+            case STATE_STOP :
+                flags.unused = 0;
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (bored) {
+                    if (nextState != STATE_EMPTY)
+                        return nextState;
+                    return randControl() < 0x4000 ? STATE_WALK : STATE_WAIT;
+                }
+                if (!reach)                            return STATE_RUN;
+                if (targetDist < THUG_DIST_ATTACK_0)   return STATE_AIM_0;
+                if (targetDist < THUG_DIST_ATTACK_1)   return STATE_AIM_1;
+                if (targetDist < THUG_DIST_WALK)       return STATE_WALK;
+                return STATE_RUN;
+            case STATE_WAIT :
+                if (!bored)
+                    return STATE_STOP;
+                if (randControl() < THUG_WALK_CHANCE) {
+                    nextState = STATE_WALK;
+                    return STATE_STOP;
+                }
+                break;
+            case STATE_WALK :
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (bored) {
+                    if (randControl() < THUG_WAIT_CHANCE) {
+                        nextState = STATE_WAIT;
+                        return STATE_STOP;
+                    }
+                    break;
+                }
+                if (!reach)                            return STATE_RUN;
+                if (targetDist < THUG_DIST_ATTACK_0)   return STATE_STOP;
+                if (targetDist < THUG_DIST_ATTACK_2)   return STATE_AIM_2;
+                return STATE_RUN;
+            case STATE_RUN :
+                if (mood == MOOD_ESCAPE)
+                    break;
+                if (bored || (targetInView && targetDist < THUG_DIST_WALK))
+                    return STATE_WALK;
+                break;
+            case STATE_AIM_0 :
+                flags.unused = 0;
+                return (reach && targetDist < THUG_DIST_ATTACK_0) ? STATE_PUNCH_0 : STATE_STOP;
+            case STATE_AIM_1 :
+                flags.unused = 0;
+                return (targetInView && targetDist < THUG_DIST_ATTACK_1) ? STATE_PUNCH_1 : STATE_STOP;
+            case STATE_AIM_2 :
+                flags.unused = 0;
+                return (reach && targetDist < THUG_DIST_ATTACK_2) ? STATE_PUNCH_2 : STATE_WALK;
+            case STATE_PUNCH_0 :
+                punch(THUG_HIT_DAMAGE, 1);
+                break;
+            case STATE_PUNCH_1 :
+                punch(THUG_HIT_DAMAGE, 1);
+                if (targetInView && targetDist > THUG_DIST_ATTACK_1 && targetDist < THUG_DIST_ATTACK_2)
+                    return STATE_PUNCH_2;
+                break;
+            case STATE_PUNCH_2 :
+                punch(THUG_SWIPE_DAMAGE, 2);
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(ANIM_DEATH);
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        bool vaulting = state >= STATE_CLIMB_3;
+
+        if (!vaulting)
+            turn(state == STATE_RUN, state == STATE_RUN ? THUG_RUN_TURN : (state == STATE_WALK ? THUG_WALK_TURN : 0.0f));
+
+        vec3 old = pos;
+        TR::Level::FloorInfo infoA, infoB;
+        getFloorInfo(getRoomIndex(), old, infoA);
+        old.y = infoA.floor;
+
+        Enemy::updatePosition();
+
+        if (!vaulting) {
+            getFloorInfo(getRoomIndex(), pos, infoB);
+            int clicks = int(floorf((old.y - infoB.floor) / 256.0f + 0.5f));
+            if (clicks >= 2 && clicks <= 4)
+                vault(old, clicks);
+            else if (clicks <= -4 && clicks >= -5)
+                vault(old, -4);
+        }
+
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+
+
+// climb up 2..4 clicks or jump down a block at the edge of the sector
+    void vault(const vec3 &old, int clicks) {
+        int ox = int(old.x) / 1024;
+        int oz = int(old.z) / 1024;
+        int cx = int(pos.x) / 1024;
+        int cz = int(pos.z) / 1024;
+
+        if ((ox == cx) == (oz == cz))
+            return; // not exactly one sector away
+
+        if (oz == cz) {
+            if (ox < cx) {
+                pos.x   = float(cx * 1024 - THUG_VAULT_SHIFT);
+                angle.y = PI * 0.5f;
+            } else {
+                pos.x   = float(ox * 1024 + THUG_VAULT_SHIFT);
+                angle.y = -PI * 0.5f;
+            }
+        } else {
+            if (oz < cz) {
+                pos.z   = float(cz * 1024 - THUG_VAULT_SHIFT);
+                angle.y = 0.0f;
+            } else {
+                pos.z   = float(oz * 1024 + THUG_VAULT_SHIFT);
+                angle.y = -PI;
+            }
+        }
+        pos.y = old.y;
+
+        switch (clicks) {
+            case  2 : animation.setAnim(ANIM_CLIMB_1); break;
+            case  3 : animation.setAnim(ANIM_CLIMB_2); break;
+            case  4 : animation.setAnim(ANIM_CLIMB_3); break;
+            case -4 : animation.setAnim(ANIM_FALL_3);  break;
+        }
+    }
+};
+
 struct Dog : Enemy {
 
     enum {
