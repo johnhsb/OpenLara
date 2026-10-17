@@ -287,6 +287,8 @@ const char *STR_HU[] = { ""
     /* 54 */ , "Nem tudsz meg~olni engem vagy a fi)ok)aimat olyan k~onnyed)en, Lara."
     /* 55 */ , "Egy kicsit elk)esett a d)ij)atad)as, non?@M)eg mindig a r)eszv)etel ami sz)am)it."
     /* 56 */ , "R)am l\"osz?@R)am l\"osz, mi?@Nincs senki m)as itt, csak r)am l\"ohetsz!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Lara otthona"
     , "Barlangok"

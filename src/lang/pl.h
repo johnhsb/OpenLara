@@ -287,6 +287,8 @@ const char *STR_PL[] = { ""
     /* 54 */ , "Nie mo*zesz tak }latwo pomiata)c mn|a@i moj|a zgraj|a, Laro."
     /* 55 */ , "Troch|e p)o)zno na rozdanie nagr)od - Czy*z nie?@?Wci|a*z jednak mo*zesz wzi|a)c udzia}l."
     /* 56 */ , "Strzelasz do mnie? Czy ty do mnie strzelasz?@Nie ma tu nikogo innego,@wi|ec to ty musisz do mnie strzela)c!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Posiad}lo)s)c Lary"
     , "G)orskie jaskinie"

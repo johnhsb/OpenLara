@@ -1257,7 +1257,10 @@ namespace TR {
         if ((version & VER_TR1) && (track >= 22 && track <= 56 && track != 24)) {
             return StringID(STR_TR1_SUB_22 + (track - 22));
         }
-        // TR2, TR3 TODO
+        if ((version & VER_TR2) && (track >= TRACK_TR2_CUT_1 && track <= TRACK_TR2_CUT_3)) {
+            return StringID(STR_TR2_SUB_CUT1 + (track - TRACK_TR2_CUT_1));
+        }
+        // TR3 TODO
         return STR_EMPTY;
     }
 

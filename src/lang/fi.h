@@ -287,6 +287,8 @@ const char *STR_FI[] = { "Suomi"
     /* 54 */ , "Et p~a~ase minusta ja laumaastani eroon niin helposti, Lara."
     /* 55 */ , "Hieman my~oh~ass~a palkintojen jakoon - eik~o?@Silti, se on se osallistuminen, joka merkitsee."
     /* 56 */ , "Ammutko minua?@Sin~a ammut minua?@T~a~all~a ei ole muita, Joten sen t~aytyy olla sin~a!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Laran Koti"
     , "Luolasto"

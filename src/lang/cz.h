@@ -287,6 +287,8 @@ const char *STR_CZ[] = { ""
     /* 54 */ , "M{e a m)ych potomk^u se tak snadno nezbav)ite, Laro."
     /* 55 */ , "Tro{sku pozd{e na ud{elen)i cen - non? Ale )U{cast se i tak po{c)it)a."
     /* 56 */ , "To st{r)il)i{s na m{e? To st{r)il)i{s na m{e, co? Nikdo jinej tady nen)i, ur{cit{e st{r)il)i{s na m{e!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "La{rin Domov"
     , "Jeskyn{e"

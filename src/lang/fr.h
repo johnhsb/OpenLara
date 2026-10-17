@@ -287,6 +287,8 @@ const char *STR_FR[] = { ""
     /* 54 */ , "Vous n'allez pas m')eliminer pas avec ma race aussi facilement Lara!"
     /* 55 */ , "Un peu tard pour la remise des prix non?@Ah... L'essentiel, c'est de participer? mais me voici maintenant devant un horrible dilemme!@C'est bien dommage, mais c'est la vie."
     /* 56 */ , "C'EST SUR MOI QUE TU TIRES?! C'EST SUR MOI QUE TU TIRES?! @BAH OUI Y'A PERSONNE! @C'EST SUR MOI QUE TU TIRES!!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Manoir de Lara"
     , "Cavernes"

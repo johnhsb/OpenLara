@@ -287,6 +287,8 @@ const char *STR_EN[] = { ""
     /* 54 */ , "You can't bump off me and my brood so easy, Lara."
     /* 55 */ , "A leetle late for ze prize giving - non?@Still, it is ze taking-part wheech counts."
     /* 56 */ , "You firin' at me?@You firin' at me, huh?@Ain't nobody else here, you must be firin' at me!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Lara's Home"
     , "Caves"

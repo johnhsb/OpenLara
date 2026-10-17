@@ -287,6 +287,8 @@ const char *STR_ES[] = { ""
     /* 54 */ , "No te deshar)as de mi y mi progenie tan f)acilmente, Lara."
     /* 55 */ , "Un poco tarde para la entrega de premios \xBFno?@, No importa, lo que cuenta es quien se lo lleva."
     /* 56 */ , "\xBFMe disparas a mi, eh?@\xBFMe disparas a mi, \xBF""eh?@\xA1""Aqu)io hay nadie m)as, as)i que debes estar dispar)andome a mi!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Hogar de Lara"
     , "Cuevas"

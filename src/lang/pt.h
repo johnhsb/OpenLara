@@ -287,6 +287,8 @@ const char *STR_PT[] = { ""
     /* 54 */ , "N+ao podes derrotar-me e a minha vassoura t+ao f)acilmente, Lara."
     /* 55 */ , "Um pouco tarde para o pr)emio - n+ao?@De qualquer modo, )e a tomada de partes que conta."
     /* 56 */ , "Est)as a disparar em mim?@Est)as a disparar em mim, huh?@N+ao h)a mais ningu)em, portanto deves estar a atirar em mim!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Casa da Lara"
     , "Cavernas"
