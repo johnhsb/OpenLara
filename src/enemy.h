@@ -296,8 +296,15 @@ struct Enemy : Character {
             game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(joint) * offset);
     }
 
+    // Lara's zone in the zone table of this enemy (it depends on how the enemy can move)
+    int targetZone() {
+        if (!target || target->box == TR::NO_BOX)
+            return -1;
+        return getZones()[target->box];
+    }
+
     Mood getMoodFixed() {
-        bool inZone = zone == target->zone;
+        bool inZone = zone == targetZone();
 
         if (mood == MOOD_SLEEP || mood == MOOD_STALK)
             return inZone ? MOOD_ATTACK : (wound ? MOOD_ESCAPE : mood);
@@ -309,7 +316,7 @@ struct Enemy : Character {
     }
 
     Mood getMoodRandom() {
-        bool inZone = zone == target->zone;
+        bool inZone = zone == targetZone();
         bool brave  = rand() < (mood != MOOD_ESCAPE ? 0x7800 : 0x0100) && inZone;
             
         if (mood == MOOD_SLEEP || mood == MOOD_STALK) {
@@ -350,7 +357,7 @@ struct Enemy : Character {
 
         int targetBoxOld = targetBox;
 
-        bool inZone = zone == target->zone;
+        bool inZone = zone == targetZone();
 
         if (target->health <= 0.0f || !inZone)
             targetBox = TR::NO_BOX;
@@ -600,7 +607,7 @@ struct Wolf : Enemy {
 
         switch (state) {
             case STATE_SLEEP    :
-                if (mood == MOOD_ESCAPE || target->zone == zone)
+                if (mood == MOOD_ESCAPE || targetZone() == zone)
                     nextState = STATE_GROWL;
                 else if (rand() < 32)
                     nextState = STATE_WALK;
@@ -866,7 +873,7 @@ struct Gorilla : Enemy {
                     return nextState;
                 if (targetCanAttack && targetDist < GORILLA_DIST_ATTACK)
                     return STATE_ATTACK;
-                if (!(flags.unused & FLAG_ATTACK) && zone == target->zone && targetInView) {
+                if (!(flags.unused & FLAG_ATTACK) && zone == targetZone() && targetInView) {
                     int r = rand() % 512;
                     if (r < 120) return STATE_JUMP;
                     if (r < 240) return STATE_IDLE1;
@@ -1956,13 +1963,13 @@ struct Mutant : Enemy {
                 if (targetAngle > PI * 0.25f)
                     flags.unused &= ~(FLAG_BULLET_1 | FLAG_BULLET_2);
             } else {
-                if (targetAngle < PI * 0.25f && state != STATE_FIRE && (targetDist > MUTANT_DIST_SHOT || zone != target->zone) && targetIsVisible(MAX_SHOT_DIST))
+                if (targetAngle < PI * 0.25f && state != STATE_FIRE && (targetDist > MUTANT_DIST_SHOT || zone != targetZone()) && targetIsVisible(MAX_SHOT_DIST))
                     flags.unused |= (rand() % 2) ? FLAG_BULLET_1 : FLAG_BULLET_2;
             }
         }
 
         if (getEntity().type == TR::Entity::ENEMY_MUTANT_1) { // flying mutant
-            if (mood == MOOD_ESCAPE || (zone != target->zone && !(flags.unused & (FLAG_BULLET_1 | FLAG_BULLET_2)))) {
+            if (mood == MOOD_ESCAPE || (zone != targetZone() && !(flags.unused & (FLAG_BULLET_1 | FLAG_BULLET_2)))) {
                 flags.unused |= FLAG_FLY;
             }
         }
@@ -1989,7 +1996,7 @@ struct Mutant : Enemy {
                     return STATE_STOP;
                 if (mood == MOOD_ATTACK || mood == MOOD_ESCAPE)
                     return STATE_STOP;
-                if (mood == MOOD_SLEEP || (mood == MOOD_STALK && target->zone != zone)) {
+                if (mood == MOOD_SLEEP || (mood == MOOD_STALK && targetZone() != zone)) {
                     if (rand() < 50)
                         return STATE_LOOKING;
                 } else if (mood == MOOD_STALK && targetDist > MUTANT_DIST_STALK)
@@ -2019,7 +2026,7 @@ struct Mutant : Enemy {
                         break;
                     case MOOD_STALK :
                         if (targetDist < MUTANT_DIST_STALK) {
-                            if (target->zone == zone && rand() < 256)
+                            if (targetZone() == zone && rand() < 256)
                                 return STATE_WALK;
                         } else
                             return STATE_STOP;
@@ -2070,7 +2077,7 @@ struct Mutant : Enemy {
         if (!think(true))
             return state;
 
-        if ((flags.unused & FLAG_FLY) && mood != MOOD_ESCAPE && zone == target->zone)
+        if ((flags.unused & FLAG_FLY) && mood != MOOD_ESCAPE && zone == targetZone())
             flags.unused &= ~FLAG_FLY;
 
         if (!(flags.unused & FLAG_FLY)) {
@@ -3254,6 +3261,120 @@ struct Dog : Enemy {
         if (state != STATE_DEATH)
             return animation.setAnim(ANIM_DEATH);
         return state;
+    }
+};
+
+// TR2 small spider
+#define SPIDER_DAMAGE        25
+#define SPIDER_DIST_ATTACK_2 512
+#define SPIDER_DIST_ATTACK_3 204
+#define SPIDER_TURN          (DEG2RAD * 8 * 30)
+#define SPIDER_WALK          256
+#define SPIDER_LEAP_HEIGHT   384
+#define SND_TR2_SPIDER_EXPLODE 349
+
+struct Spider : Enemy {
+
+    enum {
+        ANIM_LEAP = 2,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_WALK,
+        STATE_RUN,
+        STATE_ATTACK_1,
+        STATE_ATTACK_2,
+        STATE_ATTACK_3,
+        STATE_DEATH,
+    };
+
+    Spider(IGame *game, int entity) : Enemy(game, entity, 5, 102, 0.0f, 0.25f) {
+        stepHeight = 512;
+        dropHeight = -1024;
+        jointChest = jointHead = -1;
+    }
+
+    virtual void update() {
+        if (health <= 0.0f && !flags.invisible) { // burst with a single small explosion
+            game->playSound(SND_TR2_SPIDER_EXPLODE, pos, Sound::PAN);
+            Explosion *explosion = (Explosion*)game->addEntity(TR::Entity::EXPLOSION, getRoomIndex(), getBoundingBox().center());
+            if (explosion)
+                explosion->volume = 0.5f; // the original spider sound is too quiet to be heard over the shots
+            flags.invisible = true;
+            deactivate(true);
+            return;
+        }
+
+        Enemy::update();
+    }
+
+    virtual int getStateGround() {
+        if (!think(false))
+            return state;
+
+        bool touch = targetInView && collide(target) != 0;
+
+        switch (state) {
+            case STATE_STOP :
+                flags.unused = 0;
+                if (mood == MOOD_SLEEP)
+                    return rand() < SPIDER_WALK ? STATE_WALK : state;
+                if (touch)
+                    return STATE_ATTACK_1;
+                if (mood == MOOD_STALK)
+                    return STATE_WALK;
+                return STATE_RUN;
+            case STATE_WALK :
+                if (mood == MOOD_SLEEP)
+                    return rand() < SPIDER_WALK ? STATE_STOP : state;
+                if (mood == MOOD_ESCAPE || mood == MOOD_ATTACK)
+                    return STATE_RUN;
+                break;
+            case STATE_RUN :
+                flags.unused = 0;
+                if (mood == MOOD_SLEEP || mood == MOOD_STALK)
+                    return STATE_WALK;
+                if (touch)
+                    return STATE_STOP;
+                if (targetInView && targetDist < SPIDER_DIST_ATTACK_3)
+                    return STATE_ATTACK_3;
+                if (targetInView && targetDist < SPIDER_DIST_ATTACK_2)
+                    return STATE_ATTACK_2;
+                break;
+            case STATE_ATTACK_1 :
+            case STATE_ATTACK_2 :
+            case STATE_ATTACK_3 :
+                if (flags.unused == 0 && touch) {
+                    bite(1, vec3(0.0f, 0.0f, 41.0f), SPIDER_DAMAGE);
+                    flags.unused = 1;
+                }
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        return state;
+    }
+
+    virtual void updatePosition() {
+        if (health <= 0.0f)
+            return;
+
+        turn(false, SPIDER_TURN);
+
+        vec3 opos = pos;
+        int  oroom = roomIndex;
+        Enemy::updatePosition();
+
+    // too high to step up, leap there
+        if (pos.y < opos.y - SPIDER_LEAP_HEIGHT) {
+            pos = opos;
+            roomIndex = oroom;
+            animation.setAnim(ANIM_LEAP);
+        }
     }
 };
 

@@ -1265,6 +1265,7 @@ struct Level : IGame {
 
             case TR::Entity::ENEMY_DOG              : return new Dog(this, index);
             case TR::Entity::ENEMY_TIGER            : return new Tiger(this, index);
+            case TR::Entity::ENEMY_SPIDER           : return new Spider(this, index);
             case TR::Entity::ENEMY_GOON_MASK_1      :
             case TR::Entity::ENEMY_GOON_MASK_2      :
             case TR::Entity::ENEMY_GOON_MASK_3      :
@@ -1284,7 +1285,6 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GOON_STICK_2     :
             case TR::Entity::ENEMY_GOON_FLAME       :
             case TR::Entity::UNUSED_23              :
-            case TR::Entity::ENEMY_SPIDER           :
             case TR::Entity::ENEMY_SPIDER_GIANT     :
             case TR::Entity::ENEMY_CROW             :
             case TR::Entity::ENEMY_MARCO            :

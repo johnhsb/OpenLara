@@ -1678,14 +1678,25 @@ struct Bubble : Sprite {
 
 
 struct Explosion : Sprite {
+    float volume; // of the explosion sound
+    bool  sounded;
 
-    Explosion(IGame *game, int entity) : Sprite(game, entity, true, Sprite::FRAME_ANIMATED) {
-        game->playSound((level->version & TR::VER_TR1) ? TR::SND_EXPLOSION : 105, pos, Sound::PAN); // TR2+ explosion sound id
+    Explosion(IGame *game, int entity) : Sprite(game, entity, true, Sprite::FRAME_ANIMATED), volume(1.0f), sounded(false) {
         level->spriteSequences[-(getEntity().modelIndex + 1)].transp = 2; // fix blending mode to additive
     }
 
     virtual bool getSaveData(SaveEntity &data) {
         return false;
+    }
+
+    virtual void update() {
+        if (!sounded) {
+            sounded = true;
+            Sound::Sample *sample = game->playSound((level->version & TR::VER_TR1) ? TR::SND_EXPLOSION : 105, pos, Sound::PAN); // TR2+ explosion sound id
+            if (sample)
+                sample->volume *= volume;
+        }
+        Sprite::update();
     }
 };
 
