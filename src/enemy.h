@@ -43,9 +43,13 @@ struct Enemy : Character {
             int maxX = min(a.maxX, b.maxX);
             int maxZ = min(a.maxZ, b.maxZ);
 
-            point.x = float(minX + 512) + randf() * (maxX - minX - 1024);
+        // the point of the overlap nearest to the center of the next box, the overlap of box rectangles may be wide
+        // and a random point there could lie behind the enemy
+            if (maxX - minX > 1024) { minX += 512; maxX -= 512; } else minX = maxX = (minX + maxX) / 2;
+            if (maxZ - minZ > 1024) { minZ += 512; maxZ -= 512; } else minZ = maxZ = (minZ + maxZ) / 2;
+            point.x = float(clamp((b.minX + b.maxX) / 2, minX, maxX));
             point.y = float((a.floor + b.floor) / 2);
-            point.z = float(minZ + 512) + randf() * (maxZ - minZ - 1024);
+            point.z = float(clamp((b.minZ + b.maxZ) / 2, minZ, maxZ));
 
             return true;
         }
@@ -196,12 +200,27 @@ struct Enemy : Character {
 
         TR::Level::FloorInfo info;
         getFloorInfo(getRoomIndex(), pos, info);
+
+    // blocked, slide along the wall instead of stopping dead (the corners of narrow passages)
+        if (!canEnter(info) && stand == STAND_GROUND) {
+            vec3 slide[2] = { vec3(pos.x, pos.y, p.z), vec3(p.x, pos.y, pos.z) };
+            for (int i = 0; i < 2; i++) {
+                TR::Level::FloorInfo slideInfo;
+                getFloorInfo(getRoomIndex(), slide[i], slideInfo);
+                if (canEnter(slideInfo)) {
+                    pos  = slide[i];
+                    info = slideInfo;
+                    break;
+                }
+            }
+        }
+
         if (stand == STAND_AIR && !flying && info.floor < pos.y) {
             stand = STAND_GROUND;
             pos.y = info.floor;
         }
 
-        if (info.boxIndex != 0xFFFF && zone == getZones()[info.boxIndex] && !level->boxes[info.boxIndex].overlap.block) {
+        if (canEnter(info)) {
             switch (stand) {
                 case STAND_GROUND : {
                     float fallSpeed = 2048.0f * Core::deltaTime;
@@ -217,6 +236,10 @@ struct Enemy : Character {
             pos = p;
 
         updateRoom();
+    }
+
+    bool canEnter(const TR::Level::FloorInfo &info) {
+        return info.boxIndex != 0xFFFF && zone == getZones()[info.boxIndex] && !level->boxes[info.boxIndex].overlap.block;
     }
 
     void setOverrides(bool active, int chest, int head) {
@@ -435,7 +458,8 @@ struct Enemy : Character {
         if (targetBox != TR::NO_BOX && path) {
             vec3 d = pos - waypoint;
 
-            if (fabsf(d.x) < 512 && fabsf(d.y) < 512 && fabsf(d.z) < 512)
+        // the waypoint is reached when close to it or inside the box it leads to (a fast runner may circle around the point)
+            if ((fabsf(d.x) < 512 && fabsf(d.y) < 512 && fabsf(d.z) < 512) || (path->index > 0 && path->index < path->count && box == path->boxes[path->index]))
                 nextWaypoint();
         }
 
