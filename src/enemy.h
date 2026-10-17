@@ -3300,6 +3300,7 @@ struct MaskedGoon : Human {
         STATE_AIM_3,
         STATE_SHOOT_3,
         STATE_DEATH,
+        STATE_DEATH_2, // the second death animation has a state of its own
     };
 
     MaskedGoon(IGame *game, int entity) : Human(game, entity, 25) {
@@ -3424,14 +3425,18 @@ struct MaskedGoon : Human {
         return state;
     }
 
+    bool isDying() const {
+        return state == STATE_DEATH || state == STATE_DEATH_2;
+    }
+
     virtual int getStateDeath() {
-        if (state == STATE_DEATH)
+        if (isDying())
             return state;
         return animation.setAnim(animDeath);
     }
 
     virtual void updatePosition() {
-        if (state == STATE_DEATH) {
+        if (isDying()) {
             animation.overrideMask = 0;
             return;
         }
