@@ -1311,6 +1311,69 @@ struct Zipline : Controller {
 };
 
 
+#define GONDOLA_SINK_SPEED      50.0f
+#define SND_TR2_BOAT_INTO_WATER 337
+
+// TR2 gondola, the speedboat crashes into it at full speed and it sinks
+struct Gondola : Controller {
+    enum {
+        STATE_FLOATING = 1,
+        STATE_CRASH,
+        STATE_SINK,
+        STATE_LAND,
+    };
+
+    bool crashing;
+
+    Gondola(IGame *game, int entity) : Controller(game, entity), crashing(false) {}
+
+    bool isFloating() const {
+        return state == STATE_FLOATING && !crashing;
+    }
+
+    virtual bool isCollider() {
+        return isFloating();
+    }
+
+    virtual bool explodeFx() {
+        return false;
+    }
+
+    void crash() {
+        if (!isFloating())
+            return;
+        crashing = true;
+        explode(0xF0, 0.0f); // the bow and the stern fly off, the hull (meshes 0-3) sinks
+        game->playSound(SND_TR2_BOAT_INTO_WATER, pos, Sound::PAN);
+        activate();
+    }
+
+    virtual void update() {
+        if (crashing && state == STATE_FLOATING)
+            animation.setState(STATE_CRASH);
+
+        if (state == STATE_SINK) {
+            pos.y += GONDOLA_SINK_SPEED * 30.0f * Core::deltaTime;
+            Box box = animation.getBoundingBox(vec3(0.0f), 0);
+            int16 room = getRoomIndex();
+            vec3 p = vec3(pos.x, pos.y + box.min.y + 384.0f, pos.z);
+            TR::Room::Sector *sector = level->getSector(room, p);
+            float floor = level->getFloor(sector, pos);
+            roomIndex = room;
+            if (pos.y >= floor) {
+                pos.y = floor;
+                animation.setState(STATE_LAND);
+            }
+        }
+
+        if (explodeMask)
+            updateExplosion();
+        updateAnimation(true);
+        updateLights();
+    }
+};
+
+
 // TR2 speedboat, the physics run at 30 fps in the original units (angles: 65536 = 360 degrees)
 
 #define BOAT_RADIUS         500
@@ -1533,6 +1596,7 @@ struct SpeedBoat : Controller {
         z -= (slip * tcos(rotY)) >> 14;
 
         int movedX = x, movedZ = z;
+        doShiftGondolas();
         int rot = 0;
         Pos p;
 
@@ -1574,6 +1638,35 @@ struct SpeedBoat : Controller {
                 speed = BOAT_MAX_BACK;
         }
         return hit;
+    }
+
+    // a floating gondola stops the boat at its stern, unless the boat rams it at full speed
+    void doShiftGondolas() {
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.type != TR::Entity::GONDOLA || !e.controller)
+                continue;
+            Gondola *g = (Gondola*)e.controller;
+            if (!g->isFloating())
+                continue;
+
+            int gy = int(g->angle.y * (32768.0f / PI));
+            int sx = int(g->pos.x) - ((512 * tsin(gy)) >> 14);
+            int sz = int(g->pos.z) - ((512 * tcos(gy)) >> 14);
+            int dx = sx - x;
+            int dz = sz - z;
+            int dist = dx * dx + dz * dz;
+            const int R2 = (BOAT_RADIUS * 2) * (BOAT_RADIUS * 2);
+
+            if (dist >= R2 || dist == 0)
+                continue;
+
+            if (speed < BOAT_MAX_SPEED - 10) {
+                x = sx - int((int64)R2 * dx / dist);
+                z = sz - int((int64)R2 * dz / dist);
+            } else if (int(g->pos.y) - y < 2048)
+                g->crash();
+        }
     }
 
     // returns true if there's no turn input
