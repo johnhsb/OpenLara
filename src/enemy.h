@@ -3640,27 +3640,193 @@ struct ClubThug : Enemy {
     }
 };
 
+// TR2 Doberman of Venice and the Opera House
+#define DOG_BITE_DAMAGE     100
+#define DOG_LUNGE_DAMAGE    100
+#define DOG_WALK_TURN       (DEG2RAD * 3 * 30)
+#define DOG_RUN_TURN        (DEG2RAD * 6 * 30)
+#define DOG_DIST_ATTACK_1   341
+#define DOG_DIST_ATTACK_2   768
+#define DOG_DIST_ATTACK_3   682
+#define DOG_BITE_REACH      (DOG_DIST_ATTACK_1 + 64) // Lara is pushed out of the long body, the jaws rarely touch her meshes
+#define DOG_BODY_DIST       300.0f // don't come closer to Lara, the lunges would shove her around
+#define DOG_BARK            0x300
+#define DOG_CROUCH          0x600
+#define DOG_STAND           0xB00
+#define DOG_WALK            0x2600
+#define DOG_UNCROUCH        0x100
+#define DOG_UNSTAND         0x200
+#define DOG_UNBARK          0x500
+
 struct Dog : Enemy {
 
     enum {
-        ANIM_SLEEP = 5,
+        HIT_MASK = 0x13F7000,
+    };
+
+    enum {
         ANIM_DEATH = 13,
     };
 
     enum {
-        STATE_DEATH = 10,
+        STATE_EMPTY,
+        STATE_WALK,
+        STATE_RUN,
+        STATE_STOP,
+        STATE_BARK,
+        STATE_CROUCH,
+        STATE_STAND,
+        STATE_ATTACK_1,
+        STATE_ATTACK_2,
+        STATE_ATTACK_3,
+        STATE_DEATH,
     };
 
-    Dog(IGame *game, int entity) : Enemy(game, entity, 6, 10, 0.0f, 0.0f) {
-        jointChest = 19;
+    Dog(IGame *game, int entity) : Enemy(game, entity, 10, 341, 300.0f, 0.25f) {
+        jointChest = -1;
         jointHead  = 20;
-        animation.setAnim(ANIM_SLEEP);
+        nextState  = STATE_EMPTY;
+    }
+
+    void bite(float damage, int hitFlag) {
+        if (flags.unused == hitFlag)
+            return;
+        if (!(collide(target) & HIT_MASK) && !(targetInView && targetDist < DOG_BITE_REACH))
+            return;
+        Enemy::bite(20, vec3(0.0f, 30.0f, 141.0f), damage);
+        flags.unused = hitFlag;
+    }
+
+    virtual int getStateGround() {
+        if (!think(false))
+            return state;
+
+        wound = false; // only the moment of a hit may scare it away, like in the original
+
+        if (nextState == state)
+            nextState = STATE_EMPTY;
+
+        bool bored = mood == MOOD_SLEEP;
+
+        switch (state) {
+            case STATE_WALK :
+                if (!bored)
+                    return STATE_RUN;
+                {
+                    int r = randControl();
+                    if (r < DOG_BARK)   { nextState = STATE_BARK;   return STATE_STOP; }
+                    if (r < DOG_CROUCH) { nextState = STATE_CROUCH; return STATE_STOP; }
+                    if (r < DOG_STAND)  return STATE_STOP;
+                }
+                break;
+            case STATE_RUN :
+                if (bored)
+                    return STATE_STOP;
+                if (targetDist < DOG_DIST_ATTACK_2)
+                    return STATE_ATTACK_2;
+                break;
+            case STATE_STOP :
+                flags.unused = 0;
+                if (!bored) {
+                    if (mood != MOOD_ESCAPE && targetDist < DOG_DIST_ATTACK_2 && !facesTarget())
+                        return state; // Lara is beside, turn to her first
+                    if (mood != MOOD_ESCAPE && targetInView && targetDist < DOG_DIST_ATTACK_1)
+                        return STATE_ATTACK_1;
+                    return STATE_RUN;
+                }
+                if (nextState != STATE_EMPTY)
+                    return nextState;
+                {
+                    int r = randControl();
+                    if (r < DOG_BARK)   return STATE_BARK;
+                    if (r < DOG_CROUCH) return STATE_CROUCH;
+                    if (r < DOG_WALK)   return STATE_WALK;
+                }
+                break;
+            case STATE_BARK :
+                if (!bored || randControl() < DOG_UNBARK)
+                    return STATE_STOP;
+                break;
+            case STATE_CROUCH :
+                if (!bored || randControl() < DOG_UNCROUCH)
+                    return STATE_STOP;
+                break;
+            case STATE_STAND :
+                if (!bored || randControl() < DOG_UNSTAND)
+                    return STATE_STOP;
+                break;
+            case STATE_ATTACK_1 :
+                if (targetInView)
+                    bite(DOG_BITE_DAMAGE, 1);
+                if (targetDist > DOG_DIST_ATTACK_1 && targetDist < DOG_DIST_ATTACK_3)
+                    return STATE_ATTACK_3;
+                return STATE_STOP;
+            case STATE_ATTACK_2 :
+                bite(DOG_LUNGE_DAMAGE, 2);
+                if (targetDist < DOG_DIST_ATTACK_1)
+                    return STATE_ATTACK_1;
+                if (targetDist < DOG_DIST_ATTACK_3)
+                    return STATE_ATTACK_3;
+                return STATE_RUN; // Lara got away, run after her instead of lunging in place
+            case STATE_ATTACK_3 :
+                bite(DOG_LUNGE_DAMAGE, 3);
+                if (targetDist < DOG_DIST_ATTACK_1)
+                    return STATE_ATTACK_1;
+                break;
+        }
+        return state;
     }
 
     virtual int getStateDeath() {
-        if (state != STATE_DEATH)
-            return animation.setAnim(ANIM_DEATH);
-        return state;
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(ANIM_DEATH);
+    }
+
+
+
+
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        if ((state == STATE_STOP || state == STATE_ATTACK_1) && target && mood == MOOD_ATTACK) { // no turning animation, turn in place
+            float w = DOG_RUN_TURN * Core::deltaTime;
+            angle.y += clamp(targetAngle(), -w, w);
+        } else {
+            float w = 0.0f;
+            if (state == STATE_WALK) w = DOG_WALK_TURN;
+            if (state == STATE_RUN || state == STATE_ATTACK_2 || state == STATE_ATTACK_3) w = DOG_RUN_TURN;
+            turn(state == STATE_RUN, w);
+        }
+
+        vec3 old = pos;
+        Enemy::updatePosition();
+
+        if (target) {
+            float d0 = SQR(target->pos.x - old.x) + SQR(target->pos.z - old.z);
+            float d1 = SQR(target->pos.x - pos.x) + SQR(target->pos.z - pos.z);
+            if (d1 < SQR(DOG_BODY_DIST) && d1 < d0) {
+                pos.x = old.x;
+                pos.z = old.z;
+            }
+        }
+
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+
+    // signed angle from where the dog faces to Lara
+    float targetAngle() {
+        vec3 d = target->pos - pos;
+        return clampAngle(normalizeAngle(PIH - d.angleY() - angle.y));
+    }
+
+    bool facesTarget() {
+        return fabsf(targetAngle()) < DEG2RAD * 30.0f;
     }
 };
 
