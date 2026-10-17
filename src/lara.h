@@ -4832,8 +4832,8 @@ struct Lara : Character {
             if (!collide(controller, false))
                 continue;
 
-        // push Lara out of objects and walking enemies (flying ones and the dead don't block)
-            if (!e.isEnemy() || (!((Character*)controller)->flying && ((Character*)controller)->health > 0.0f)) {
+        // push Lara out of objects and walking enemies (flying ones and the dead don't block, except the huge T-Rex body as in the original)
+            if (!e.isEnemy() || (!((Character*)controller)->flying && (((Character*)controller)->health > 0.0f || e.type == TR::Entity::ENEMY_REX))) {
                 p += box.pushOut2D(p);
                 p = (p.rotateY(-controller->angle.y) + controller->pos) - pos;
                 collisionOffset += vec3(p.x, 0.0f, p.z);
