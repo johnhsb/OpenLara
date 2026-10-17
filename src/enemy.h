@@ -3321,7 +3321,7 @@ struct MaskedGoon : Human {
     }
 
     void fire() {
-        doShot(GOON_DAMAGE, vec3(3.0f, 331.0f, 56.0f));
+        doShot(GOON_DAMAGE, vec3(3.0f, -56.0f, 151.0f)); // the muzzle (3, 331, 56) of the gun mesh in the flash space
     }
 
     bool isAiming() const {
