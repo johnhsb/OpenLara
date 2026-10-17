@@ -27,6 +27,14 @@
 #define LARA_TILT_MAX       (DEG2RAD * 10.0f)
 
 
+// start position for the first level loaded (set by the platform, e.g. from the command line)
+static struct LaraStartPos {
+    bool  set;
+    int   room;
+    vec3  pos;
+    float angle;
+} laraStartPos;
+
 #define LARA_MAX_HEALTH     1000.0f
 #define LARA_MAX_OXYGEN     60.0f
 
@@ -4399,6 +4407,11 @@ struct Lara : Character {
     }
 
     virtual void update() {
+        if (laraStartPos.set && camera->cameraIndex == 0) {
+            laraStartPos.set = false;
+            reset(laraStartPos.room, laraStartPos.pos, laraStartPos.angle * DEG2RAD);
+        }
+
         if (Input::state[camera->cameraIndex][cLook] && Input::lastState[camera->cameraIndex] == cAction)
             camera->changeView(!camera->firstPerson);
 

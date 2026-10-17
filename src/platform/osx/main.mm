@@ -563,6 +563,11 @@ int main() {
         NSString *ext = [[arg pathExtension] lowercaseString];
         if ([ext isEqualToString:@"phd"] || [ext isEqualToString:@"tr2"] || [ext isEqualToString:@"psx"] || [ext isEqualToString:@"sat"] || [ext isEqualToString:@"tr4"])
             [arg getCString:levelName maxLength:sizeof(levelName) encoding:NSUTF8StringEncoding];
+    // optional Lara position in the level, --pos=room,x,y,z,angle
+        if ([arg hasPrefix:@"--pos="]) {
+            LaraStartPos &p = laraStartPos;
+            p.set = sscanf([[arg substringFromIndex:6] UTF8String], "%d,%f,%f,%f,%f", &p.room, &p.pos.x, &p.pos.y, &p.pos.z, &p.angle) == 5;
+        }
     }
     Game::init(levelName[0] ? levelName : NULL);
 
