@@ -2076,12 +2076,9 @@ struct Lara : Character {
                 if (arms[i].tracking) {
                     Controller *enemy = (Controller*)arms[i].tracking;
 
-                    Box box = enemy->getBoundingBox();
-                    vec3 to = box.center();
-                    to.y = box.min.y + (box.max.y - box.min.y) / 3.0f;
-
                     vec3 from = pos - vec3(0, 650, 0);
-                    arms[i].target = checkOcclusion(from, to, (to - from).length()) ? arms[i].tracking : NULL;
+                    vec3 to;
+                    arms[i].target = getVisiblePoint(enemy, from, to) ? arms[i].tracking : NULL;
                 }
 
             if (count == 1)
@@ -2131,7 +2128,7 @@ struct Lara : Character {
 
             float d = v.length();
 
-            if ((d > dist[0] && d > dist[1]) || !checkOcclusion(from, p, d)) 
+            if ((d > dist[0] && d > dist[1]) || !getVisiblePoint(enemy, from, p))
                 continue;
 
             if (d < dist[0]) {
@@ -2147,6 +2144,19 @@ struct Lara : Character {
 
         if (!target2 || dist[1] > dist[0] * 4)
             target2 = target1;
+    }
+
+    // the chest of an enemy or its head if the chest is hidden (behind a balcony railing for example)
+    bool getVisiblePoint(Controller *enemy, const vec3 &from, vec3 &point) {
+        Box box = enemy->getBoundingBox();
+        point = box.center();
+
+        point.y = box.min.y + (box.max.y - box.min.y) / 3.0f;
+        if (checkOcclusion(from, point, (point - from).length()))
+            return true;
+
+        point.y = box.min.y + (box.max.y - box.min.y) / 10.0f;
+        return checkOcclusion(from, point, (point - from).length());
     }
 
     bool checkOcclusion(const vec3 &from, const vec3 &to, float dist) {
