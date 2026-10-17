@@ -1311,6 +1311,426 @@ struct Zipline : Controller {
 };
 
 
+// TR2 speedboat, the physics run at 30 fps in the original units (angles: 65536 = 360 degrees)
+
+#define BOAT_RADIUS         500
+#define BOAT_SIDE           300
+#define BOAT_FRONT          750
+#define BOAT_TIP            (BOAT_FRONT + 250)
+#define BOAT_MIN_SPEED      20
+#define BOAT_MAX_SPEED      90
+#define BOAT_SLOW_SPEED     (BOAT_MAX_SPEED / 3)
+#define BOAT_FAST_SPEED     (BOAT_MAX_SPEED + 50)
+#define BOAT_MAX_BACK       (-20)
+#define BOAT_ACCEL          5
+#define BOAT_BRAKE          5
+#define BOAT_REVERSE        (-5)
+#define BOAT_SLOWDOWN       1
+#define BOAT_UNDO_TURN      (182 / 4)
+#define BOAT_TURN           (182 / 8)
+#define BOAT_MAX_TURN       (182 * 4)
+#define BOAT_SHIFT_Y        (-5)
+#define BOAT_GRAVITY        6
+#define BOAT_NO_HEIGHT      (TR::NO_FLOOR * 256)
+
+#define SND_TR2_BOAT_IDLE   195
+#define SND_TR2_BOAT_MOVING 197
+#define SND_TR2_BOAT_ENGINE 336
+
+struct SpeedBoat : Controller {
+    enum {
+        STATE_MOUNT,
+        STATE_STILL,
+        STATE_MOVING,
+        STATE_JUMP_R,
+        STATE_JUMP_L,
+        STATE_HIT,
+        STATE_FALL,
+        STATE_DEATH = 8,
+    };
+
+    // animations of Lara on the boat (LARA_BOAT model), the boat plays the same ones
+    enum {
+        ANIM_MOUNT_LEFT  = 0,
+        ANIM_MOUNT_START = 1,
+        ANIM_MOUNT_JUMP  = 6,
+        ANIM_MOUNT_RIGHT = 8,
+        ANIM_HIT_LEFT    = 11,
+        ANIM_HIT_RIGHT   = 12,
+        ANIM_HIT_FRONT   = 13,
+        ANIM_HIT_BACK    = 14,
+        ANIM_FALL        = 15,
+        ANIM_DEATH       = 18,
+    };
+
+    struct Pos { int x, y, z; };
+
+    Character *driver;   // Lara while she's on the boat
+    bool  control;       // the driver may steer (not mounting or jumping off)
+    int   x, y, z;
+    int   rotX, rotY, rotZ;
+    int   speed, fallSpeed, turnSpeed, leftFall, rightFall, water, tilt, extraRot;
+    int   collide;       // hit animation of the last step
+    float stepTime;
+
+    SpeedBoat(IGame *game, int entity) : Controller(game, entity), driver(NULL), control(false),
+        speed(0), fallSpeed(0), turnSpeed(0), leftFall(0), rightFall(0), water(0), tilt(0), extraRot(0), collide(0), stepTime(0.0f) {
+        x = int(pos.x);
+        y = int(pos.y);
+        z = int(pos.z);
+        rotX = rotZ = 0;
+        rotY = int16(int(angle.y * (32768.0f / PI)));
+    }
+
+    static int tsin(int a) { return int(sinf(a * (PI / 32768.0f)) * 16384.0f); }
+    static int tcos(int a) { return int(cosf(a * (PI / 32768.0f)) * 16384.0f); }
+    static int tatan(int x, int y) { return int(atan2f(float(y), float(x)) * (32768.0f / PI)); }
+
+    int getWaterHeight(int16 &room, const vec3 &p) {
+        int16 r = room;
+        TR::Room::Sector *sector = level->getWaterLevelSector(r, p);
+        return sector ? sector->ceiling * 256 : BOAT_NO_HEIGHT;
+    }
+
+    int getHeight(int16 &room, const Pos &p) {
+        TR::Room::Sector *sector = level->getSector(room, vec3(float(p.x), float(p.y), float(p.z)));
+        return int(level->getFloor(sector, vec3(float(p.x), float(p.y), float(p.z))));
+    }
+
+    // the water (or floor) height under a point of the hull
+    int testWaterHeight(int zOff, int xOff, Pos &p) {
+        int s = tsin(rotY), c = tcos(rotY);
+        p.x = x + ((c * xOff + s * zOff) >> 14);
+        p.z = z + ((c * zOff - s * xOff) >> 14);
+        p.y = y + ((xOff * tsin(rotZ)) >> 14) - ((zOff * tsin(rotX)) >> 14);
+
+        int16 room = getRoomIndex();
+        vec3 v = vec3(float(p.x), float(p.y), float(p.z));
+        TR::Room::Sector *sector = level->getSector(room, v);
+        int h = getWaterHeight(room, v);
+        if (h == BOAT_NO_HEIGHT) {
+            h = int(level->getFloor(sector, v));
+            return h;
+        }
+        return h + BOAT_SHIFT_Y;
+    }
+
+    // pushes the boat back out of a wall, returns the extra rotation
+    int doShift(const Pos &p, const Pos &old) {
+        int px = p.x >> 10, pz = p.z >> 10;
+        int ox = old.x >> 10, oz = old.z >> 10;
+        int sx = p.x & 1023, sz = p.z & 1023;
+
+        if (px == ox) {
+            if (pz == oz) {
+                x += old.x - p.x;
+                z += old.z - p.z;
+            } else if (pz > oz) {
+                z -= sz + 1;
+                return p.x - x;
+            } else {
+                z += 1024 - sz;
+                return x - p.x;
+            }
+        } else if (pz == oz) {
+            if (px > ox) {
+                x -= sx + 1;
+                return z - p.z;
+            } else {
+                x += 1024 - sx;
+                return p.z - z;
+            }
+        } else {
+            int dx = 0, dz = 0;
+            int16 room = getRoomIndex();
+            Pos t = { old.x, p.y, p.z };
+            if (getHeight(room, t) < old.y - 256)
+                dz = (p.z > old.z) ? (-sz - 1) : (1024 - sz);
+
+            room = getRoomIndex();
+            t.x = p.x; t.z = old.z;
+            if (getHeight(room, t) < old.y - 256)
+                dx = (p.x > old.x) ? (-sx - 1) : (1024 - sx);
+
+            if (dx && dz) {
+                x += dx;
+                z += dz;
+            } else if (dz) {
+                z += dz;
+                return dz > 0 ? (x - p.x) : (p.x - x);
+            } else if (dx) {
+                x += dx;
+                return dx > 0 ? (p.z - z) : (z - p.z);
+            } else {
+                x += old.x - p.x;
+                z += old.z - p.z;
+            }
+        }
+        return 0;
+    }
+
+    int getCollisionAnim(int mx, int mz) {
+        mx = x - mx;
+        mz = z - mz;
+        if (!mx && !mz)
+            return 0;
+        int s = tsin(rotY), c = tcos(rotY);
+        int front = (mx * s + mz * c) >> 14;
+        int side  = (mx * c - mz * s) >> 14;
+        if (abs(front) > abs(side))
+            return front > 0 ? ANIM_HIT_BACK : ANIM_HIT_FRONT;
+        return side > 0 ? ANIM_HIT_LEFT : ANIM_HIT_RIGHT;
+    }
+
+    static int doDynamics(int height, int fall, int &py) {
+        if (height > py) {
+            py += fall;
+            if (py > height) {
+                py = height;
+                fall = 0;
+            } else
+                fall += BOAT_GRAVITY;
+        } else {
+            fall += (height - fall - py) >> 3;
+            if (fall < -20) fall = -20;
+            if (py > height) py = height;
+        }
+        return fall;
+    }
+
+    int dynamics() {
+        rotZ -= tilt;
+
+        Pos flOld, frOld, blOld, brOld, fOld;
+        int hflOld = testWaterHeight( BOAT_FRONT, -BOAT_SIDE, flOld);
+        int hfrOld = testWaterHeight( BOAT_FRONT,  BOAT_SIDE, frOld);
+        int hblOld = testWaterHeight(-BOAT_FRONT, -BOAT_SIDE, blOld);
+        int hbrOld = testWaterHeight(-BOAT_FRONT,  BOAT_SIDE, brOld);
+        int hfOld  = testWaterHeight( BOAT_TIP,    0,         fOld);
+        Pos old = { x, y, z };
+        blOld.y = min(blOld.y, hblOld);
+        brOld.y = min(brOld.y, hbrOld);
+        flOld.y = min(flOld.y, hflOld);
+        frOld.y = min(frOld.y, hfrOld);
+        fOld.y  = min(fOld.y,  hfOld);
+
+        rotY += extraRot + turnSpeed;
+        tilt  = turnSpeed * 6;
+
+        x += (speed * tsin(rotY)) >> 14;
+        z += (speed * tcos(rotY)) >> 14;
+
+        int slip = (tsin(rotZ) * 30) >> 14;
+        if (!slip && rotZ)
+            slip = rotZ > 0 ? 1 : -1;
+        x += (slip * tcos(rotY)) >> 14;
+        z -= (slip * tsin(rotY)) >> 14;
+
+        slip = (tsin(rotX) * 10) >> 14;
+        if (!slip && rotX)
+            slip = rotX > 0 ? 1 : -1;
+        x -= (slip * tsin(rotY)) >> 14;
+        z -= (slip * tcos(rotY)) >> 14;
+
+        int movedX = x, movedZ = z;
+        int rot = 0;
+        Pos p;
+
+        if (testWaterHeight(-BOAT_FRONT, -BOAT_SIDE, p) < blOld.y - 128) rot  = doShift(p, blOld);
+        if (testWaterHeight(-BOAT_FRONT,  BOAT_SIDE, p) < brOld.y - 128) rot += doShift(p, brOld);
+        if (testWaterHeight( BOAT_FRONT, -BOAT_SIDE, p) < flOld.y - 128) rot += doShift(p, flOld);
+        if (testWaterHeight( BOAT_FRONT,  BOAT_SIDE, p) < frOld.y - 128) rot += doShift(p, frOld);
+        if (!slip && testWaterHeight(BOAT_TIP, 0, p) < fOld.y - 128) doShift(p, fOld);
+
+        int16 room = getRoomIndex();
+        vec3 v = vec3(float(x), float(y), float(z));
+        TR::Room::Sector *sector = level->getSector(room, v);
+        int height = getWaterHeight(room, v);
+        if (height == BOAT_NO_HEIGHT)
+            height = int(level->getFloor(sector, v));
+        if (height < y - 128) {
+            Pos cur = { x, y, z };
+            doShift(cur, old);
+        }
+
+        extraRot = rot;
+
+        int hit = getCollisionAnim(movedX, movedZ);
+        if (slip || hit) {
+            int dx = x - old.x, dz = z - old.z;
+            int newSpeed = (dx * tsin(rotY) + dz * tcos(rotY)) >> 14;
+
+            if (driver && speed > BOAT_MAX_SPEED + BOAT_ACCEL && newSpeed < speed - 10)
+                driver->hit(float((speed - newSpeed) / 2));
+
+            if (slip) {
+                if (speed <= BOAT_MAX_SPEED + 10)
+                    speed = newSpeed;
+            } else {
+                if ((speed > 0 && newSpeed < speed) || (speed < 0 && newSpeed > speed))
+                    speed = newSpeed;
+            }
+            if (speed < BOAT_MAX_BACK)
+                speed = BOAT_MAX_BACK;
+        }
+        return hit;
+    }
+
+    // returns true if there's no turn input
+    bool userControl() {
+        if (y < water - 128 || water == BOAT_NO_HEIGHT)
+            return true;
+
+        int input = driver->input;
+        if ((input & Character::LOOK) && speed == 0)
+            return true;
+        if (input & Character::JUMP)
+            return true;
+
+        bool left  = (input & Character::LEFT)  != 0;
+        bool right = (input & Character::RIGHT) != 0;
+        bool back  = (input & Character::BACK)  != 0;
+        bool noTurn = true;
+
+        if ((left && !back) || (right && back)) {
+            if (turnSpeed > 0)
+                turnSpeed -= BOAT_UNDO_TURN;
+            else
+                turnSpeed = max(turnSpeed - BOAT_TURN, -BOAT_MAX_TURN);
+            noTurn = false;
+        } else if ((right && !back) || (left && back)) {
+            if (turnSpeed < 0)
+                turnSpeed += BOAT_UNDO_TURN;
+            else
+                turnSpeed = min(turnSpeed + BOAT_TURN, BOAT_MAX_TURN);
+            noTurn = false;
+        }
+
+        if (back) {
+            if (speed > 0)
+                speed -= BOAT_BRAKE;
+            else if (speed > BOAT_MAX_BACK)
+                speed += BOAT_REVERSE;
+        } else if (input & Character::FORTH) {
+            int maxSpeed = (input & Character::ACTION) ? BOAT_FAST_SPEED : ((input & Character::WALK) ? BOAT_SLOW_SPEED : BOAT_MAX_SPEED);
+            if (speed < maxSpeed)
+                speed += BOAT_ACCEL / 2 + BOAT_ACCEL * speed / (2 * maxSpeed);
+            else if (speed > maxSpeed + BOAT_SLOWDOWN)
+                speed -= BOAT_SLOWDOWN;
+        } else if (speed >= 0 && speed < BOAT_MIN_SPEED && (left || right)) {
+            speed = BOAT_MIN_SPEED;
+        } else if (speed > BOAT_SLOWDOWN) {
+            speed -= BOAT_SLOWDOWN;
+        } else
+            speed = 0;
+
+        return noTurn;
+    }
+
+    void step() {
+        collide = dynamics();
+
+        Pos fl, fr;
+        int hfl = testWaterHeight(BOAT_FRONT, -BOAT_SIDE, fl);
+        int hfr = testWaterHeight(BOAT_FRONT,  BOAT_SIDE, fr);
+
+        int16 room = getRoomIndex();
+        vec3 v = vec3(float(x), float(y + BOAT_SHIFT_Y), float(z));
+        TR::Room::Sector *sector = level->getSector(room, v);
+        v.y = float(y);
+        int height = int(level->getFloor(sector, v));
+        water = getWaterHeight(room, v);
+
+        bool noTurn = true;
+        if (driver && driver->health > 0 && control)
+            noTurn = userControl();
+        else if (speed > BOAT_SLOWDOWN)
+            speed -= BOAT_SLOWDOWN;
+        else
+            speed = 0;
+
+        if (noTurn) {
+            if (turnSpeed < -BOAT_UNDO_TURN)
+                turnSpeed += BOAT_UNDO_TURN;
+            else if (turnSpeed > BOAT_UNDO_TURN)
+                turnSpeed -= BOAT_UNDO_TURN;
+            else
+                turnSpeed = 0;
+        }
+
+        water = (water == BOAT_NO_HEIGHT) ? height : (water + BOAT_SHIFT_Y);
+
+        leftFall  = doDynamics(hfl, leftFall, fl.y);
+        rightFall = doDynamics(hfr, rightFall, fr.y);
+        fallSpeed = doDynamics(water, fallSpeed, y);
+
+        height = (fr.y + fl.y) / 2;
+        int xr = tatan(BOAT_FRONT, y - height);
+        int zr = tatan(BOAT_SIDE, height - fl.y);
+        rotX += (xr - rotX) / 2;
+        rotZ += (zr - rotZ) / 2;
+        if (xr == 0 && abs(rotX) < 4) rotX = 0;
+        if (zr == 0 && abs(rotZ) < 4) rotZ = 0;
+
+        roomIndex = room;
+        rotZ += tilt;
+
+        if (driver && control) {
+            if (speed > 20)
+                game->playSound(SND_TR2_BOAT_MOVING, pos, Sound::PAN | Sound::UNIQUE);
+            else
+                game->playSound(SND_TR2_BOAT_IDLE, pos, Sound::PAN | Sound::UNIQUE);
+        }
+    }
+
+    // Lara gets on, the boat runs from now on
+    void mount(Character *lara) {
+        driver  = lara;
+        control = false;
+        activate();
+    }
+
+    void dismount() {
+        driver  = NULL;
+        control = false;
+        animation.setAnim(0);
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Controller::setSaveData(data);
+        x = int(pos.x);
+        y = int(pos.y);
+        z = int(pos.z);
+        rotX = rotZ = 0;
+        rotY = int16(int(angle.y * (32768.0f / PI)));
+        speed = fallSpeed = turnSpeed = tilt = extraRot = 0;
+        animation.setAnim(0);
+    }
+
+    // plays the animation Lara has on it
+    void syncAnim(int index, int frame) {
+        if (index >= 0 && index < ANIM_DEATH + 1)
+            animation.setAnim(index, -frame);
+    }
+
+    virtual void update() {
+        stepTime += Core::deltaTime;
+        int steps = 0;
+        while (stepTime >= 1.0f / 30.0f && steps < 4) {
+            step();
+            stepTime -= 1.0f / 30.0f;
+            steps++;
+        }
+        if (steps == 4)
+            stepTime = 0.0f;
+
+        pos   = vec3(float(x), float(y), float(z));
+        angle = vec3(int16(rotX) * (PI / 32768.0f), int16(rotY) * (PI / 32768.0f), int16(rotZ) * (PI / 32768.0f));
+        updateLights();
+    }
+};
+
+
 struct ThorHammerBlock : Controller {
     Controller *handle;
 

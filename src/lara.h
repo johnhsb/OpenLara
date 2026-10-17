@@ -374,6 +374,7 @@ struct Lara : Character {
     Controller        *pickupList[32];
     KeyHole           *keyHole;
     Zipline           *zipline;
+    SpeedBoat         *boat;
     Controller        *keyItem;
     Lightning         *lightning;
     Texture           *environment;
@@ -575,6 +576,7 @@ struct Lara : Character {
         braid[0] = braid[1] = NULL;
 
         zipline      = NULL;
+        boat         = NULL;
         itemHolster  = TR::Entity::NONE;
         hitTimer     = 0.0f;
 
@@ -772,6 +774,10 @@ struct Lara : Character {
             return false;
 
         Character::getSaveData(data);
+        if (boat) { // the boat ride isn't saved
+            data.animIndex = ANIM_STAND;
+            data.animFrame = 0;
+        }
         data.extraSize = sizeof(data.extra.lara);
         data.extra.lara.velX        = velocity.x;
         data.extra.lara.velY        = velocity.y;
@@ -801,6 +807,14 @@ struct Lara : Character {
         angle.x  = TR::angle(data.extra.lara.angleX);
         health   = data.extra.lara.health;
         oxygen   = data.extra.lara.oxygen;
+
+        // the boat ride isn't saved either
+        if (boat) {
+            boat->dismount();
+            boat = NULL;
+            animation.setModel(getModel());
+            animation.setAnim(data.animIndex, -data.animFrame);
+        }
 
         // the zipline ride isn't saved, drop off it
         zipline = NULL;
@@ -863,6 +877,7 @@ struct Lara : Character {
         keyHole = NULL;
         keyItem = NULL;
         zipline = NULL;
+        boat    = NULL;
 
         if (room == TR::NO_ROOM) {
             stand = STAND_AIR;
@@ -3257,6 +3272,159 @@ struct Lara : Character {
         return q;
     }
 
+// TR2 speedboat
+    #define ANIM_JUMP_FORWARD 77
+
+    const TR::Model* getLaraModel(TR::Entity::Type type) {
+        int index = level->getModelIndex(type);
+        return index > 0 ? &level->models[index - 1] : NULL;
+    }
+
+    // which way Lara gets on the boat (0 - she doesn't), as in the original
+    int boatGetOn(SpeedBoat *b) {
+        if (!emptyHands() || health <= 0.0f || b->driver)
+            return 0;
+
+        vec3 d = pos - b->pos;
+        float s = sinf(b->angle.y), c = cosf(b->angle.y);
+        if (d.x * s + d.z * c > 200.0f) // in front of the boat
+            return 0;
+
+        float rot = shortAngle(angle.y, b->angle.y); // boat - Lara
+
+        if (stand == STAND_ONWATER || stand == STAND_WADE) {
+            if (!(input & ACTION) || b->speed != 0)
+                return 0;
+            if (rot > PI * 0.25f && rot < PI * 0.75f)
+                return 1;
+            if (rot < -PI * 0.25f && rot > -PI * 0.75f)
+                return 2;
+            return 0;
+        }
+
+        if (stand == STAND_AIR) {
+            if (velocity.y > 0.0f && fabsf(rot) < PI * 0.75f && pos.y > b->pos.y)
+                return 3;
+            return 0;
+        }
+
+        if (stand == STAND_GROUND && fabsf(rot) < PI * 0.75f)
+            return 3;
+
+        return 0;
+    }
+
+    void mountBoat(SpeedBoat *b, int getOn) {
+        const TR::Model *model = getLaraModel(TR::Entity::LARA_BOAT);
+        if (!model) return;
+
+        boat = b;
+        boat->mount(this);
+
+        int anim;
+        switch (getOn) {
+            case 1  : anim = SpeedBoat::ANIM_MOUNT_RIGHT; break;
+            case 2  : anim = SpeedBoat::ANIM_MOUNT_LEFT;  break;
+            case 3  : anim = SpeedBoat::ANIM_MOUNT_JUMP;  break;
+            default : anim = SpeedBoat::ANIM_MOUNT_START;
+        }
+
+        animation.setModel(model);
+        animation.setAnim(anim);
+
+        pos       = boat->pos + vec3(0.0f, float(BOAT_SHIFT_Y), 0.0f);
+        angle     = vec3(0.0f, boat->angle.y, 0.0f);
+        roomIndex = boat->getRoomIndex();
+        velocity  = vec3(0.0f);
+        speed     = 0.0f;
+        stand     = STAND_GROUND;
+        hitDir    = -1;
+    }
+
+    void dismountBoat() {
+        int s = animation.state;
+        angle.y += (s == SpeedBoat::STATE_JUMP_L) ? -PI * 0.5f : PI * 0.5f;
+        angle.x = angle.z = 0.0f;
+
+        boat->dismount();
+        boat = NULL;
+
+        animation.setModel(getModel());
+        animation.setAnim(ANIM_JUMP_FORWARD);
+        stand    = STAND_AIR;
+        angleExt = angle.y;
+        velocity = getDir() * 20.0f;
+        velocity.y = -40.0f;
+
+        vec3 p = pos + getDir() * 360.0f;
+        p.y -= 90.0f;
+        int16 room = getRoomIndex();
+        TR::Room::Sector *sector = level->getSector(room, p);
+        if (level->getFloor(sector, p) >= p.y - 256.0f) {
+            pos.x = p.x;
+            pos.z = p.z;
+            roomIndex = room;
+        }
+        pos.y = p.y;
+    }
+
+    // Lara on the boat: the boat moves, she plays her animations on it
+    void updateBoat() {
+        lastInput = input;
+        input = getInput();
+
+        int s = animation.state;
+        bool mounting = animation.index == SpeedBoat::ANIM_MOUNT_LEFT || animation.index == SpeedBoat::ANIM_MOUNT_RIGHT || animation.index == SpeedBoat::ANIM_MOUNT_JUMP;
+        bool hitting  = animation.index >= SpeedBoat::ANIM_HIT_LEFT && animation.index <= SpeedBoat::ANIM_HIT_BACK;
+
+        boat->control = !mounting && s != SpeedBoat::STATE_JUMP_R && s != SpeedBoat::STATE_JUMP_L && s != SpeedBoat::STATE_DEATH;
+
+        if (health <= 0.0f) {
+            if (s != SpeedBoat::STATE_DEATH)
+                animation.setAnim(SpeedBoat::ANIM_DEATH);
+        } else if (boat->y < boat->water - 128 && boat->fallSpeed > 0) {
+            if (s != SpeedBoat::STATE_FALL)
+                animation.setAnim(SpeedBoat::ANIM_FALL);
+        } else if (boat->collide && !hitting && !mounting) {
+            animation.setAnim(boat->collide);
+        } else {
+            switch (s) {
+                case SpeedBoat::STATE_STILL  :
+                case SpeedBoat::STATE_MOVING :
+                    if ((input & JUMP) && (input & RIGHT))
+                        animation.setState(SpeedBoat::STATE_JUMP_R);
+                    else if ((input & JUMP) && (input & LEFT))
+                        animation.setState(SpeedBoat::STATE_JUMP_L);
+                    else
+                        animation.setState(boat->speed > 0 ? SpeedBoat::STATE_MOVING : SpeedBoat::STATE_STILL);
+                    break;
+                case SpeedBoat::STATE_FALL :
+                    animation.setState(SpeedBoat::STATE_MOVING);
+                    break;
+            }
+        }
+
+        s = animation.state;
+        bool jumpEnd = (s == SpeedBoat::STATE_JUMP_R || s == SpeedBoat::STATE_JUMP_L) && animation.frameIndex >= animation.framesCount - 1;
+
+        Controller::updateAnimation(true);
+
+        pos       = boat->pos;
+        angle     = boat->angle;
+        roomIndex = boat->getRoomIndex();
+        velocity  = vec3(0.0f);
+        boat->syncAnim(animation.index, animation.frameIndex);
+
+        checkTrigger(this, false);
+        updateLights();
+
+        if (camera->mode == ICamera::MODE_FOLLOW)
+            camera->setAngle(-20, 0);
+
+        if (jumpEnd)
+            dismountBoat();
+    }
+
     Zipline* getZipline() {
         for (int i = 0; i < level->entitiesCount; i++) {
             TR::Entity &e = level->entities[i];
@@ -4558,7 +4726,10 @@ struct Lara : Character {
                 default : ;
             }
 
-            Character::update();
+            if (boat)
+                updateBoat();
+            else
+                Character::update();
             for (int i = 0; i < COUNT(braid); i++) {
                 if (braid[i]) {
                     braid[i]->update();
@@ -4890,6 +5061,14 @@ struct Lara : Character {
 
             if (!collide(controller, false))
                 continue;
+
+            if (e.type == TR::Entity::VEHICLE_BOAT && !boat) {
+                int getOn = boatGetOn((SpeedBoat*)controller);
+                if (getOn) {
+                    mountBoat((SpeedBoat*)controller, getOn);
+                    return false;
+                }
+            }
 
         // push Lara out of objects and walking enemies (flying ones and the dead don't block, except the huge T-Rex body as in the original)
             if (!e.isEnemy() || (!((Character*)controller)->flying && (((Character*)controller)->health > 0.0f || e.type == TR::Entity::ENEMY_REX))) {
