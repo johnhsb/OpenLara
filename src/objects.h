@@ -1115,6 +1115,138 @@ struct TrapSword : Controller {
 };
 
 
+// TR2 traps
+
+#define SND_TR2_SPIKE_WALL      204
+#define SND_TR2_FLESH_WOUND     205
+#define SND_TR2_ROLLING_BLADE   231
+
+#define SPINDLE_DAMAGE          100
+#define SPINDLE_LOOK_AHEAD      1536.0f
+
+// a blade spinning along the floor, it turns back when it runs out of floor ahead
+struct TrapSpindle : Controller {
+    enum {
+        STATE_STOP = 1,
+        STATE_SPIN = 2,
+    };
+
+    bool stopping, spinning;
+
+    TrapSpindle(IGame *game, int entity) : Controller(game, entity), stopping(false), spinning(false) {
+        animation.setAnim(3);
+    }
+
+    virtual void update() {
+        if (state == STATE_SPIN) {
+            if (!stopping) {
+                int16 roomIdx = getRoomIndex();
+                vec3 p = pos + getDir() * SPINDLE_LOOK_AHEAD;
+                TR::Room::Sector *sector = level->getSector(roomIdx, p);
+                if (level->getFloor(sector, p) == TR::NO_FLOOR * 256)
+                    stopping = true;
+            }
+
+            if (stopping)
+                animation.setState(STATE_STOP);
+
+            spinning = true;
+
+            Character *lara = (Character*)game->getLara(pos);
+            if (lara->health > 0.0f && collide(lara))
+                lara->hit(SPINDLE_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
+
+            game->playSound(SND_TR2_ROLLING_BLADE, pos, Sound::PAN | Sound::UNIQUE);
+        } else {
+            if (isActive())
+                animation.setState(STATE_SPIN);
+        }
+
+        updateAnimation(true);
+
+        pos += getDir() * (animation.getSpeed() * 30.0f * Core::deltaTime);
+        updateRoom();
+
+        TR::Room::Sector *sector = level->getSector(roomIndex, pos);
+        pos.y = level->getFloor(sector, pos);
+
+        if (spinning && state == STATE_STOP) {
+            angle.y = clampAngle(angle.y + PI);
+            stopping = spinning = false;
+        }
+    }
+};
+
+#define BLADE_WALL_DAMAGE       100
+#define BLADE_WALL_MASK         (1 << 1) // the blade mesh
+
+// a blade slicing out of the wall while triggered
+struct TrapBladeWall : Controller {
+    enum {
+        STATE_STOP = 1,
+        STATE_CUT  = 2,
+    };
+
+    TrapBladeWall(IGame *game, int entity) : Controller(game, entity) {
+        animation.setAnim(2);
+    }
+
+    virtual void update() {
+        if (isActive() && state == STATE_STOP)
+            animation.setState(STATE_CUT);
+        else
+            animation.setState(STATE_STOP);
+
+        if (state == STATE_CUT) {
+            Character *lara = (Character*)game->getLara(pos);
+            if (lara->health > 0.0f && (collide(lara) & BLADE_WALL_MASK))
+                lara->hit(BLADE_WALL_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
+        }
+
+        updateAnimation(true);
+    }
+};
+
+#define SPIKE_WALL_DAMAGE       20
+#define SPIKE_WALL_SPEED        16.0f
+
+// a wall of spikes sliding forward while triggered, until it hits a wall or a step
+struct TrapSpikeWall : Controller {
+    bool finished;
+
+    TrapSpikeWall(IGame *game, int entity) : Controller(game, entity), finished(false) {}
+
+    virtual void update() {
+        if (!isActive()) {
+            const TR::Entity &e = getEntity();
+            roomIndex = e.room;
+            pos       = vec3(float(e.x), float(e.y), float(e.z));
+            finished  = false;
+            Sound::stop(SND_TR2_SPIKE_WALL);
+        } else if (!finished) {
+            int16 roomIdx = getRoomIndex();
+            vec3 p = pos + getDir() * (SPIKE_WALL_SPEED * 30.0f * Core::deltaTime);
+            TR::Room::Sector *sector = level->getSector(roomIdx, p);
+            if (level->getFloor(sector, p) != pos.y) {
+                finished = true;
+                Sound::stop(SND_TR2_SPIKE_WALL);
+            } else {
+                pos = p;
+                roomIndex = roomIdx;
+                game->playSound(SND_TR2_SPIKE_WALL, pos, Sound::PAN | Sound::UNIQUE);
+            }
+        }
+
+        Character *lara = (Character*)game->getLara(pos);
+        if (lara->health > 0.0f && collide(lara)) {
+            lara->hit(SPIKE_WALL_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_SPIKES);
+            game->playSound(SND_TR2_FLESH_WOUND, lara->pos, Sound::PAN | Sound::UNIQUE);
+        }
+    }
+};
+
+
+
 struct ThorHammerBlock : Controller {
     Controller *handle;
 

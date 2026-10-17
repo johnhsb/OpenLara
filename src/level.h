@@ -1316,6 +1316,10 @@ struct Level : IGame {
 
             case TR::Entity::FISH_EMITTER           : return new DummyController(this, index);
 
+            case TR::Entity::TRAP_SPINDLE           : return new TrapSpindle(this, index);
+            case TR::Entity::TRAP_BLADE_WALL        : return new TrapBladeWall(this, index);
+            case TR::Entity::TRAP_SPIKES_WALL       : return new TrapSpikeWall(this, index);
+
             default                                 : return new Controller(this, index);
         }
     }
