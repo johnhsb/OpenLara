@@ -3250,6 +3250,7 @@ struct Natla : Human {
 #define GOON_TURN           (DEG2RAD * 5 * 30)
 #define GOON_DIST_RUN       (1024 * 2)
 #define GOON_DIST_SHOT      (1024 * 8)
+#define GOON_AIM_ANGLE      (DEG2RAD * 10)
 #define GOON_POSE           0x500
 #define GOON_UNPOSE         0x100
 #define GOON_WALK           0xA00
@@ -3297,6 +3298,21 @@ struct MaskedGoon : Human {
 
     void fire() {
         doShot(GOON_DAMAGE, vec3(3.0f, 331.0f, 56.0f));
+    }
+
+    bool isAiming() const {
+        return state == STATE_AIM_1 || state == STATE_SHOOT_1 ||
+               state == STATE_AIM_3 || state == STATE_SHOOT_3;
+    }
+
+    // signed angle from where the goon faces to Lara
+    float targetAngle() {
+        vec3 d = target->pos - pos;
+        return clampAngle(normalizeAngle(PIH - d.angleY() - angle.y));
+    }
+
+    bool facesTarget() {
+        return fabsf(targetAngle()) < GOON_AIM_ANGLE;
     }
 
     virtual int getStateGround() {
@@ -3362,9 +3378,11 @@ struct MaskedGoon : Human {
             case STATE_AIM_1 :
             case STATE_AIM_3 :
                 flags.unused = 0;
-                if (mood != MOOD_ESCAPE && canShoot())
-                    return state == STATE_AIM_1 ? STATE_SHOOT_1 : STATE_SHOOT_3;
-                return STATE_STOP;
+                if (mood == MOOD_ESCAPE || !canShoot())
+                    return STATE_STOP;
+                if (!facesTarget())
+                    return state; // keep turning to Lara
+                return state == STATE_AIM_1 ? STATE_SHOOT_1 : STATE_SHOOT_3;
             case STATE_SHOOT_1 :
             case STATE_SHOOT_3 :
                 if (flags.unused == 0) {
@@ -3373,7 +3391,7 @@ struct MaskedGoon : Human {
                 }
                 return state == STATE_SHOOT_1 ? STATE_AIM_1 : STATE_AIM_3; // aim again to check where Lara is
             case STATE_SHOOT_2 : // shooting on the run, one shot and run again
-                if (flags.unused == 0 && canShoot()) {
+                if (flags.unused == 0 && canShoot() && facesTarget()) {
                     fire();
                     flags.unused = 1;
                 }
@@ -3388,16 +3406,17 @@ struct MaskedGoon : Human {
         return animation.setAnim(animDeath);
     }
 
-
-
-
     virtual void updatePosition() {
         if (state == STATE_DEATH) {
             animation.overrideMask = 0;
             return;
         }
 
-        turn(state == STATE_RUN, (state == STATE_WALK || state == STATE_RUN) ? GOON_TURN : 0.0f);
+        if (isAiming() && target) { // the aim animations don't move, turn to Lara in place
+            float w = GOON_TURN * Core::deltaTime;
+            angle.y += clamp(targetAngle(), -w, w);
+        } else
+            turn(state == STATE_RUN, (state == STATE_WALK || state == STATE_RUN) ? GOON_TURN : 0.0f);
 
         Enemy::updatePosition();
         setOverrides(true, jointChest, jointHead);
