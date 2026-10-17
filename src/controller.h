@@ -1452,7 +1452,7 @@ struct Controller {
         TR::Entity::Type type = getEntity().type;
         float fDiffuse = TR::Entity::isPickup(type) ? 1.0f : 0.5f;
         float fAmbient = (intensity < 0.0f ? intensityf(getRoom().ambient) : intensity) * fDiffuse;
-        float fAlpha   = (type == TR::Entity::SMOKE || type == TR::Entity::WATER_SPLASH || type == TR::Entity::SPARKLES) ? 0.75f : 1.0f;
+        float fAlpha   = (type == TR::Entity::SMOKE || type == TR::Entity::WATER_SPLASH || type == TR::Entity::SPARKLES) ? 0.75f : (type == TR::Entity::WAKE_BOAT ? 0.5f : 1.0f);
 
         uint8 ambient = clamp(int(fAmbient * 255.0f), 0, 255);
         uint8 alpha   = clamp(int(fAlpha   * 255.0f), 0, 255);

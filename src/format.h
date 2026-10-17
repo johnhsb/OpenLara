@@ -2535,7 +2535,8 @@ namespace TR {
         bool isSprite() const {
             return type == EXPLOSION || type == WATER_SPLASH || type == BUBBLE || 
                    type == BLOOD || type == SMOKE || type == FLAME || 
-                   type == RICOCHET || type == SPARKLES || type == LAVA_PARTICLE;
+                   type == RICOCHET || type == SPARKLES || type == LAVA_PARTICLE ||
+                   type == WAKE_BOAT;
         }
 
         bool castShadow() const {

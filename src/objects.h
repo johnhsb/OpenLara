@@ -1373,6 +1373,38 @@ struct Gondola : Controller {
     }
 };
 
+#define BOAT_WAKE_LIFE      20
+#define BOAT_WAKE_DIST      700
+
+// the spray behind the speedboat, a water sprite flying off for a moment
+struct BoatWake : Sprite {
+    int   counter, speed, fallSpeed;
+    float stepTime;
+
+    BoatWake(IGame *game, int entity) : Sprite(game, entity, true, 0), counter(BOAT_WAKE_LIFE), speed(0), fallSpeed(0), stepTime(0.0f) {}
+
+    virtual void update() {
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+
+            counter--;
+            if (counter % 4 == 0)
+                frame = (frame + 1) % max(getSequence().sCount, int16(1));
+
+            if (counter <= 0 || fallSpeed > 0) {
+                game->removeEntity(this);
+                return;
+            }
+
+            pos += vec3(sinf(angle.y), 0.0f, cosf(angle.y)) * float(speed);
+            if (fallSpeed) {
+                pos.y += fallSpeed;
+                fallSpeed += 6; // gravity
+            }
+        }
+    }
+};
 
 // TR2 speedboat, the physics run at 30 fps in the original units (angles: 65536 = 360 degrees)
 
@@ -1768,6 +1800,9 @@ struct SpeedBoat : Controller {
         roomIndex = room;
         rotZ += tilt;
 
+        if (speed && water == y)
+            doWake();
+
         if (driver && control) { // the engine sounds loop, only one of them at a time
             if (speed > 20) {
                 Sound::stop(SND_TR2_BOAT_IDLE);
@@ -1778,6 +1813,31 @@ struct SpeedBoat : Controller {
             }
         } else
             stopSounds();
+    }
+
+    // three water sprites behind the boat: to the left, back and to the right
+    void doWake() {
+        int seqIndex = level->getModelIndex(TR::Entity::WAKE_BOAT);
+        if (seqIndex >= 0)
+            return;
+        int frames = level->spriteSequences[-(seqIndex + 1)].sCount;
+        int frame  = frames > 0 ? ((rand() & 0x7FFF) * frames) >> 15 : 0;
+        int s = tsin(rotY), c = tcos(rotY);
+
+        for (int i = 0; i < 3; i++) {
+            int w = (1 - i) * BOAT_SIDE;
+            int lx = -w, lz = -BOAT_WAKE_DIST;
+            vec3 p = vec3(float(x + ((c * lx + s * lz) >> 14)), float(y), float(z + ((c * lz - s * lx) >> 14)));
+            float a = int16(rotY + (i << 14) - 0x4000) * (PI / 32768.0f);
+
+            BoatWake *wake = (BoatWake*)game->addEntity(TR::Entity::WAKE_BOAT, getRoomIndex(), p, a);
+            if (!wake)
+                continue;
+            wake->frame = frame;
+            wake->angle.y = a;
+            wake->speed = speed >> 2;
+            wake->fallSpeed = speed < 64 ? (((rand() & 0x7FFF) * (abs(speed) - 64)) >> 15) : 0;
+        }
     }
 
     // Lara gets on, the boat runs from now on
