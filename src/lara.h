@@ -3295,11 +3295,18 @@ struct Lara : Character {
         return (info.climb & (1 << angleQuadrant(angle.y, 0.25f))) != 0;
     }
 
+    // floor for the ladder tests, bridges and trapdoors count as in the original (GetHeight)
     int getClimbFloor(int16 &room, int x, int y, int z, int sy) {
         vec3 p = vec3(float(x), float(sy), float(z));
         TR::Room::Sector *sector = level->getSector(room, p);
         p.y = float(y);
-        return int(level->getFloor(sector, p));
+        int floor = int(level->getFloor(sector, p));
+        if (floor == CLIMB_NO_HEIGHT)
+            return floor;
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(room, p, info);
+        return min(floor, int(info.floor));
     }
 
     int getClimbCeiling(int16 &room, int x, int y, int z) {
