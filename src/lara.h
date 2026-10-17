@@ -1704,7 +1704,7 @@ struct Lara : Character {
             overrideMask &= ~(JOINT_MASK_ARM_R | JOINT_MASK_ARM_L);
 
     // TR2+ flare in the left hand, the arm is animated relative to the torso
-        if (flareState != FLARE_NONE && flareControl && emptyHands()) {
+        if (flareState != FLARE_NONE && flareControl && emptyHands() && !flareHandsBusy()) {
             flareSetArm();
             for (int j = JOINT_ARM_L1; j <= JOINT_ARM_L3; j++)
                 animation.overrides[j] = flareAnim.getJointRot(j);
@@ -1734,10 +1734,15 @@ struct Lara : Character {
         }
     }
 
-    // both hands are needed, drop the flare
+    // drop the flare on death only, while hanging, climbing or pushing she keeps it in the hand (as in the original)
     bool flareMustDrop() {
-        return health <= 0.0f || stand == STAND_HANG || isLadderState() || state == STATE_HANG_UP || state == STATE_HANDSTAND
-            || state == STATE_PUSH_BLOCK || state == STATE_PULL_BLOCK || state == STATE_PUSH_PULL_READY;
+        return health <= 0.0f;
+    }
+
+    // both hands are busy, no new flare can be lit and the arm follows the body animation
+    bool flareHandsBusy() {
+        return stand == STAND_HANG || isLadderState() || state == STATE_HANG_UP || state == STATE_HANDSTAND
+            || state == STATE_PUSH_BLOCK || state == STATE_PULL_BLOCK || state == STATE_PUSH_PULL_READY || zipline;
     }
 
     bool flareInHand() {
@@ -1848,7 +1853,7 @@ struct Lara : Character {
             return;
 
         if (flareState == FLARE_NONE) {
-            if (flarePending && emptyHands() && wpnNext == TR::Entity::NONE && !flareMustDrop())
+            if (flarePending && emptyHands() && wpnNext == TR::Entity::NONE && !flareMustDrop() && !flareHandsBusy())
                 flareStart();
             return;
         }
@@ -1891,7 +1896,7 @@ struct Lara : Character {
                     flareControl = false;
                     flareFrame   = FLARE_FRAME_HOLD;
                 }
-                if (flareAge >= FLARE_MAX_AGE)
+                if (flareAge >= FLARE_MAX_AGE && !flareHandsBusy())
                     flareThrow();
                 break;
             case FLARE_THROW :
