@@ -196,6 +196,8 @@ struct Lara : Character {
         ANIM_LADDER_BACKFLIP    = 182,
         ANIM_LADDER_UP_HANG     = 187,
         ANIM_LADDER_DOWN_HANG   = 188,
+        ANIM_ZIPLINE_GRAB       = 215,
+        ANIM_ZIPLINE_FALL       = 217,
     };
 
     // http://www.tombraiderforums.com/showthread.php?t=211681
@@ -371,6 +373,7 @@ struct Lara : Character {
     int               pickupListCount;
     Controller        *pickupList[32];
     KeyHole           *keyHole;
+    Zipline           *zipline;
     Controller        *keyItem;
     Lightning         *lightning;
     Texture           *environment;
@@ -571,6 +574,7 @@ struct Lara : Character {
 
         braid[0] = braid[1] = NULL;
 
+        zipline      = NULL;
         itemHolster  = TR::Entity::NONE;
         hitTimer     = 0.0f;
 
@@ -798,6 +802,13 @@ struct Lara : Character {
         health   = data.extra.lara.health;
         oxygen   = data.extra.lara.oxygen;
 
+        // the zipline ride isn't saved, drop off it
+        zipline = NULL;
+        if (state == STATE_DEATH_SLIDE || animation.index == ANIM_ZIPLINE_GRAB) {
+            animation.setAnim(ANIM_ZIPLINE_FALL);
+            stand = STAND_AIR;
+        }
+
         if (level->isHome()) return;
 
         layers[1].mask = layers[2].mask = layers[3].mask = 0;
@@ -851,6 +862,7 @@ struct Lara : Character {
 
         keyHole = NULL;
         keyItem = NULL;
+        zipline = NULL;
 
         if (room == TR::NO_ROOM) {
             stand = STAND_AIR;
@@ -2940,6 +2952,13 @@ struct Lara : Character {
     virtual Stand getStand() {
         if (dozy) return STAND_UNDERWATER;
 
+        if (zipline) {
+            if (zipline->riding && (state != STATE_DEATH_SLIDE || (input & ACTION)))
+                return STAND_HANG;
+            releaseZipline();
+            return STAND_AIR;
+        }
+
         if (stand == STAND_ONWATER && state == STATE_STOP)
             return STAND_GROUND;
 
@@ -3199,6 +3218,31 @@ struct Lara : Character {
         }
 
         return q;
+    }
+
+    Zipline* getZipline() {
+        for (int i = 0; i < level->entitiesCount; i++) {
+            TR::Entity &e = level->entities[i];
+            if (!e.controller || e.type != TR::Entity::ZIPLINE_HANDLE)
+                continue;
+
+            Zipline *z = (Zipline*)e.controller;
+            if (!z->riding && checkInteraction(z, &TR::Limits::ZIPLINE, true))
+                return z;
+        }
+        return NULL;
+    }
+
+    // let go of the zipline handle, keeping the slide speed
+    void releaseZipline() {
+        float speed = zipline->speed;
+        zipline = NULL;
+        if (state != STATE_DEATH_SLIDE)
+            return;
+        animation.setAnim(ANIM_ZIPLINE_FALL);
+        angleExt   = angle.y;
+        velocity   = getDir() * speed;
+        velocity.y = speed * 0.25f;
     }
 
     Block* getBlock() {
@@ -3759,6 +3803,15 @@ struct Lara : Character {
         }
 
         if ((input & ACTION) && emptyHands()) {
+            if (state == STATE_STOP) {
+                Zipline *z = getZipline();
+                if (z) {
+                    zipline = z;
+                    zipline->grab();
+                    return animation.setAnim(ANIM_ZIPLINE_GRAB);
+                }
+            }
+
             if (state == STATE_PUSH_PULL_READY && (input & (FORTH | BACK))) {
                 int pushState = (input & FORTH) ? STATE_PUSH_BLOCK : STATE_PULL_BLOCK;
                 Block *block = getBlock();
@@ -3832,6 +3885,9 @@ struct Lara : Character {
     }
 
     virtual int getStateHang() {
+        if (zipline)
+            return state;
+
         if (isLadderState())
             return getStateLadder();
 
@@ -4101,6 +4157,9 @@ struct Lara : Character {
                 break;
             case STATE_REACH      :
                 camera->setAngle(0, 85);
+                break;
+            case STATE_DEATH_SLIDE :
+                camera->setAngle(0, 70);
                 break;
             case STATE_BACK_JUMP  :
                 camera->setAngle(0, 135);
@@ -4551,6 +4610,11 @@ struct Lara : Character {
     virtual void updateVelocity() {
         flowVelocity = vec3(0);
 
+        if (zipline) {
+            velocity = vec3(0.0f);
+            return;
+        }
+
         if (!(input & DEATH) && !level->isCutsceneLevel())
             checkTrigger(this, false);
 
@@ -4675,6 +4739,14 @@ struct Lara : Character {
     virtual void updatePosition() { // TODO: sphere / bbox collision
         if (level->isCutsceneLevel())
             return;
+
+        if (zipline) {
+            if (state == STATE_DEATH_SLIDE && zipline->state != Zipline::STATE_GRAB) {
+                pos       = zipline->pos;
+                roomIndex = zipline->getRoomIndex();
+            }
+            return;
+        }
 
         // tilt control
         vec2 vTilt(LARA_TILT_SPEED * Core::deltaTime, LARA_TILT_MAX);

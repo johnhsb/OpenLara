@@ -1120,6 +1120,8 @@ struct TrapSword : Controller {
 #define SND_TR2_SPIKE_WALL      204
 #define SND_TR2_FLESH_WOUND     205
 #define SND_TR2_ROLLING_BLADE   231
+#define SND_TR2_ZIPLINE_GO      280
+#define SND_TR2_ZIPLINE_STOP    281
 
 #define SPINDLE_DAMAGE          100
 #define SPINDLE_LOOK_AHEAD      1536.0f
@@ -1245,6 +1247,68 @@ struct TrapSpikeWall : Controller {
     }
 };
 
+#define ZIPLINE_ACCEL           5.0f
+#define ZIPLINE_MAX_SPEED       100.0f
+
+// the handle Lara grabs to slide down a cable, it returns to the start after each ride
+struct Zipline : Controller {
+    enum {
+        STATE_GRAB = 1,
+        STATE_HANG = 2,
+    };
+
+    vec3  startPos;
+    int16 startRoom;
+    float speed;
+    bool  riding;
+
+    Zipline(IGame *game, int entity) : Controller(game, entity), speed(0.0f), riding(false) {
+        startPos  = pos;
+        startRoom = roomIndex;
+    }
+
+    void grab() {
+        riding = true;
+        speed  = 0.0f;
+        animation.setAnim(0);
+        activate();
+    }
+
+    virtual void update() {
+        if (!riding) {
+            pos       = startPos;
+            roomIndex = startRoom;
+            speed     = 0.0f;
+            animation.setAnim(0);
+            deactivate(true);
+            return;
+        }
+
+        updateAnimation(true);
+
+        if (state == STATE_GRAB)
+            return;
+
+        speed = min(speed + ZIPLINE_ACCEL * 30.0f * Core::deltaTime, ZIPLINE_MAX_SPEED);
+
+        vec3 dir = getDir();
+        pos.y += speed * 0.25f * 30.0f * Core::deltaTime;
+        pos   += dir * (speed * 30.0f * Core::deltaTime);
+        updateRoom();
+
+        int16 roomIdx = getRoomIndex();
+        vec3 p = pos + vec3(0.0f, 64.0f, 0.0f) + dir * 1024.0f;
+        TR::Room::Sector *sector = level->getSector(roomIdx, p);
+        if (level->getFloor(sector, p) > p.y + 256.0f && level->getCeiling(sector, p) < p.y - 256.0f) {
+            game->playSound(SND_TR2_ZIPLINE_GO, pos, Sound::PAN | Sound::UNIQUE);
+            return;
+        }
+
+        riding = false;
+        Sound::stop(SND_TR2_ZIPLINE_GO);
+        game->playSound(SND_TR2_ZIPLINE_STOP, pos, Sound::PAN);
+    }
+};
 
 
 struct ThorHammerBlock : Controller {
