@@ -1675,12 +1675,16 @@ struct SpeedBoat : Controller {
         roomIndex = room;
         rotZ += tilt;
 
-        if (driver && control) {
-            if (speed > 20)
+        if (driver && control) { // the engine sounds loop, only one of them at a time
+            if (speed > 20) {
+                Sound::stop(SND_TR2_BOAT_IDLE);
                 game->playSound(SND_TR2_BOAT_MOVING, pos, Sound::PAN | Sound::UNIQUE);
-            else
+            } else {
+                Sound::stop(SND_TR2_BOAT_MOVING);
                 game->playSound(SND_TR2_BOAT_IDLE, pos, Sound::PAN | Sound::UNIQUE);
-        }
+            }
+        } else
+            stopSounds();
     }
 
     // Lara gets on, the boat runs from now on
@@ -1690,9 +1694,15 @@ struct SpeedBoat : Controller {
         activate();
     }
 
+    void stopSounds() {
+        Sound::stop(SND_TR2_BOAT_IDLE);
+        Sound::stop(SND_TR2_BOAT_MOVING);
+    }
+
     void dismount() {
         driver  = NULL;
         control = false;
+        stopSounds();
         animation.setAnim(0);
     }
 
