@@ -3333,9 +3333,12 @@ struct Lara : Character {
     // checks the wall part from "origin" to "origin + height" relative to Lara at the "right" side offset
     // returns 1 if it can be climbed, -1 if Lara can only hang on its top and 0 if it's blocked
     // shift returns vertical correction to fit hands and feet
-    int testClimbPos(int right, int origin, int height, int &shift) {
+    // climbStatus: the climbable flag to use, -1 to take it at the current position
+    int testClimbPos(int right, int origin, int height, int &shift, int climbStatus = -1) {
         shift = 0;
-        if (!getClimbStatus())
+        if (climbStatus == -1)
+            climbStatus = getClimbStatus();
+        if (!climbStatus)
             return 0;
 
         int x, z, dx, dz;
@@ -3646,14 +3649,20 @@ struct Lara : Character {
         if (state != STATE_CLIMB_LEFT && state != STATE_CLIMB_RIGHT)
             return;
 
+        // as in the original the climbable flag of the sector Lara starts the step in counts,
+        // so she can step off the end of the ladder onto the floor beside it (and step back)
+        bool climbStatus = getClimbStatus();
+
         vec3 opos = pos;
         vec3 vel  = velocity * Core::deltaTime * 30.0f;
         pos.x += vel.x;
         pos.z += vel.z;
 
+        climbStatus |= getClimbStatus();
+
         int shift;
         int right = (state == STATE_CLIMB_LEFT) ? -(int(LARA_RADIUS) + CLIMB_WIDTH_L) : (int(LARA_RADIUS) + CLIMB_WIDTH_R);
-        int res   = testClimbPos(right, -CLIMB_HEIGHT, CLIMB_HEIGHT, shift);
+        int res   = testClimbPos(right, -CLIMB_HEIGHT, CLIMB_HEIGHT, shift, climbStatus);
 
         if (res == 1) {
             pos.y += shift;
