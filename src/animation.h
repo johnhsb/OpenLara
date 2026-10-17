@@ -45,7 +45,7 @@ struct Animation {
             return;
 
         this->model = model;
-        anims = model ? &level->anims[model->animation] : NULL;
+        anims = (model && model->animation < level->animsCount) ? &level->anims[model->animation] : NULL; // some models (TR2 flare flame) have no animations
 
         if (overrides) {
             delete[] overrides;
@@ -298,7 +298,7 @@ struct Animation {
     }
 
     Box getBoundingBox(const vec3 &pos, int dir) {
-        if (!model)
+        if (!model || !frameA)
             return Box(pos, pos);
 
         vec3 nextMin = frameB->box.min();
