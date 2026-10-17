@@ -4720,8 +4720,8 @@ struct Lara : Character {
 
             if (e.type == TR::Entity::TRAP_DOOR_1 || e.type == TR::Entity::TRAP_DOOR_2) continue;
 
-            if (e.isEnemy()) {
-                if (e.type != TR::Entity::ENEMY_REX && (controller->flags.active != TR::ACTIVE || ((Character*)controller)->health <= 0)) continue;
+            if (e.isEnemy()) { // enemies block Lara even before they are triggered
+                if (e.type != TR::Entity::ENEMY_REX && ((Character*)controller)->health <= 0) continue;
             } else {
             // fast distance check for object
                 if (e.type != TR::Entity::HAMMER_HANDLE && e.type != TR::Entity::HAMMER_BLOCK && e.type != TR::Entity::SCION_HOLDER)
@@ -4745,9 +4745,8 @@ struct Lara : Character {
             if (!collide(controller, false))
                 continue;
 
-            if (e.isEnemy()) { // enemy collision
-            //    velocity.x = velocity.y = 0.0f;
-            } else {
+        // push Lara out of objects and walking enemies (flying ones and the dead don't block)
+            if (!e.isEnemy() || (!((Character*)controller)->flying && ((Character*)controller)->health > 0.0f)) {
                 p += box.pushOut2D(p);
                 p = (p.rotateY(-controller->angle.y) + controller->pos) - pos;
                 collisionOffset += vec3(p.x, 0.0f, p.z);
@@ -4755,7 +4754,7 @@ struct Lara : Character {
 
             if (e.type == TR::Entity::ENEMY_REX && ((Character*)controller)->health <= 0)
                 return true;
-            if (!e.isEnemy() || e.type == TR::Entity::ENEMY_BAT)
+            if (!e.isEnemy() || e.type == TR::Entity::ENEMY_BAT || controller->flags.active != TR::ACTIVE)
                 return true;
 
             if (canHitAnim()) { // TODO: check enemy type and health here
