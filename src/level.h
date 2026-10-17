@@ -1432,7 +1432,9 @@ struct Level : IGame {
                             case 6  :
                             case 7  : glyphsData = (Color32*)owner->glyphsCN + (page - 4) * 256 * 256; break;
                             case 8  :
-                            case 9  : glyphsData = (Color32*)owner->glyphsKO + (page - 8) * 256 * 256; break;
+                            case 9  :
+                            case 10 :
+                            case 11 : glyphsData = (Color32*)owner->glyphsKO + (page - 8) * 256 * 256; break;
                             default : ASSERT(false);
                         }
 
