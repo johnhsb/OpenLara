@@ -4874,6 +4874,20 @@ namespace TR {
         }
 
 
+        void shareAnimations(Entity::Type from, Entity::Type to) {
+            Model *src = NULL;
+            for (int i = 0; i < modelsCount; i++)
+                if (models[i].type == from)
+                    src = &models[i];
+            if (!src) return;
+
+            for (int i = 0; i < modelsCount; i++)
+                if (models[i].type == to) {
+                    models[i].animation = src->animation;
+                    models[i].frame     = src->frame;
+                }
+        }
+
         void initExtra() {
         // get special models indices
             memset(&extra, 0xFF, sizeof(extra));
@@ -4959,6 +4973,10 @@ namespace TR {
                 }
             }
                 
+        // TR2 masked goon variants use the animations of the first one
+            shareAnimations(Entity::ENEMY_GOON_MASK_1, Entity::ENEMY_GOON_MASK_2);
+            shareAnimations(Entity::ENEMY_GOON_MASK_1, Entity::ENEMY_GOON_MASK_3);
+
             for (int i = 0; i < spriteSequencesCount; i++)
                 switch (spriteSequences[i].type) {
                     case Entity::SMOKE        : extra.smoke        = i; break;

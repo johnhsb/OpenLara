@@ -3245,6 +3245,166 @@ struct Natla : Human {
     }
 };
 
+// TR2 masked goons of Venice and the Opera House ("cult_1" in the original), they shoot pistols
+#define GOON_DAMAGE         50
+#define GOON_TURN           (DEG2RAD * 5 * 30)
+#define GOON_DIST_RUN       (1024 * 2)
+#define GOON_DIST_SHOT      (1024 * 8)
+#define GOON_POSE           0x500
+#define GOON_UNPOSE         0x100
+#define GOON_WALK           0xA00
+#define GOON_UNWALK         0x300
+
+struct MaskedGoon : Human {
+
+    enum {
+        ANIM_DEATH = 20,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_WALK,
+        STATE_RUN,
+        STATE_STOP,
+        STATE_WAIT_1,
+        STATE_WAIT_2,
+        STATE_AIM_1,
+        STATE_SHOOT_1,
+        STATE_AIM_2,
+        STATE_SHOOT_2,
+        STATE_AIM_3,
+        STATE_SHOOT_3,
+        STATE_DEATH,
+    };
+
+    MaskedGoon(IGame *game, int entity) : Human(game, entity, 25) {
+        jointGun   = 10;
+        jointChest = -1;
+        jointHead  = 1;
+        animDeath  = ANIM_DEATH + (randControl() < 0x4000 ? 0 : 1);
+        nextState  = STATE_EMPTY;
+
+    // the meshes of the variants
+        if (randControl() < 0x4000)
+            visibleMask &= ~0x30;
+        if (getEntity().type == TR::Entity::ENEMY_GOON_MASK_3)
+            visibleMask &= ~0x1F8000;
+    }
+
+    bool canShoot() {
+        return targetIsVisible(GOON_DIST_SHOT);
+    }
+
+    void fire() {
+        doShot(GOON_DAMAGE, vec3(3.0f, 331.0f, 56.0f));
+    }
+
+    virtual int getStateGround() {
+        if (!think(false))
+            return state;
+
+        bool bored = mood == MOOD_SLEEP;
+        wound = false; // only the moment of a hit may scare it away, like in the original
+
+        if (nextState == state)
+            nextState = STATE_EMPTY;
+
+        switch (state) {
+            case STATE_STOP :
+                return nextState != STATE_EMPTY ? nextState : STATE_WAIT_1;
+            case STATE_WAIT_1 :
+                if (mood == MOOD_ESCAPE)
+                    nextState = STATE_RUN;
+                else if (canShoot())
+                    nextState = randControl() < 0x4000 ? STATE_AIM_1 : STATE_AIM_3;
+                else if (bored && targetInView) {
+                    int r = randControl();
+                    if (r < GOON_POSE)
+                        nextState = STATE_WAIT_2;
+                    else if (r < GOON_WALK)
+                        nextState = STATE_WALK;
+                    else
+                        break;
+                } else if (bored || targetDist < GOON_DIST_RUN)
+                    nextState = STATE_WALK;
+                else
+                    nextState = STATE_RUN;
+                return STATE_STOP;
+            case STATE_WAIT_2 :
+                if (canShoot()) {
+                    nextState = STATE_AIM_1;
+                    return STATE_STOP;
+                }
+                if (!bored || randControl() < GOON_UNPOSE || !targetInView)
+                    return STATE_STOP;
+                break;
+            case STATE_WALK :
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (canShoot()) {
+                    nextState = randControl() < 0x4000 ? STATE_AIM_1 : STATE_AIM_3;
+                    return STATE_STOP;
+                }
+                if (targetDist > GOON_DIST_RUN || !targetInView)
+                    return STATE_RUN;
+                if (bored && randControl() < GOON_UNWALK)
+                    return STATE_STOP;
+                break;
+            case STATE_RUN :
+                flags.unused = 0;
+                if (mood == MOOD_ESCAPE)
+                    return canShoot() ? STATE_SHOOT_2 : state;
+                if (canShoot())
+                    return (targetDist < GOON_DIST_RUN || zone != targetZone()) ? STATE_STOP : STATE_SHOOT_2;
+                if (bored)
+                    return STATE_STOP;
+                break;
+            case STATE_AIM_1 :
+            case STATE_AIM_3 :
+                flags.unused = 0;
+                if (mood != MOOD_ESCAPE && canShoot())
+                    return state == STATE_AIM_1 ? STATE_SHOOT_1 : STATE_SHOOT_3;
+                return STATE_STOP;
+            case STATE_SHOOT_1 :
+            case STATE_SHOOT_3 :
+                if (flags.unused == 0) {
+                    fire();
+                    flags.unused = 1;
+                }
+                return state == STATE_SHOOT_1 ? STATE_AIM_1 : STATE_AIM_3; // aim again to check where Lara is
+            case STATE_SHOOT_2 : // shooting on the run, one shot and run again
+                if (flags.unused == 0 && canShoot()) {
+                    fire();
+                    flags.unused = 1;
+                }
+                return STATE_RUN;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(animDeath);
+    }
+
+
+
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        turn(state == STATE_RUN, (state == STATE_WALK || state == STATE_RUN) ? GOON_TURN : 0.0f);
+
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
 struct Dog : Enemy {
 
     enum {
@@ -3489,7 +3649,7 @@ struct Mouse : Enemy {
         stepHeight = 256;
         dropHeight = -1024;
         jointChest = -1;
-        jointHead  = 3;
+        jointHead  = 4;
         nextState  = STATE_EMPTY;
     }
 
@@ -3499,6 +3659,9 @@ struct Mouse : Enemy {
 
         bool bored  = mood == MOOD_SLEEP || mood == MOOD_STALK;
         bool inRange = targetInView && targetDist < MOUSE_DIST_ATTACK;
+
+        if (nextState == state)
+            nextState = STATE_EMPTY;
 
         switch (state) {
             case STATE_RUN : {
@@ -3515,10 +3678,8 @@ struct Mouse : Enemy {
                 break;
             }
             case STATE_STOP : {
-                int next = nextState;
-                nextState = STATE_EMPTY;
-                if (next != STATE_EMPTY)
-                    return next;
+                if (nextState != STATE_EMPTY)
+                    return nextState;
                 if (bored)
                     return STATE_WAIT_2;
                 return inRange ? STATE_ATTACK : STATE_RUN;

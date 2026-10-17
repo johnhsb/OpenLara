@@ -1270,7 +1270,7 @@ struct Level : IGame {
             case TR::Entity::ENEMY_RAT              : return new Mouse(this, index);
             case TR::Entity::ENEMY_GOON_MASK_1      :
             case TR::Entity::ENEMY_GOON_MASK_2      :
-            case TR::Entity::ENEMY_GOON_MASK_3      :
+            case TR::Entity::ENEMY_GOON_MASK_3      : return new MaskedGoon(this, index);
             case TR::Entity::ENEMY_GOON_KNIFE       :
             case TR::Entity::ENEMY_GOON_SHOTGUN     :
             case TR::Entity::ENEMY_DRAGON_FRONT     :
