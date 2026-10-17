@@ -3457,6 +3457,119 @@ struct Crow : Enemy {
     }
 };
 
+// random number of the original games, rand() goes up to 0x7FFFFFFF on some platforms
+inline int randControl() {
+    return rand() & 0x7FFF;
+}
+
+// TR2 rat ("mouse" in the original)
+#define MOUSE_DAMAGE          20
+#define MOUSE_DIST_ATTACK     341
+#define MOUSE_TURN            (DEG2RAD * 6 * 30)
+#define MOUSE_WAIT_1          0x500
+#define MOUSE_WAIT_2          0xA00
+
+struct Mouse : Enemy {
+
+    enum {
+        ANIM_DEATH = 9,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_RUN,
+        STATE_STOP,
+        STATE_WAIT_1,
+        STATE_WAIT_2,
+        STATE_ATTACK,
+        STATE_DEATH,
+    };
+
+    Mouse(IGame *game, int entity) : Enemy(game, entity, 4, 102, 0.0f, 0.25f) {
+        stepHeight = 256;
+        dropHeight = -1024;
+        jointChest = -1;
+        jointHead  = 3;
+        nextState  = STATE_EMPTY;
+    }
+
+    virtual int getStateGround() {
+        if (!think(false))
+            return state;
+
+        bool bored  = mood == MOOD_SLEEP || mood == MOOD_STALK;
+        bool inRange = targetInView && targetDist < MOUSE_DIST_ATTACK;
+
+        switch (state) {
+            case STATE_RUN : {
+                if (bored) {
+                    int r = randControl();
+                    if (r < MOUSE_WAIT_1) {
+                        nextState = STATE_WAIT_1;
+                        return STATE_STOP;
+                    }
+                    if (r < MOUSE_WAIT_2)
+                        return STATE_STOP;
+                } else if (inRange)
+                    return STATE_STOP;
+                break;
+            }
+            case STATE_STOP : {
+                int next = nextState;
+                nextState = STATE_EMPTY;
+                if (next != STATE_EMPTY)
+                    return next;
+                if (bored)
+                    return STATE_WAIT_2;
+                return inRange ? STATE_ATTACK : STATE_RUN;
+            }
+            case STATE_WAIT_1 :
+                if (randControl() < MOUSE_WAIT_1)
+                    return STATE_STOP;
+                break;
+            case STATE_WAIT_2 :
+                if (bored) {
+                    int r = randControl();
+                    if (r < MOUSE_WAIT_1)
+                        nextState = STATE_WAIT_1;
+                    else if (r > MOUSE_WAIT_2)
+                        nextState = STATE_RUN;
+                } else
+                    nextState = inRange ? STATE_ATTACK : STATE_RUN;
+                if (nextState != STATE_EMPTY)
+                    return STATE_STOP;
+                break;
+            case STATE_ATTACK :
+                if (nextState == STATE_EMPTY && targetInView && collide(target)) {
+                    bite(2, vec3(0.0f, 0.0f, 57.0f), MOUSE_DAMAGE);
+                    nextState = STATE_STOP;
+                }
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(ANIM_DEATH);
+    }
+
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        turn(false, state == STATE_RUN ? MOUSE_TURN : 0.0f);
+
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
 // TR2 small spider
 #define SPIDER_DAMAGE        25
 #define SPIDER_DIST_ATTACK_2 512
