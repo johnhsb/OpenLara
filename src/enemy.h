@@ -10,6 +10,11 @@
 
 #define MAX_SHOT_DIST   (64 * 1024)
 
+// random number of the original games, rand() goes up to 0x7FFFFFFF on some platforms
+inline int randControl() {
+    return rand() & 0x7FFF;
+}
+
 struct Enemy : Character {
 
     struct Path {
@@ -317,7 +322,7 @@ struct Enemy : Character {
 
     Mood getMoodRandom() {
         bool inZone = zone == targetZone();
-        bool brave  = rand() < (mood != MOOD_ESCAPE ? 0x7800 : 0x0100) && inZone;
+        bool brave  = randControl() < (mood != MOOD_ESCAPE ? 0x7800 : 0x0100) && inZone;
             
         if (mood == MOOD_SLEEP || mood == MOOD_STALK) {
             if (wound && !brave)
@@ -609,7 +614,7 @@ struct Wolf : Enemy {
             case STATE_SLEEP    :
                 if (mood == MOOD_ESCAPE || targetZone() == zone)
                     nextState = STATE_GROWL;
-                else if (rand() < 32)
+                else if (randControl() < 32)
                     nextState = STATE_WALK;
                 else
                     break;
@@ -620,7 +625,7 @@ struct Wolf : Enemy {
                     nextState = STATE_NONE;
                     return STATE_STALK;
                 }
-                if (rand() < 32) {
+                if (randControl() < 32) {
                     nextState = STATE_SLEEP;
                     return STATE_STOP;
                 }
@@ -640,7 +645,7 @@ struct Wolf : Enemy {
                     if (!targetInView || targetFromView || targetDist > WOLF_DIST_ATTACK)
                         return STATE_RUN;
                 }
-                if (rand() < 384) {
+                if (randControl() < 384) {
                     nextState = STATE_HOWL;
                     return STATE_GROWL;
                 }
@@ -890,7 +895,7 @@ struct Gorilla : Enemy {
                     return STATE_STOP;
                 }
                 if (mood != MOOD_ESCAPE) {
-                    int r = rand();
+                    int r = randControl();
                     if (r < 160)
                         nextState = STATE_JUMP;
                     else if (r < 320)
@@ -1997,7 +2002,7 @@ struct Mutant : Enemy {
                 if (mood == MOOD_ATTACK || mood == MOOD_ESCAPE)
                     return STATE_STOP;
                 if (mood == MOOD_SLEEP || (mood == MOOD_STALK && targetZone() != zone)) {
-                    if (rand() < 50)
+                    if (randControl() < 50)
                         return STATE_LOOKING;
                 } else if (mood == MOOD_STALK && targetDist > MUTANT_DIST_STALK)
                     return STATE_STOP;
@@ -2021,12 +2026,12 @@ struct Mutant : Enemy {
                     return STATE_STOP;
                 switch (mood) {
                     case MOOD_SLEEP :
-                        if (rand() < 256)
+                        if (randControl() < 256)
                             return STATE_WALK;
                         break;
                     case MOOD_STALK :
                         if (targetDist < MUTANT_DIST_STALK) {
-                            if (targetZone() == zone && rand() < 256)
+                            if (targetZone() == zone && randControl() < 256)
                                 return STATE_WALK;
                         } else
                             return STATE_STOP;
@@ -2346,7 +2351,7 @@ struct Centaur : Enemy {
                     nextState = STATE_AIM;
                     return STATE_STOP;
                 }
-                if (rand() < 96) {
+                if (randControl() < 96) {
                     nextState = STATE_IDLE;
                     return STATE_STOP;
                 }
@@ -2853,13 +2858,13 @@ struct SkaterBoy : Human {
                 return STATE_MOVE;
             case STATE_MOVE :
                 flags.unused = 0;
-                if (rand() < 512)
+                if (randControl() < 512)
                     return STATE_STEP;
                 if (targetIsVisible(HUMAN_DIST_SHOT))
                     return (mood != MOOD_ESCAPE && targetDist > SKATERBOY_DIST_MIN && targetDist < SKATERBOY_DIST_MAX) ? STATE_STOP : STATE_MOVE_FIRE;
                 break;
             case STATE_STEP :
-                if (rand() < 1024)
+                if (randControl() < 1024)
                     return STATE_MOVE;
                 break;
             case STATE_STAND_FIRE :
@@ -3095,7 +3100,7 @@ struct Natla : Human {
         timer += Core::deltaTime;
         bool canShot = target && target->health > 0.0f && targetIsVisible(HUMAN_DIST_SHOT);
 
-        if (canShot && state == STATE_FLY && flying && rand() < 256)
+        if (canShot && state == STATE_FLY && flying && randControl() < 256)
             flags.unused &= ~FLAG_FLY;
         else if (!canShot)
             flags.unused |= FLAG_FLY;
@@ -3457,11 +3462,6 @@ struct Crow : Enemy {
     }
 };
 
-// random number of the original games, rand() goes up to 0x7FFFFFFF on some platforms
-inline int randControl() {
-    return rand() & 0x7FFF;
-}
-
 // TR2 rat ("mouse" in the original)
 #define MOUSE_DAMAGE          20
 #define MOUSE_DIST_ATTACK     341
@@ -3626,7 +3626,7 @@ struct Spider : Enemy {
             case STATE_STOP :
                 flags.unused = 0;
                 if (mood == MOOD_SLEEP)
-                    return rand() < SPIDER_WALK ? STATE_WALK : state;
+                    return randControl() < SPIDER_WALK ? STATE_WALK : state;
                 if (touch)
                     return STATE_ATTACK_1;
                 if (mood == MOOD_STALK)
@@ -3634,7 +3634,7 @@ struct Spider : Enemy {
                 return STATE_RUN;
             case STATE_WALK :
                 if (mood == MOOD_SLEEP)
-                    return rand() < SPIDER_WALK ? STATE_STOP : state;
+                    return randControl() < SPIDER_WALK ? STATE_STOP : state;
                 if (mood == MOOD_ESCAPE || mood == MOOD_ATTACK)
                     return STATE_RUN;
                 break;
@@ -3735,7 +3735,7 @@ struct Tiger : Enemy {
                 if (mood == MOOD_ESCAPE)
                     return STATE_RUN;
                 if (mood == MOOD_SLEEP) {
-                    int r = rand();
+                    int r = randControl();
                     if (r < TIGER_ROAR) return STATE_ROAR;
                     if (r < TIGER_WALK) return STATE_WALK;
                     return state;
@@ -3746,13 +3746,13 @@ struct Tiger : Enemy {
                     return STATE_ATTACK_3;
                 if (nextState != STATE_NONE)
                     return nextState;
-                if (mood != MOOD_ATTACK && rand() < TIGER_ROAR)
+                if (mood != MOOD_ATTACK && randControl() < TIGER_ROAR)
                     return STATE_ROAR;
                 return STATE_RUN;
             case STATE_WALK     : 
                 if (mood == MOOD_ATTACK || mood == MOOD_ESCAPE)
                     return STATE_RUN;
-                if (rand() < TIGER_ROAR) {
+                if (randControl() < TIGER_ROAR) {
                     nextState = STATE_ROAR;
                     return STATE_STOP;
                 }
@@ -3771,7 +3771,7 @@ struct Tiger : Enemy {
                     else
                         return STATE_ATTACK_2;
                 }
-                if (mood != MOOD_ATTACK && rand() < TIGER_ROAR) {
+                if (mood != MOOD_ATTACK && randControl() < TIGER_ROAR) {
                     nextState = STATE_ROAR;
                     return STATE_STOP;
                 }
@@ -3908,7 +3908,7 @@ struct Winston : Enemy {
             flags.unused &= ~2;
         }
 
-        if (rand() < 0x100) {
+        if (randControl() < 0x100) {
             game->playSound(TR::SND_WINSTON_TRAY, pos, Sound::PAN);
         }
 
