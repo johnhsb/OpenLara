@@ -2969,7 +2969,7 @@ struct Lara : Character {
                     break;
                 }
                 case TR::Action::EFFECT :
-                    effect = TR::Effect::Type(cmd.args);
+                    effect = TR::Effect::remap(level->version, cmd.args);
                     break;
                 case TR::Action::SECRET :
                     if (!(saveStats.secrets & (1 << cmd.args))) {
@@ -2992,7 +2992,8 @@ struct Lara : Character {
         if (needFlip) {
             game->flipMap();
             game->setEffect(this, effect);
-        }
+        } else if ((level->version & TR::VER_TR2) && effect != TR::Effect::NONE)
+            game->setEffect(this, effect); // TR2 effects go without a flip as well
     }
 
     void waterSplash() {

@@ -1436,7 +1436,20 @@ namespace TR {
             FOOTPRINT      ,
         // specific
             TR1_FLICKER    = 16,
+        // TR2 numbers 5-10 differently
+            TR2_FLOOD      = 100,
+            TR2_CHANDELIER ,
+            TR2_RUBBLE     ,
+            TR2_PISTON     ,
+            TR2_CURTAIN    ,
+            TR2_SET_CHANGE ,
         };
+
+        static Type remap(int version, int fx) {
+            if ((version & VER_TR2) && fx >= 5 && fx <= 10)
+                return Type(TR2_FLOOD + fx - 5);
+            return Type(fx);
+        }
     };
 
     enum {

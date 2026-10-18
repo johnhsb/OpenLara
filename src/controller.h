@@ -1172,7 +1172,12 @@ struct Controller {
                                     case TR::Effect::FLOOR_SHAKE  : game->setEffect(this, TR::Effect::Type(fx)); break;
                                     case TR::Effect::FINISH_LEVEL : game->loadNextLevel(); break;
                                     case TR::Effect::FLIP_MAP     : game->flipMap(); break;
-                                    default                       : cmdEffect(fx); break;
+                                    default                       :
+                                        if (TR::Effect::remap(level->version, fx) >= TR::Effect::TR2_FLOOD)
+                                            game->setEffect(this, TR::Effect::remap(level->version, fx));
+                                        else
+                                            cmdEffect(fx);
+                                        break;
                                 }
                             } else {
                                 if (!(level->version & TR::VER_TR1)) {

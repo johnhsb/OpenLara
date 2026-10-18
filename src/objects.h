@@ -1964,6 +1964,14 @@ struct SpeedBoat : Controller {
 #define MINE_BOAT_DIST      512
 #define SND_TR2_EXPLOSION_1 105
 
+// the sounds of the TR2 effects (flipeffects)
+#define SND_TR2_MASSIVE_CRASH   24
+#define SND_TR2_FLOOD           79
+#define SND_TR2_PULLEY_CRANE    190
+#define SND_TR2_CURTAIN         191
+#define SND_TR2_CHAIN_PULLEY    278
+#define SND_TR2_STAGE_BACKDROP  330
+
 // the mines in the Venice canal: a boat coming over one blows up with Lara on it, then all of them go off
 struct TrapMine : Controller {
     enum { FLAG_SPENT = 1, FLAG_ALL = 2 };

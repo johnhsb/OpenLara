@@ -703,6 +703,9 @@ struct Level : IGame {
     }
     
     virtual void setEffect(Controller *controller, TR::Effect::Type effect) {
+        if (effect >= TR::Effect::TR2_FLOOD && this->effect == effect)
+            return; // still going (the trigger is stood on)
+
         this->effect      = effect;
         this->effectTimer = 0.0f;
         this->effectIdx   = 0;
@@ -723,8 +726,22 @@ struct Level : IGame {
                 playSound(TR::SND_STAIRS2SLOPE);
                 break;
             case TR::Effect::EXPLOSION :
-                playSound(TR::SND_TNT);
+                playSound((level.version & TR::VER_TR2) ? SND_TR2_EXPLOSION_1 : TR::SND_TNT);
                 shakeCamera(1.0f);
+                break;
+        // TR2
+            case TR::Effect::TR2_RUBBLE :
+                playSound(SND_TR2_MASSIVE_CRASH);
+                shakeCamera(1.0f);
+                break;
+            case TR::Effect::TR2_PISTON :
+                playSound(SND_TR2_PULLEY_CRANE);
+                break;
+            case TR::Effect::TR2_CURTAIN :
+                playSound(SND_TR2_CURTAIN);
+                break;
+            case TR::Effect::TR2_SET_CHANGE :
+                playSound(SND_TR2_STAGE_BACKDROP);
                 break;
             default : ;
         }
@@ -2415,6 +2432,23 @@ struct Level : IGame {
                 }
                 break;
             }
+            case TR::Effect::TR2_FLOOD : { // the rush of water around Lara for 4 seconds
+                if (effectTimer > 4.0f) {
+                    effect = TR::Effect::NONE;
+                    break;
+                }
+                vec3 p = players[0]->pos;
+                p.y = camera->target.pos.y;
+                playSound(SND_TR2_FLOOD, p, Sound::PAN | Sound::UNIQUE);
+                break;
+            }
+            case TR::Effect::TR2_CHANDELIER : // the chain of the chandelier for a second
+                if (effectTimer > 1.0f) {
+                    effect = TR::Effect::NONE;
+                    break;
+                }
+                playSound(SND_TR2_CHAIN_PULLEY, vec3(0.0f), Sound::UNIQUE);
+                break;
             default : effect = TR::Effect::NONE; return;
         }
     }
