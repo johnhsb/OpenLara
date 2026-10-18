@@ -434,8 +434,8 @@
     E( DRAGON_BONES_FRONT    ) \
     E( DRAGON_BONES_BACK     ) \
     E( TRAP_EXTRA_FIRE       ) \
+    E( BOAT_BITS             ) \
     E( TRAP_MINE             ) \
-    E( UNUSED_30             ) \
     E( INV_BACKGROUND        ) \
     E( GRAY_DISK             ) \
     E( GONG_STICK            ) \

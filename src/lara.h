@@ -3282,7 +3282,7 @@ struct Lara : Character {
 
     // which way Lara gets on the boat (0 - she doesn't), as in the original
     int boatGetOn(SpeedBoat *b) {
-        if (!emptyHands() || health <= 0.0f || b->driver)
+        if (!emptyHands() || health <= 0.0f || b->driver || b->isDestroyed())
             return 0;
 
         vec3 d = pos - b->pos;
@@ -5359,7 +5359,7 @@ struct Lara : Character {
         visibleMask = visMask;
 
         for (int i = 0; i < COUNT(braid); i++) {
-            if (braid[i]) {
+            if (braid[i] && visibleMask) { // no hair when she's blown to pieces
                 braid[i]->render(mesh);
             }
         }

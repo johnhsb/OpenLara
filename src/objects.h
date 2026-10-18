@@ -1482,6 +1482,8 @@ struct SpeedBoat : Controller {
 
     struct Pos { int x, y, z; };
 
+    enum { FLAG_DESTROYED = 1 };
+
     Character *driver;   // Lara while she's on the boat
     bool  control;       // the driver may steer (not mounting or jumping off)
     int   x, y, z;
@@ -1890,6 +1892,36 @@ struct SpeedBoat : Controller {
         rotY = int16(int(angle.y * (32768.0f / PI)));
         speed = fallSpeed = turnSpeed = tilt = extraRot = 0;
         animation.setAnim(0);
+        if (isDestroyed())
+            flags.invisible = true;
+    }
+
+    bool isDestroyed() const {
+        return (flags.unused & FLAG_DESTROYED) != 0;
+    }
+
+    virtual bool isCollider() {
+        return !isDestroyed();
+    }
+
+    // blown up by a mine: the boat breaks into its bits (BOAT_BITS) and is gone
+    void destroy() {
+        if (isDestroyed())
+            return;
+        flags.unused |= FLAG_DESTROYED;
+        stopSounds();
+        speed = 0;
+
+        int bits = level->getModelIndex(TR::Entity::BOAT_BITS);
+        if (bits > 0) {
+            level->entities[entity].modelIndex = bits;
+            animation.setModel(getModel());
+            initMeshOverrides();
+            layers[0].model = bits - 1;
+            layers[0].mask  = 0xFFFFFFFF;
+        }
+        explode(0xFFFFFFFF, 0.0f);
+        activate();
     }
 
     // plays the animation Lara has on it
@@ -1898,7 +1930,20 @@ struct SpeedBoat : Controller {
             animation.setAnim(index, -frame);
     }
 
+    virtual bool explodeFx() {
+        return false;
+    }
+
     virtual void update() {
+        if (isDestroyed()) {
+            updateExplosion();
+            if (!explodeMask) {
+                flags.invisible = true;
+                deactivate(true);
+            }
+            return;
+        }
+
         stepTime += Core::deltaTime;
         int steps = 0;
         while (stepTime >= 1.0f / 30.0f && steps < 4) {
@@ -1915,6 +1960,96 @@ struct SpeedBoat : Controller {
     }
 };
 
+
+#define MINE_BOAT_DIST      512
+#define SND_TR2_EXPLOSION_1 105
+
+// the mines in the Venice canal: a boat coming over one blows up with Lara on it, then all of them go off
+struct TrapMine : Controller {
+    enum { FLAG_SPENT = 1, FLAG_ALL = 2 };
+
+    TrapMine(IGame *game, int entity) : Controller(game, entity) {}
+
+    bool isSpent() const {
+        return (flags.unused & FLAG_SPENT) != 0;
+    }
+
+    virtual bool isCollider() {
+        return !isSpent();
+    }
+
+    SpeedBoat* getBoat() {
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.type != TR::Entity::VEHICLE_BOAT || !e.controller)
+                continue;
+            SpeedBoat *boat = (SpeedBoat*)e.controller;
+            if (boat->isDestroyed())
+                continue;
+            float dx = boat->pos.x - pos.x;
+            float dz = boat->pos.z - pos.z;
+            if (dx * dx + dz * dz < MINE_BOAT_DIST * MINE_BOAT_DIST)
+                return boat;
+        }
+        return NULL;
+    }
+
+    // the boat and Lara on it break apart, the trigger under the mine goes off and all the mines follow
+    void detonateAll(SpeedBoat *boat) {
+        Character *lara = boat->driver;
+        if (lara) {
+            lara->explode(0xFFFFFFFF, 0.0f);
+            lara->visibleMask = 0; // only her flying pieces are left
+            lara->hit(lara->health + 1.0f, this);
+        }
+        boat->destroy();
+
+        game->checkTrigger(this, true);
+
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.type == TR::Entity::TRAP_MINE && e.controller) {
+                TrapMine *mine = (TrapMine*)e.controller;
+                mine->flags.unused |= FLAG_ALL;
+                mine->activate();
+            }
+        }
+    }
+
+    void blow() {
+        flags.unused |= FLAG_SPENT;
+        game->addEntity(TR::Entity::EXPLOSION, getRoomIndex(), pos - vec3(0.0f, 1024.0f, 0.0f));
+        game->addEntity(TR::Entity::WATER_SPLASH, getRoomIndex(), pos);
+        game->playSound(SND_TR2_EXPLOSION_1, pos, Sound::PAN);
+        initMeshOverrides();
+        layers[0].mask = 1; // the mesh left after the blast
+    }
+
+    virtual void update() {
+        Controller::update();
+
+        if (isSpent())
+            return;
+
+        if (!(flags.unused & FLAG_ALL)) {
+            SpeedBoat *boat = getBoat();
+            if (!boat)
+                return;
+            detonateAll(boat);
+        } else if ((rand() & 0x7FFF) < 0x7800) // the others go off one after another
+            return;
+
+        blow();
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Controller::setSaveData(data);
+        if (isSpent()) {
+            initMeshOverrides();
+            layers[0].mask = 1;
+        }
+    }
+};
 
 struct ThorHammerBlock : Controller {
     Controller *handle;
