@@ -1123,6 +1123,25 @@ struct TrapSword : Controller {
 #define SND_TR2_ZIPLINE_GO      280
 #define SND_TR2_ZIPLINE_STOP    281
 
+#define TRAP_TOUCH_RADIUS       100.0f // Lara's collision radius
+
+// the meshes of the trap touching Lara, as in the original (Object_Collision): only when her origin is
+// within the bounds of the trap widened by her radius, then the spheres of their meshes are tested
+inline int touchLara(Controller *trap, Controller *lara) {
+    Box box = trap->getBoundingBoxLocal();
+    Box laraBox = lara->getBoundingBoxLocal();
+
+    if (trap->pos.y + box.min.y >= lara->pos.y + laraBox.max.y || trap->pos.y + box.max.y <= lara->pos.y + laraBox.min.y)
+        return 0;
+
+    vec3 d = (lara->pos - trap->pos).rotateY(trap->angle.y);
+    if (d.x < box.min.x - TRAP_TOUCH_RADIUS || d.x > box.max.x + TRAP_TOUCH_RADIUS ||
+        d.z < box.min.z - TRAP_TOUCH_RADIUS || d.z > box.max.z + TRAP_TOUCH_RADIUS)
+        return 0;
+
+    return trap->collide(lara, false);
+}
+
 #define SPINDLE_DAMAGE          100
 #define SPINDLE_LOOK_AHEAD      1536.0f
 
@@ -1155,7 +1174,7 @@ struct TrapSpindle : Controller {
             spinning = true;
 
             Character *lara = (Character*)game->getLara(pos);
-            if (lara->health > 0.0f && collide(lara))
+            if (lara->health > 0.0f && touchLara(this, lara))
                 lara->hit(SPINDLE_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
 
             game->playSound(SND_TR2_ROLLING_BLADE, pos, Sound::PAN | Sound::UNIQUE);
@@ -1201,7 +1220,7 @@ struct TrapBladeWall : Controller {
 
         if (state == STATE_CUT) {
             Character *lara = (Character*)game->getLara(pos);
-            if (lara->health > 0.0f && (collide(lara) & BLADE_WALL_MASK))
+            if (lara->health > 0.0f && (touchLara(this, lara) & BLADE_WALL_MASK))
                 lara->hit(BLADE_WALL_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
         }
 
@@ -1240,7 +1259,7 @@ struct TrapSpikeWall : Controller {
         }
 
         Character *lara = (Character*)game->getLara(pos);
-        if (lara->health > 0.0f && collide(lara)) {
+        if (lara->health > 0.0f && touchLara(this, lara)) {
             lara->hit(SPIKE_WALL_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_SPIKES);
             game->playSound(SND_TR2_FLESH_WOUND, lara->pos, Sound::PAN | Sound::UNIQUE);
         }
