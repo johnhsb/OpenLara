@@ -1340,6 +1340,9 @@ struct Level : IGame {
             case TR::Entity::VEHICLE_BOAT           : return new SpeedBoat(this, index);
             case TR::Entity::GONDOLA                : return new Gondola(this, index);
             case TR::Entity::TRAP_MINE              : return new TrapMine(this, index);
+            case TR::Entity::SOUND_BIRD             :
+            case TR::Entity::SOUND_WATER            : return new SoundSource(this, index);
+            case TR::Entity::SOUND_CLOCK            : return new ClockChimes(this, index);
             case TR::Entity::WAKE_BOAT              : return new BoatWake(this, index);
 
             default                                 : return new Controller(this, index);

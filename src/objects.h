@@ -2059,6 +2059,76 @@ struct TrapMine : Controller {
     }
 };
 
+#define SND_TR2_DOOR_CHIME      208
+#define SND_TR2_BIRDS_CHIRP     316
+#define SND_TR2_DRIPS_REVERB    329
+
+// TR2 invisible sound sources: the birds singing now and then, the water dripping
+struct SoundSource : Controller {
+    float stepTime;
+
+    SoundSource(IGame *game, int entity) : Controller(game, entity), stepTime(0.0f) {}
+
+    virtual void update() {
+        if (!isActive())
+            return;
+
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) { // the chances of the original per 30 fps frame
+            stepTime -= 1.0f / 30.0f;
+            int r = rand() & 0x7FFF;
+            if (getEntity().type == TR::Entity::SOUND_BIRD) {
+                if (r < 1024)
+                    game->playSound(SND_TR2_BIRDS_CHIRP, pos, Sound::PAN);
+            } else if (r < 256)
+                game->playSound(SND_TR2_DRIPS_REVERB, pos, Sound::PAN);
+        }
+    }
+
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {}
+};
+
+// the clock of Bartoli's Hideout: triggered with a timer it chimes every two seconds and once more at the end
+struct ClockChimes : Controller {
+    int   frames;
+    float stepTime;
+
+    ClockChimes(IGame *game, int entity) : Controller(game, entity), frames(0), stepTime(0.0f) {}
+
+    virtual bool activate() {
+        frames = int(timer * 30.0f);
+        stepTime = 0.0f;
+        return Controller::activate();
+    }
+
+    void chime() { // heard everywhere: near Lara, 1/64 of the way to the clock
+        Controller *lara = game->getLara(pos);
+        vec3 p = lara->pos + (pos - lara->pos) * (1.0f / 64.0f);
+        game->playSound(SND_TR2_DOOR_CHIME, p, Sound::PAN);
+    }
+
+    virtual void update() {
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+            if (frames <= 0) {
+                deactivate(true);
+                return;
+            }
+            if (frames % 60 == 59)
+                chime();
+            if (--frames == 0) {
+                chime();
+                flags.active = 0;
+                deactivate(true);
+                return;
+            }
+        }
+    }
+
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {}
+};
+
 struct ThorHammerBlock : Controller {
     Controller *handle;
 
