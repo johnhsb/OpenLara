@@ -1048,7 +1048,8 @@ struct Lara : Character {
         if (wpnCurrent == TR::Entity::HARPOON && (stand == STAND_UNDERWATER || stand == STAND_ONWATER))
             return state != STATE_UNDERWATER_DEATH && state != STATE_DIVE && state != STATE_WATER_OUT && state != STATE_PICK_UP && state != STATE_SWITCH_DOWN && state != STATE_SWITCH_UP && state != STATE_USE_KEY && state != STATE_USE_PUZZLE;
 
-        return    animation.index != ANIM_CLIMB_3
+        return    !zipline // both hands hold the handle
+               && animation.index != ANIM_CLIMB_3
                && animation.index != ANIM_CLIMB_2
                && state != STATE_DEATH
                && state != STATE_HANG
