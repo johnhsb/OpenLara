@@ -1685,8 +1685,87 @@ extern void osCacheRead  (Stream *stream);
 extern void osReadSlot   (Stream *stream);
 extern void osWriteSlot  (Stream *stream);
 
-#ifdef _OS_LINUX
-extern const char* osFixFileName(const char* fileName);
+// the game data comes from case insensitive file systems (DATA/WALL.TR2 may be data/WALL.TR2 or wall.tr2 on disk)
+#if defined(__linux__) && !defined(ANDROID) && !defined(_OS_ANDROID)
+    #define OS_FILENAME_NOCASE
+#endif
+
+#ifdef OS_FILENAME_NOCASE
+#include <dirent.h>
+#include <strings.h>
+#include <sys/stat.h>
+
+// finds the file on disk ignoring the case of each name in its path, returns false and keeps the path if there's none
+bool osFixPathCase(char *path, int maxLength) {
+    struct stat st;
+    if (stat(path, &st) == 0)
+        return true;
+
+    char fixed[1024];
+    char test[1024];
+    char part[256];
+    int  len = 0;
+
+    const char *src = path;
+    if (*src == '/') {
+        fixed[len++] = '/';
+        src++;
+    }
+    fixed[len] = 0;
+
+    while (*src) {
+        const char *end = strchr(src, '/');
+        int partLen = end ? int(end - src) : int(strlen(src));
+
+        if (partLen == 0) { // double slash
+            src++;
+            continue;
+        }
+
+        if (partLen >= int(sizeof(part)) || len + partLen + 2 > int(sizeof(fixed)))
+            return false;
+
+        memcpy(part, src, partLen);
+        part[partLen] = 0;
+
+        snprintf(test, sizeof(test), "%s%s", fixed, part);
+        if (stat(test, &st) != 0) { // look for the name in the directory ignoring the case
+            DIR *dir = opendir(len ? fixed : ".");
+            if (!dir)
+                return false;
+
+            bool found = false;
+            struct dirent *e;
+            while ((e = readdir(dir))) {
+                if (strcasecmp(e->d_name, part) == 0) {
+                    strcpy(part, e->d_name);
+                    found = true;
+                    break;
+                }
+            }
+            closedir(dir);
+
+            if (!found)
+                return false;
+        }
+
+        strcpy(fixed + len, part);
+        len += int(strlen(part));
+        src += partLen;
+
+        if (*src == '/') {
+            fixed[len++] = '/';
+            fixed[len] = 0;
+            src++;
+        }
+    }
+
+    if (len >= maxLength)
+        return false;
+
+    strcpy(path, fixed);
+    return true;
+}
 #endif
 
 #ifdef _OS_WEB
@@ -1873,10 +1952,10 @@ private:
             strcpy(path, contentDir);
         }
 
-    #ifdef _OS_LINUX
-        strcat(path, osFixFileName(name));
-    #else
         strcat(path, name);
+
+    #ifdef OS_FILENAME_NOCASE
+        osFixPathCase(path, sizeof(path));
     #endif
 
         fixBackslash(path);
@@ -1938,6 +2017,9 @@ public:
                     strcpy(path, contentDir);
                 }
                 strcat(path, packs[i]->stream->name);
+            #ifdef OS_FILENAME_NOCASE
+                osFixPathCase(path, sizeof(path));
+            #endif
                 fixBackslash(path);
 
                 f = fopen(path, "rb");
@@ -2130,9 +2212,11 @@ public:
     }
 
     static bool exists(const char *name) {
-    #ifdef _OS_LINUX
-       name = osFixFileName(name);
-       return (name != NULL);
+    #ifdef OS_FILENAME_NOCASE
+        char path[1024];
+        strncpy(path, name, sizeof(path) - 1);
+        path[sizeof(path) - 1] = 0;
+        return osFixPathCase(path, sizeof(path));
     #else
         FILE *f = fopen(name, "rb");
         if (!f) return false;

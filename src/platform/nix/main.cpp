@@ -321,97 +321,6 @@ void joyUpdate() {
     }
 }
 
-// filesystem
-#define MAX_FILES 4096
-char* gFiles[MAX_FILES];
-int32 gFilesCount;
-
-void addDir(char* path)
-{
-    char* fileName;
-    struct dirent* e;
-    struct stat s;
-    char origPath[1024];
-
-    strcpy(origPath, path);
-    DIR* dir = opendir(path);
-
-    int32 pathLen = strlen(path);
-    path[pathLen] = '/';
-
-    while ((e = readdir(dir)))
-    {
-        bool isDir = false;
-        if (e->d_type == DT_DIR)
-        {
-            isDir = true;
-        }
-        else if (e->d_type == DT_LNK)
-        {
-            char filepath[1024];
-            snprintf(filepath, 1024, "%s/%s", origPath, e->d_name);
-            if (stat(filepath, &s) == 0)
-            {
-                if (S_ISDIR(s.st_mode))
-                {
-                    isDir = true;
-                }
-            }
-        }
-
-        if (isDir)
-        {
-            if (e->d_name[0] != '.')
-            {
-                strcpy(path + 1 + pathLen, e->d_name);
-                addDir(path);
-            }
-        }
-        else
-        {
-            ASSERT(gFilesCount < MAX_FILES);
-            if (gFilesCount < MAX_FILES)
-            {
-                strcpy(path + 1 + pathLen, e->d_name);
-                fileName = (char*)malloc(strlen(path) + 1 - 2);
-                gFiles[gFilesCount++] = strcpy(fileName, path + 2);
-            }
-        }
-    }
-
-    path[pathLen] = '\0';
-}
-
-void fsInit()
-{
-    char path[1024];
-    strcpy(path, ".");
-    addDir(path);
-    LOG("scan %d files\n", gFilesCount);
-}
-
-void fsFree()
-{
-    int32 i;
-    for (i = 0; i < gFilesCount; i++)
-    {
-        free(gFiles[i]);
-    }
-}
-
-const char* osFixFileName(const char* fileName)
-{
-    int32 i;
-    for (i = 0; i < gFilesCount; i++)
-    {
-        if (!strcasecmp(fileName, gFiles[i]))
-        {
-            return gFiles[i];
-        }
-    }
-    return NULL;
-}
-
 // system
 void toggle_fullscreen(Display* dpy, Window win) {
     const size_t _NET_WM_STATE_TOGGLE=2;
@@ -547,8 +456,6 @@ int main(int argc, char **argv) {
 
     Core::defLang = checkLanguage();
 
-    fsInit();
-
     joyInit();
     sndInit();
 
@@ -576,8 +483,6 @@ int main(int argc, char **argv) {
     joyFree();
     sndFree();
     Game::deinit();
-
-    fsFree();
 
     glXMakeCurrent(dpy, 0, 0);
     XCloseDisplay(dpy);
