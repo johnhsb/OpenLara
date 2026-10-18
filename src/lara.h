@@ -4644,7 +4644,13 @@ struct Lara : Character {
                             continue;
                         item->deactivate();
                         item->flags.invisible = true;
-                        game->invAdd(item->getEntity().type, 1);
+
+                        TR::Entity::Type type = item->getEntity().type;
+                        if (type >= TR::Entity::SECRET_1 && type <= TR::Entity::SECRET_3) { // TR2 secrets are counted, not kept in the inventory
+                            saveStats.secrets |= 1 << (type - TR::Entity::SECRET_1);
+                            game->playTrack(TR::TRACK_TR2_SECRET, true);
+                        } else
+                            game->invAdd(type, 1);
 
                         vec4 p = game->projectPoint(vec4(item->pos, 1.0f));
 
