@@ -183,6 +183,29 @@ namespace Game {
         TR::isGameEnded = false;
 
         TR::Version version = TR::getGameVersion();
+
+    #ifdef OS_GAME_DIRS
+        // each game has its own saves and settings (the save slots of a game and its options don't mix with the others)
+        const char *gameDir = NULL;
+        switch (version & TR::VER_VERSION) {
+            case TR::VER_TR1 : gameDir = "tr1"; break;
+            case TR::VER_TR2 : gameDir = "tr2"; break;
+            case TR::VER_TR3 : gameDir = "tr3"; break;
+            case TR::VER_TR4 : gameDir = "tr4"; break;
+            default          : ;
+        }
+        if (gameDir) {
+            const char *saveFiles[]  = { SAVE_FILENAME, "settings" };
+            const char *cacheFiles[] = { "settings" };
+            bool sameDir = strcmp(saveDir, cacheDir) == 0;
+            osUseGameDir(saveDir, sizeof(saveDir), gameDir, saveFiles, sameDir ? 2 : 1);
+            if (sameDir)
+                strcpy(cacheDir, saveDir);
+            else
+                osUseGameDir(cacheDir, sizeof(cacheDir), gameDir, cacheFiles, 1);
+        }
+    #endif
+
         if (!lvlName)
             TR::getGameLevelFile(fileName, version, TR::getTitleId(version));
         else

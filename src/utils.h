@@ -1772,6 +1772,69 @@ bool osFixPathCase(char *path, int maxLength) {
 extern void osDownload   (Stream *stream);
 #endif
 
+// desktop platforms keep the saves and the settings of each game in a folder of its own
+#if defined(_OS_WIN) || defined(_OS_MAC) || defined(__HAIKU__) || (defined(__linux__) && !defined(ANDROID) && !defined(_OS_ANDROID))
+    #define OS_GAME_DIRS
+#endif
+
+#ifdef OS_GAME_DIRS
+#include <sys/stat.h>
+#ifdef _OS_WIN
+    #include <direct.h>
+    #define osMakeDir(path) _mkdir(path)
+#else
+    #define osMakeDir(path) mkdir(path, 0777)
+#endif
+
+static void osCopyFile(const char *src, const char *dst) {
+    FILE *f = fopen(src, "rb");
+    if (!f) return;
+    FILE *t = fopen(dst, "wb");
+    if (t) {
+        char buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
+            fwrite(buf, 1, n, t);
+        fclose(t);
+    }
+    fclose(f);
+}
+
+// appends "sub/" to the dir and creates it, the given files of the shared dir (the saves and the settings
+// all the games used so far) are copied there the first time
+static void osUseGameDir(char *dir, int maxLength, const char *sub, const char **files, int count) {
+    if (!dir[0] || int(strlen(dir) + strlen(sub) + 2) > maxLength)
+        return;
+
+    char path[512];
+    strcpy(path, dir);
+    strcat(path, sub);
+    osMakeDir(path);
+
+    struct stat st; // the folder is there (made now or before)
+    if (stat(path, &st) != 0)
+        return;
+    strcat(path, "/");
+
+    for (int i = 0; i < count; i++) {
+        char src[512], dst[512];
+        strcpy(src, dir);
+        strcat(src, files[i]);
+        strcpy(dst, path);
+        strcat(dst, files[i]);
+
+        FILE *e = fopen(dst, "rb");
+        if (e) {
+            fclose(e);
+            continue;
+        }
+        osCopyFile(src, dst);
+    }
+
+    strcpy(dir, path);
+}
+#endif
+
 char cacheDir[255];
 char saveDir[255];
 char contentDir[255];
