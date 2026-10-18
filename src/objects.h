@@ -6,6 +6,27 @@
 #include "character.h"
 #include "sprite.h"
 
+#define TRAP_TOUCH_RADIUS       100.0f // Lara's collision radius
+
+// the meshes of the trap touching Lara, as in the original (Object_Collision): only when her origin is
+// within the bounds of the trap widened by her radius, then the spheres of their meshes are tested
+// (spheres = false: the bounds only, returns 1 then)
+inline int touchLara(Controller *trap, Controller *lara, bool spheres = true) {
+    Box box = trap->getBoundingBoxLocal();
+    Box laraBox = lara->getBoundingBoxLocal();
+
+    if (trap->pos.y + box.min.y >= lara->pos.y + laraBox.max.y || trap->pos.y + box.max.y <= lara->pos.y + laraBox.min.y)
+        return 0;
+
+    vec3 d = (lara->pos - trap->pos).rotateY(trap->angle.y);
+    if (d.x < box.min.x - TRAP_TOUCH_RADIUS || d.x > box.max.x + TRAP_TOUCH_RADIUS ||
+        d.z < box.min.z - TRAP_TOUCH_RADIUS || d.z > box.max.z + TRAP_TOUCH_RADIUS)
+        return 0;
+
+    return spheres ? trap->collide(lara, false) : 1;
+}
+
+
 struct Switch : Controller {
     enum {
         STATE_DOWN,
@@ -86,7 +107,7 @@ struct Dart : Controller {
         pos = pos + velocity * (Core::deltaTime * 30.0f);
 
         Controller *lara = game->getLara(pos);
-        if (armed && collide(lara)) {
+        if (armed && touchLara(this, lara)) {
             lara->hit(DART_DAMAGE, this, TR::HIT_DART);
             armed = false;
         }
@@ -498,7 +519,7 @@ struct TrapBoulder : Controller {
         updateAnimation(true);
 
         Character *lara = (Character*)game->getLara(pos);
-        if (lara->health > 0.0f && collide(lara)) {
+        if (lara->health > 0.0f && touchLara(this, lara)) {
             if (lara->stand == Character::STAND_GROUND)
                 lara->hit(BOULDER_DAMAGE_GROUND, this, TR::HIT_BOULDER);
             if (lara->stand == Character::STAND_AIR)
@@ -968,7 +989,7 @@ struct TrapSwingBlade : Controller {
             return;
 
         Character* lara = (Character*)game->getLara(pos);
-        if (!checkRange(lara, BLADE_RANGE) || !collide(lara))
+        if (!checkRange(lara, BLADE_RANGE) || !touchLara(this, lara))
             return;
 
         lara->hit(BLADE_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
@@ -991,7 +1012,7 @@ struct TrapSpikes : Controller {
         Character *lara = (Character*)game->getLara(pos);
         if (lara->health <= 0.0f) return;
 
-        if (!checkRange(lara, SPIKES_RANGE) || !collide(lara))
+        if (!checkRange(lara, SPIKES_RANGE) || !touchLara(this, lara))
             return;
 
         if (lara->stand != Character::STAND_AIR || lara->velocity.y <= 0.0f || (pos.y - lara->pos.y) > 256.0f) {
@@ -1036,7 +1057,7 @@ struct TrapCeiling : Controller {
             }
 
             Controller *lara = game->getLara(pos);
-            if (collide(lara))
+            if (touchLara(this, lara))
                 lara->hit(1000);
         }
     }
@@ -1062,7 +1083,7 @@ struct TrapSlam : Controller {
                 bite = false;
 
             Character *lara = (Character*)game->getLara(pos);
-            if (animation.state == STATE_SLAM && !bite && collide(lara)) {
+            if (animation.state == STATE_SLAM && !bite && touchLara(this, lara)) {
                 lara->hit(SLAM_DAMAGE, this, TR::HIT_SLAM);
                 bite = true;
             }
@@ -1108,7 +1129,7 @@ struct TrapSword : Controller {
                 deactivate(true);
             }
 
-            if (collide(lara))
+            if (touchLara(this, lara, false)) // the original tests the bounds only
                 lara->hit(SWORD_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_SWORD); // TODO: push lara
         }
     }
@@ -1123,24 +1144,6 @@ struct TrapSword : Controller {
 #define SND_TR2_ZIPLINE_GO      280
 #define SND_TR2_ZIPLINE_STOP    281
 
-#define TRAP_TOUCH_RADIUS       100.0f // Lara's collision radius
-
-// the meshes of the trap touching Lara, as in the original (Object_Collision): only when her origin is
-// within the bounds of the trap widened by her radius, then the spheres of their meshes are tested
-inline int touchLara(Controller *trap, Controller *lara) {
-    Box box = trap->getBoundingBoxLocal();
-    Box laraBox = lara->getBoundingBoxLocal();
-
-    if (trap->pos.y + box.min.y >= lara->pos.y + laraBox.max.y || trap->pos.y + box.max.y <= lara->pos.y + laraBox.min.y)
-        return 0;
-
-    vec3 d = (lara->pos - trap->pos).rotateY(trap->angle.y);
-    if (d.x < box.min.x - TRAP_TOUCH_RADIUS || d.x > box.max.x + TRAP_TOUCH_RADIUS ||
-        d.z < box.min.z - TRAP_TOUCH_RADIUS || d.z > box.max.z + TRAP_TOUCH_RADIUS)
-        return 0;
-
-    return trap->collide(lara, false);
-}
 
 #define SPINDLE_DAMAGE          100
 #define SPINDLE_LOOK_AHEAD      1536.0f
@@ -2186,7 +2189,7 @@ struct TrapLava : Controller {
 
     virtual void update() {
         Character *lara = (Character*)game->getLara(pos);
-        if (lara->health > 0.0f && collide(lara))
+        if (lara->health > 0.0f && touchLara(this, lara))
             lara->hit(1001.0f, this, TR::HIT_LAVA);
 
         vec3 dir = getDir();
