@@ -25,14 +25,18 @@ int osGetTimeMS() {
 
 // A Frame is a struct containing: int16 L, int16 R.
 Sound::Frame        *sndData;
+int                 sndFrames;
 SDL_AudioDeviceID sdl_audiodev;
 
 void sndFill(void *udata, Uint8 *stream, int len) {
-        // Let's milk the audio subsystem for SND_FRAMES frames!
-        Sound::fill(sndData, SND_FRAMES);
-        // We have the number of samples, but each sample is 4 bytes long (16bit stereo sound),
-        // and memcpy copies a number of bytes.
-        memcpy (stream, sndData, SND_FRAMES * SND_FRAME_SIZE);
+        // the device asks for its own buffer size, each frame is 4 bytes long (16bit stereo sound)
+        int frames = len / SND_FRAME_SIZE;
+        if (frames > sndFrames) {
+            frames = sndFrames;
+            memset(stream, 0, len);
+        }
+        Sound::fill(sndData, frames);
+        memcpy(stream, sndData, frames * SND_FRAME_SIZE);
 }
 
 bool sndInit() {
@@ -47,21 +51,24 @@ bool sndInit() {
     desired.callback = sndFill;
     desired.userdata = NULL;
 
-    sdl_audiodev = SDL_OpenAudioDevice(NULL, 0, &desired, &obtained, /*SDL_AUDIO_ALLOW_FORMAT_CHANGE*/0);
+    // the format and the rate are converted by SDL if the device wants others, its buffer size is taken as it is
+    sdl_audiodev = SDL_OpenAudioDevice(NULL, 0, &desired, &obtained, SDL_AUDIO_ALLOW_SAMPLES_CHANGE);
     if (sdl_audiodev == 0)
     {
         LOG ("SDL2: error opening audio device: %s\n", SDL_GetError());
+        Sound::noOutput = true; // no sound, don't keep the played ones waiting for the output
+        sndData = NULL;
         return false;
     }
 
     if (desired.samples != obtained.samples) {
-        LOG ("SDL2: number of samples not supported by device. Watch out for buggy audio drivers!\n");
-        return false;
+        LOG ("SDL2: the audio device uses %d samples instead of %d\n", obtained.samples, desired.samples);
     }
 
     // Initialize audio buffer and fill it with zeros
-    sndData = new Sound::Frame[SND_FRAMES];
-    memset(sndData, 0, SND_FRAMES * SND_FRAME_SIZE);
+    sndFrames = obtained.samples > SND_FRAMES ? obtained.samples : SND_FRAMES;
+    sndData = new Sound::Frame[sndFrames];
+    memset(sndData, 0, sndFrames * SND_FRAME_SIZE);
 
     SDL_PauseAudioDevice(sdl_audiodev,0);
 
@@ -69,6 +76,9 @@ bool sndInit() {
 }
 
 void sndFree() {
+    if (!sdl_audiodev)
+        return;
+
     SDL_PauseAudioDevice(sdl_audiodev,1);
     SDL_CloseAudioDevice(sdl_audiodev);
 

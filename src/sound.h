@@ -1075,6 +1075,9 @@ namespace Sound {
     } *channels[SND_CHANNELS_MAX];
     int channelsCount;
 
+    // the platform failed to open the audio output: nothing plays (fill is never called to free the channels)
+    bool noOutput = false;
+
     typedef void (Callback)(Sample *channel);
     Callback *callback;
 
@@ -1298,6 +1301,10 @@ namespace Sound {
 
         ASSERT(pitch >= 0.0f);
         if (!stream) return NULL;
+        if (noOutput) {
+            delete stream;
+            return NULL;
+        }
         if (volume > 0.001f) {
             if (pos && !(flags & (FLIPPED | UNFLIPPED | MUSIC)) && (flags & PAN)) {
                 vec3 listenerPos = getListener(*pos).matrix.getPos();
