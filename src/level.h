@@ -2208,6 +2208,82 @@ struct Level : IGame {
         controller->render(camera->frustum, mesh, type, room.flags.water);
     }
 
+    // the floor of the boat is the hull bottom, below the water surface OpenLara draws (the original draws none), keep
+    // the water out of it: the hull goes into the depth buffer only, with the part under the water raised up to the surface
+    void renderBoatWaterOccluders() {
+        if (!(level.version & TR::VER_TR2) || camera->isUnderwater())
+            return;
+
+        Core::Pass pass = Core::pass;
+        Core::pass = Core::passCompose;
+
+        for (int i = 0; i < level.entitiesCount; i++) {
+            TR::Entity &e = level.entities[i];
+            if (e.type != TR::Entity::VEHICLE_BOAT || !e.controller)
+                continue;
+            SpeedBoat *boat = (SpeedBoat*)e.controller;
+            if (!boat->flags.rendered || boat->flags.invisible || boat->isDestroyed())
+                continue;
+
+            float surface;
+            if (boat->water != 0 && boat->water != BOAT_NO_HEIGHT) {
+                surface = float(boat->water - BOAT_SHIFT_Y);
+            } else { // not boarded yet
+                int16 roomIndex = boat->getRoomIndex();
+                TR::Room::Sector *sector = level.getWaterLevelSector(roomIndex, boat->pos);
+                if (!sector)
+                    continue;
+                surface = float(sector->ceiling * 256);
+            }
+
+            Basis &joint = boat->getJoint(0);
+            int16 top = int16(surface - joint.pos.y - 2.0f); // the surface in the hull space (the hull barely tilts)
+
+            const TR::Model *model = boat->getModel();
+            const TR::Mesh  &hull  = level.meshes[level.meshOffsets[model->mStart]];
+
+            setRoomParams(boat->getRoomIndex(), Shader::ENTITY, 1.0f, 1.0f, 0.0f, 1.0f, false);
+            Core::whiteTex->bind(sDiffuse);
+            Core::setBasis(&joint, 1);
+            Core::setBlendMode(bmNone);
+            Core::setColorWrite(false, false, false, false);
+            Core::setDepthWrite(true);
+            Core::setCullMode(cmNone);
+
+            mesh->dynBegin();
+            for (int j = 0; j < hull.fCount; j++) {
+                const TR::Face &f = hull.faces[j];
+                int count = f.triangle ? 3 : 4;
+                if (mesh->dynICount + 6 > COUNT(mesh->dynIndices))
+                    break;
+
+                int base = mesh->dynVCount;
+                for (int k = 0; k < count; k++) {
+                    short4 c = hull.vertices[f.vertices[k]].coord;
+                    Vertex &v  = mesh->dynVertices[mesh->dynVCount++];
+                    v.coord    = short4(c.x, min(c.y, top), c.z, 0);
+                    v.normal   = short4(0, -32767, 0, 0);
+                    v.texCoord = short4(0, 0, 32767, 32767);
+                    v.color    = ubyte4(255, 255, 255, 255);
+                    v.light    = ubyte4(255, 255, 255, 255);
+                }
+
+                Index *idx = mesh->dynIndices + mesh->dynICount;
+                idx[0] = base; idx[1] = base + 1; idx[2] = base + 2;
+                mesh->dynICount += 3;
+                if (count == 4) {
+                    idx[3] = base; idx[4] = base + 2; idx[5] = base + 3;
+                    mesh->dynICount += 3;
+                }
+            }
+            mesh->dynEnd();
+        }
+
+        Core::setColorWrite(true, true, true, true);
+        Core::setCullMode(cmFront);
+        Core::pass = pass;
+    }
+
     void loadNextLevelData() {
         isEnded = true;
         char buf[64];
@@ -2771,6 +2847,7 @@ struct Level : IGame {
                 waterCache->renderRays();
             waterCache->renderMask();
             waterCache->copyScreenToRefraction();
+            renderBoatWaterOccluders();
             setMainLight(player);
             waterCache->compose();
             if (camera->isUnderwater())
