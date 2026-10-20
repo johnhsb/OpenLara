@@ -1721,7 +1721,7 @@ struct Rex : Enemy {
         STATE_FATAL,
     };
 
-    Rex(IGame *game, int entity) : Enemy(game, entity, 100, 341, 2000.0f, 1.0f) {
+    Rex(IGame *game, int entity) : Enemy(game, entity, 100, 341, (game->getLevel()->version & TR::VER_TR2) ? 1800.0f : 2000.0f, 1.0f) {
         jointChest = 10;
         jointHead  = 12;    
         nextState  = STATE_NONE;
@@ -1744,6 +1744,8 @@ struct Rex : Enemy {
         }
 
         int mask = touching();
+        if (mask) // any touch hurts, trampling more
+            target->hit(state == STATE_RUN ? REX_DAMAGE_RUN : REX_DAMAGE_WALK, this);
 
         // if Lara is behind and watching Rex we need to rotate
         bool walk = targetFromView && !targetInView && mood != MOOD_ESCAPE;
@@ -1757,15 +1759,13 @@ struct Rex : Enemy {
                 if (mood == MOOD_SLEEP || walk)                     return STATE_WALK;
                 return STATE_RUN;
             case STATE_WALK :
-                if (mask) target->hit(REX_DAMAGE_WALK, this);
-                if (mood != MOOD_SLEEP && !walk)    return STATE_STOP;
+                if (mood != MOOD_SLEEP || !walk)    return STATE_STOP;
                 if (targetInView && randf() < 0.015f) {
                     nextState = STATE_BAWL;
                     return STATE_STOP;
                 }
                 break;
             case STATE_RUN :
-                if (mask) target->hit(REX_DAMAGE_RUN, this);
                 if ((targetCanAttack && targetDist < REX_DIST_WALK) || walk)
                     return STATE_STOP;
                 if (targetInView && mood != MOOD_ESCAPE && randf() < 0.015f) {
