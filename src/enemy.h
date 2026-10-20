@@ -3705,8 +3705,6 @@ struct ClubThug : Enemy {
 #define DOG_DIST_ATTACK_1   341
 #define DOG_DIST_ATTACK_2   768
 #define DOG_DIST_ATTACK_3   682
-#define DOG_BITE_REACH      (DOG_DIST_ATTACK_1 + 64) // Lara is pushed out of the long body, the jaws rarely touch her meshes
-#define DOG_BODY_DIST       300.0f // don't come closer to Lara, the lunges would shove her around
 #define DOG_BARK            0x300
 #define DOG_CROUCH          0x600
 #define DOG_STAND           0xB00
@@ -3746,9 +3744,7 @@ struct Dog : Enemy {
     }
 
     void bite(float damage, int hitFlag) {
-        if (flags.unused == hitFlag)
-            return;
-        if (!(touching() & HIT_MASK) && !(targetInView && targetDist < DOG_BITE_REACH))
+        if (flags.unused == hitFlag || !(touching() & HIT_MASK))
             return;
         Enemy::bite(20, vec3(0.0f, 30.0f, 141.0f), damage);
         flags.unused = hitFlag;
@@ -3783,8 +3779,6 @@ struct Dog : Enemy {
             case STATE_STOP :
                 flags.unused = 0;
                 if (!bored) {
-                    if (mood != MOOD_ESCAPE && targetDist < DOG_DIST_ATTACK_2 && !facesTarget())
-                        return state; // Lara is beside, turn to her first
                     if (mood != MOOD_ESCAPE && targetInView && targetDist < DOG_DIST_ATTACK_1)
                         return STATE_ATTACK_1;
                     return STATE_RUN;
@@ -3822,7 +3816,7 @@ struct Dog : Enemy {
                     return STATE_ATTACK_1;
                 if (targetDist < DOG_DIST_ATTACK_3)
                     return STATE_ATTACK_3;
-                return STATE_RUN; // Lara got away, run after her instead of lunging in place
+                break;
             case STATE_ATTACK_3 :
                 bite(DOG_LUNGE_DAMAGE, 3);
                 if (targetDist < DOG_DIST_ATTACK_1)
@@ -3838,50 +3832,21 @@ struct Dog : Enemy {
         return animation.setAnim(ANIM_DEATH);
     }
 
-
-
-
-
     virtual void updatePosition() {
         if (state == STATE_DEATH) {
             animation.overrideMask = 0;
             return;
         }
 
-        if ((state == STATE_STOP || state == STATE_ATTACK_1) && target && mood == MOOD_ATTACK) { // no turning animation, turn in place
-            float w = DOG_RUN_TURN * Core::deltaTime;
-            angle.y += clamp(targetAngle(), -w, w);
-        } else {
-            float w = 0.0f;
-            if (state == STATE_WALK) w = DOG_WALK_TURN;
-            if (state == STATE_RUN || state == STATE_ATTACK_2 || state == STATE_ATTACK_3) w = DOG_RUN_TURN;
-            turn(state == STATE_RUN, w);
-        }
+        float w = 0.0f; // no turning when it stops or bites
+        if (state == STATE_WALK) w = DOG_WALK_TURN;
+        if (state == STATE_RUN || state == STATE_ATTACK_2 || state == STATE_ATTACK_3) w = DOG_RUN_TURN;
+        turn(state == STATE_RUN, w);
 
-        vec3 old = pos;
         Enemy::updatePosition();
-
-        if (target) {
-            float d0 = SQR(target->pos.x - old.x) + SQR(target->pos.z - old.z);
-            float d1 = SQR(target->pos.x - pos.x) + SQR(target->pos.z - pos.z);
-            if (d1 < SQR(DOG_BODY_DIST) && d1 < d0) {
-                pos.x = old.x;
-                pos.z = old.z;
-            }
-        }
 
         setOverrides(true, jointChest, jointHead);
         lookAt(target);
-    }
-
-    // signed angle from where the dog faces to Lara
-    float targetAngle() {
-        vec3 d = target->pos - pos;
-        return clampAngle(normalizeAngle(PIH - d.angleY() - angle.y));
-    }
-
-    bool facesTarget() {
-        return fabsf(targetAngle()) < DEG2RAD * 30.0f;
     }
 };
 
