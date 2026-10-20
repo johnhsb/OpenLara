@@ -1627,6 +1627,10 @@ namespace TR {
             640, -202, 30,  ::Box(vec3(-256, 540, -350), vec3(256, 740, -200)), false, false
         };
 
+        Limit DETONATOR = { // Lara stands on the box, whichever way she faces
+            0, 0, 180,      ::Box(vec3(-256, -100, -256), vec3(256, 100, 256)), false, true
+        };
+
         Limit SCION_HOLDER = { 
             640, -202, 10,  ::Box(vec3(-256, 206, -862), vec3(256, 306, -200)), true, false
         };
@@ -2577,6 +2581,7 @@ namespace TR {
                 case KEY_HOLE_3    : return KEY_ITEM_3;
                 case KEY_HOLE_4    : return KEY_ITEM_4;
                 case MIDAS_HAND    : return LEADBAR;
+                case DETONATOR     : return KEY_ITEM_2;
                 default            : return LARA;
             }
         }

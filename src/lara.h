@@ -375,6 +375,9 @@ struct Lara : Character {
     KeyHole           *keyHole;
     Zipline           *zipline;
     SpeedBoat         *boat;
+    DetonatorBox      *detonator;
+    bool              extraAnim;   // playing one of the special animations (LARA_SPEC)
+    int               extraState;  // the state it goes to, -1 once there
     Controller        *keyItem;
     Lightning         *lightning;
     Texture           *environment;
@@ -611,6 +614,9 @@ struct Lara : Character {
 
         keyHole     = NULL;
         keyItem     = NULL;
+        detonator   = NULL;
+        extraAnim   = false;
+        extraState  = -1;
         lightning   = NULL;
         environment = NULL;
 
@@ -774,7 +780,7 @@ struct Lara : Character {
             return false;
 
         Character::getSaveData(data);
-        if (boat) { // the boat ride isn't saved
+        if (boat || extraAnim) { // the boat ride and the special animations aren't saved
             data.animIndex = ANIM_STAND;
             data.animFrame = 0;
         }
@@ -807,6 +813,14 @@ struct Lara : Character {
         angle.x  = TR::angle(data.extra.lara.angleX);
         health   = data.extra.lara.health;
         oxygen   = data.extra.lara.oxygen;
+
+        // nor the special animations
+        if (extraAnim) {
+            extraAnim = false;
+            detonator = NULL;
+            animation.setModel(getModel());
+            animation.setAnim(ANIM_STAND);
+        }
 
         // the boat ride isn't saved either
         if (boat) {
@@ -878,6 +892,11 @@ struct Lara : Character {
         keyItem = NULL;
         zipline = NULL;
         boat    = NULL;
+        detonator = NULL;
+        if (extraAnim) {
+            extraAnim = false;
+            animation.setModel(getModel());
+        }
 
         if (room == TR::NO_ROOM) {
             stand = STAND_AIR;
@@ -1049,6 +1068,7 @@ struct Lara : Character {
             return state != STATE_UNDERWATER_DEATH && state != STATE_DIVE && state != STATE_WATER_OUT && state != STATE_PICK_UP && state != STATE_SWITCH_DOWN && state != STATE_SWITCH_UP && state != STATE_USE_KEY && state != STATE_USE_PUZZLE;
 
         return    !zipline // both hands hold the handle
+               && !extraAnim
                && animation.index != ANIM_CLIMB_3
                && animation.index != ANIM_CLIMB_2
                && state != STATE_DEATH
@@ -2788,6 +2808,11 @@ struct Lara : Character {
                     if (controller->flags.active == TR::ACTIVE || state != STATE_STOP)
                         return;
 
+                    if (entity.type == TR::Entity::DETONATOR) {
+                        useDetonator((DetonatorBox*)entity.controller);
+                        return;
+                    }
+
                     actionState = entity.isPuzzleHole() ? STATE_USE_PUZZLE : STATE_USE_KEY;
                     if (!animation.canSetState(actionState))
                         return;
@@ -3276,6 +3301,75 @@ struct Lara : Character {
 
 // TR2 speedboat
     #define ANIM_JUMP_FORWARD 77
+
+    // the detonator box takes the detonator key, Lara pushes its plunger (the trigger goes off once she's done)
+    void useDetonator(DetonatorBox *box) {
+        if (!checkInteraction(box, &TR::Limits::DETONATOR, isPressed(ACTION) || usedItem != TR::Entity::NONE))
+            return;
+
+        if (usedItem == TR::Entity::NONE) {
+            if (isPressed(ACTION) && !game->invChooseKey(camera->cameraIndex, box->getEntity().type))
+                game->playSound(TR::SND_NO, pos, Sound::PAN);
+            return;
+        }
+
+        if (TR::Level::convToInv(TR::Entity::getItemForHole(box->getEntity().type)) != usedItem) {
+            game->playSound(TR::SND_NO, pos, Sound::PAN);
+            return;
+        }
+
+        if (!extraStart(1)) // the plunger, after the breath
+            return;
+
+        game->invUse(camera->cameraIndex, usedItem);
+        usedItem  = TR::Entity::NONE;
+        detonator = box;
+        box->use(angle.y);
+    }
+
+    // plays a special animation of LARA_SPEC (the first one of it is the breath it comes back to)
+    bool extraStart(int anim) {
+        const TR::Model *model = getLaraModel(TR::Entity::LARA_SPEC);
+        if (!model || model->animation + anim >= level->animsCount)
+            return false;
+
+        animation.setModel(model);
+        animation.setAnim(0);
+        extraState = level->anims[model->animation + anim].state;
+        extraAnim  = true;
+        velocity   = vec3(0.0f);
+        speed      = 0.0f;
+        return true;
+    }
+
+    void updateExtra() {
+        lastInput = input;
+        input = 0;
+
+        if (extraState >= 0) {
+            if (animation.state == extraState)
+                extraState = -1;
+            else
+                animation.setState(extraState);
+        }
+
+        Controller::updateAnimation(true);
+
+        if (extraState < 0 && animation.state == 0) { // back to the breath, done
+            extraAnim = false;
+            animation.setModel(getModel());
+            animation.setAnim(ANIM_STAND);
+            if (detonator) { // the key trigger goes off now, then the box is spent
+                detonator->flags.state  = TR::Entity::asInactive;
+                detonator->flags.active = TR::ACTIVE;
+                detonator = NULL;
+                checkTrigger(this, false);
+            }
+        }
+
+        velocity = vec3(0.0f);
+        updateRoom();
+    }
 
     const TR::Model* getLaraModel(TR::Entity::Type type) {
         int index = level->getModelIndex(type);
@@ -4736,6 +4830,8 @@ struct Lara : Character {
 
             if (boat)
                 updateBoat();
+            else if (extraAnim)
+                updateExtra();
             else
                 Character::update();
             for (int i = 0; i < COUNT(braid); i++) {

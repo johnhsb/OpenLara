@@ -2159,6 +2159,34 @@ struct ClockChimes : Controller {
     virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {}
 };
 
+#define DETONATOR_EXPLOSION_FRAME   80
+
+// the detonator box of Bartoli's Hideout: Lara pushes its plunger with the detonator key, the blast goes off midway
+struct DetonatorBox : Controller {
+    DetonatorBox(IGame *game, int entity) : Controller(game, entity) {}
+
+    void use(float angleY) {
+        angle.y = angleY; // it turns to the way Lara faces
+        activate();
+    }
+
+    virtual void update() {
+        if (flags.state == TR::Entity::asNone)
+            return;
+
+        int frame = animation.frameIndex;
+        if (frame >= animation.framesCount - 1)
+            return; // stays pushed down
+
+        updateAnimation(true);
+
+        if (frame < DETONATOR_EXPLOSION_FRAME && animation.frameIndex >= DETONATOR_EXPLOSION_FRAME) {
+            game->playSound(SND_TR2_EXPLOSION_1, pos, 0);
+            game->shakeCamera(0.5f);
+        }
+    }
+};
+
 struct ThorHammerBlock : Controller {
     Controller *handle;
 
