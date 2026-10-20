@@ -5166,6 +5166,9 @@ struct Lara : Character {
             if (!collide(controller, false))
                 continue;
 
+            if (e.isEnemy())
+                controller->touchedBy(controller->collide(this, false));
+
             if (e.type == TR::Entity::VEHICLE_BOAT && !boat) {
                 int getOn = boatGetOn((SpeedBoat*)controller);
                 if (getOn) {
@@ -5179,9 +5182,16 @@ struct Lara : Character {
 
         // push Lara out of objects and walking enemies (flying ones and the dead don't block, except the huge T-Rex body as in the original)
             if (!e.isEnemy() || (!((Character*)controller)->flying && (((Character*)controller)->health > 0.0f || e.type == TR::Entity::ENEMY_REX))) {
-                p += box.pushOut2D(p);
-                p = (p.rotateY(-controller->angle.y) + controller->pos) - pos;
-                collisionOffset += vec3(p.x, 0.0f, p.z);
+                Box pushBox = box;
+                if (e.isEnemy() && (level->version & TR::VER_TR2)) { // out of the bounds of the creature alone (no big push), she may stand at its jaws
+                    pushBox = controller->getBoundingBoxLocal();
+                    pushBox.max.y += LARA_HEIGHT;
+                }
+                if (pushBox.contains(p)) {
+                    p += pushBox.pushOut2D(p);
+                    p = (p.rotateY(-controller->angle.y) + controller->pos) - pos;
+                    collisionOffset += vec3(p.x, 0.0f, p.z);
+                }
             }
 
             if (e.type == TR::Entity::ENEMY_REX && ((Character*)controller)->health <= 0)

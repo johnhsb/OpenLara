@@ -70,6 +70,8 @@ struct Enemy : Character {
     vec3   waypoint;
 
     float thinkTime;
+    int   touchBits;    // the meshes Lara touched since the last think
+    int   touchNow;
     float length;       // dist from center to head (jaws)
     float aggression;
     int   radius;
@@ -85,7 +87,7 @@ struct Enemy : Character {
     bool  targetFromView;   // enemy in target view zone
     bool  targetCanAttack;
 
-    Enemy(IGame *game, int entity, float health, int radius, float length, float aggression) : Character(game, entity, health), ai(AI_RANDOM), mood(MOOD_SLEEP), wound(false), nextState(0), targetBox(TR::NO_BOX), thinkTime(1.0f / 30.0f), length(length), aggression(aggression), radius(radius), hitSound(-1), target(NULL), path(NULL) {
+    Enemy(IGame *game, int entity, float health, int radius, float length, float aggression) : Character(game, entity, health), ai(AI_RANDOM), mood(MOOD_SLEEP), wound(false), nextState(0), targetBox(TR::NO_BOX), thinkTime(1.0f / 30.0f), touchBits(0), touchNow(0), length(length), aggression(aggression), radius(radius), hitSound(-1), target(NULL), path(NULL) {
         targetDist   = +INF;
         targetInView = targetFromView = targetCanAttack = false;
         waypoint     = pos;
@@ -317,6 +319,15 @@ struct Enemy : Character {
         wound = true;
     };
 
+    virtual void touchedBy(int mask) {
+        touchBits |= mask;
+    }
+
+    // the meshes touching Lara, also when she was pushed off them since (an attack tests these, as in the original)
+    int touching() {
+        return touchNow | collide(target);
+    }
+
     void bite(int joint, const vec3 &offset, float damage) {
         ASSERT(target);
         target->hit(damage, this);
@@ -369,6 +380,9 @@ struct Enemy : Character {
         if (thinkTime < 1.0f / 30.0f)
             return false;
         thinkTime -= 1.0f / 30.0f;
+
+        touchNow  = touchBits;
+        touchBits = 0;
 
         int zoneOld = zone;
         updateZone();
@@ -1729,7 +1743,7 @@ struct Rex : Enemy {
             return STATE_WALK;
         }
 
-        int mask = collide(target);
+        int mask = touching();
 
         // if Lara is behind and watching Rex we need to rotate
         bool walk = targetFromView && !targetInView && mood != MOOD_ESCAPE;
@@ -3524,7 +3538,7 @@ struct ClubThug : Enemy {
     }
 
     void punch(float damage, int hitFlag) {
-        if (flags.unused == hitFlag || !(collide(target) & HIT_MASK))
+        if (flags.unused == hitFlag || !(touching() & HIT_MASK))
             return;
         bite(10, vec3(247.0f, 10.0f, 11.0f), damage);
         flags.unused = hitFlag;
@@ -3734,7 +3748,7 @@ struct Dog : Enemy {
     void bite(float damage, int hitFlag) {
         if (flags.unused == hitFlag)
             return;
-        if (!(collide(target) & HIT_MASK) && !(targetInView && targetDist < DOG_BITE_REACH))
+        if (!(touching() & HIT_MASK) && !(targetInView && targetDist < DOG_BITE_REACH))
             return;
         Enemy::bite(20, vec3(0.0f, 30.0f, 141.0f), damage);
         flags.unused = hitFlag;
@@ -3989,7 +4003,7 @@ struct Crow : Enemy {
                     return STATE_ATTACK;
                 break;
             case STATE_ATTACK :
-                if (flags.unused == 0 && targetInView && (collide(target) || beakReach())) {
+                if (flags.unused == 0 && targetInView && (touching() || beakReach())) {
                     bite(14, vec3(2.0f, 10.0f, 60.0f), CROW_DAMAGE);
                     attackDelay  = CROW_ATTACK_DELAY;
                     crowNextBite = Core::getTime() + CROW_FLOCK_DELAY;
@@ -4143,7 +4157,7 @@ struct Mouse : Enemy {
                     return STATE_STOP;
                 break;
             case STATE_ATTACK :
-                if (nextState == STATE_EMPTY && targetInView && collide(target)) {
+                if (nextState == STATE_EMPTY && targetInView && touching()) {
                     bite(2, vec3(0.0f, 0.0f, 57.0f), MOUSE_DAMAGE);
                     nextState = STATE_STOP;
                 }
@@ -4223,7 +4237,7 @@ struct Spider : Enemy {
         if (!think(false))
             return state;
 
-        bool touch = targetInView && collide(target) != 0;
+        bool touch = targetInView && touching() != 0;
 
         switch (state) {
             case STATE_STOP :
@@ -4383,7 +4397,7 @@ struct Tiger : Enemy {
             case STATE_ATTACK_1 :
             case STATE_ATTACK_2 :
             case STATE_ATTACK_3 :
-                if (flags.unused == 0 && (collide(target) & HIT_MASK)) {
+                if (flags.unused == 0 && (touching() & HIT_MASK)) {
                     bite(26, vec3(19.0f, -13.0f, 3.0f), TIGER_DAMAGE);
                     flags.unused = 1;
                 }

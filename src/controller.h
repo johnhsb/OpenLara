@@ -875,6 +875,9 @@ struct Controller {
     }
 
 
+    // Lara touched these meshes of it before she was pushed out (the touch bits of the original)
+    virtual void touchedBy(int mask) {}
+
     int collide(Controller *controller, bool checkBoxes = true) {
         const TR::Model *a = getModel();
         const TR::Model *b = controller->getModel();
