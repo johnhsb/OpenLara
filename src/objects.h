@@ -1231,6 +1231,36 @@ struct TrapBladeWall : Controller {
     }
 };
 
+#define BLADE_STATUE_DAMAGE     20
+#define BLADE_STATUE_MASK       0x80    // the sword
+
+// the statue swinging its sword while triggered
+struct TrapBladeStatue : Controller {
+    enum {
+        STATE_STOP = 1,
+        STATE_CUT  = 2,
+    };
+
+    TrapBladeStatue(IGame *game, int entity) : Controller(game, entity) {
+        animation.setAnim(3);
+    }
+
+    virtual void update() {
+        if (isActive() && state == STATE_STOP)
+            animation.setState(STATE_CUT);
+        else
+            animation.setState(STATE_STOP);
+
+        if (state == STATE_CUT) {
+            Character *lara = (Character*)game->getLara(pos);
+            if (lara->health > 0.0f && (touchLara(this, lara) & BLADE_STATUE_MASK))
+                lara->hit(BLADE_STATUE_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
+        }
+
+        updateAnimation(true);
+    }
+};
+
 #define SPIKE_WALL_DAMAGE       20
 #define SPIKE_WALL_SPEED        16.0f
 
