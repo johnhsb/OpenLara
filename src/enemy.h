@@ -2639,10 +2639,39 @@ struct Human : Enemy {
 
     virtual void onDead() {}
 
+    // TR2: from 87.5% close up down to 25% at 8 blocks, a sidestepping Lara is harder to hit (the 32-bit overflow of
+    // the original is part of it)
+    bool shotHitTR2() {
+        const int32 range = SQR(8 * 1024);
+        int32 dist2 = int32(SQR(targetDist));
+        if (targetDist >= 8 * 1024)
+            return false;
+
+        vec3  d      = target->pos - pos;
+        float facing = atan2f(d.x, d.z) - target->angle.y + PI;
+        vec3  dir    = target->getDir();
+        int32 speed  = int32((target->velocity.x * dir.x + target->velocity.z * dir.z) / 30.0f); // per frame
+        int32 lead   = int32(speed * sinf(facing));
+
+        int32 lag = int32(uint32(uint64(int64(lead) * range))) / 300;
+        lag = int32(uint32(uint64(int64(dist2) + int64(int32(uint32(uint64(int64(lag) * lag)))))));
+        if (lag > range)
+            return false;
+
+        int32 chance = 0x2000 + (range - dist2) / (range / 0x5000);
+        return randControl() < chance;
+    }
+
     bool doShot(float damage, const vec3 &muzzleOffset) {
         game->addMuzzleFlash(this, jointGun, muzzleOffset, -1);
 
-        if (targetDist < HUMAN_DIST_SHOT && randf() < ((HUMAN_DIST_SHOT - targetDist) / HUMAN_DIST_SHOT - 0.25f)) {
+        bool hit;
+        if (level->version & TR::VER_TR2)
+            hit = shotHitTR2();
+        else
+            hit = targetDist < HUMAN_DIST_SHOT && randf() < ((HUMAN_DIST_SHOT - targetDist) / HUMAN_DIST_SHOT - 0.25f);
+
+        if (hit) {
             bite(-1, vec3(0.0f), damage);
             game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), target->getJoint(rand() % target->getModel()->mCount).pos);
             game->playSound(target->stand == STAND_UNDERWATER ? TR::SND_HIT_UNDERWATER : TR::SND_HIT, target->pos, Sound::PAN);
@@ -3284,7 +3313,6 @@ struct Natla : Human {
 #define GOON_TURN           (DEG2RAD * 5 * 30)
 #define GOON_DIST_RUN       (1024 * 2)
 #define GOON_DIST_SHOT      (1024 * 8)
-#define GOON_AIM_ANGLE      (DEG2RAD * 10)
 #define GOON_POSE           0x500
 #define GOON_UNPOSE         0x100
 #define GOON_WALK           0xA00
@@ -3333,21 +3361,6 @@ struct MaskedGoon : Human {
 
     void fire() {
         doShot(GOON_DAMAGE, vec3(3.0f, -56.0f, 151.0f)); // the muzzle (3, 331, 56) of the gun mesh in the flash space
-    }
-
-    bool isAiming() const {
-        return state == STATE_AIM_1 || state == STATE_SHOOT_1 ||
-               state == STATE_AIM_3 || state == STATE_SHOOT_3;
-    }
-
-    // signed angle from where the goon faces to Lara
-    float targetAngle() {
-        vec3 d = target->pos - pos;
-        return clampAngle(normalizeAngle(PIH - d.angleY() - angle.y));
-    }
-
-    bool facesTarget() {
-        return fabsf(targetAngle()) < GOON_AIM_ANGLE;
     }
 
     virtual int getStateGround() {
@@ -3414,8 +3427,6 @@ struct MaskedGoon : Human {
                 flags.unused = 0;
                 if (mood == MOOD_ESCAPE || !canShoot())
                     return STATE_STOP;
-                if (!facesTarget())
-                    return state; // keep turning to Lara
                 return state == STATE_AIM_1 ? STATE_SHOOT_1 : STATE_SHOOT_3;
             case STATE_SHOOT_1 :
             case STATE_SHOOT_3 :
@@ -3425,7 +3436,7 @@ struct MaskedGoon : Human {
                 }
                 return state == STATE_SHOOT_1 ? STATE_AIM_1 : STATE_AIM_3; // aim again to check where Lara is
             case STATE_SHOOT_2 : // shooting on the run, one shot and run again
-                if (flags.unused == 0 && canShoot() && facesTarget()) {
+                if (flags.unused == 0 && canShoot()) {
                     fire();
                     flags.unused = 1;
                 }
@@ -3450,11 +3461,7 @@ struct MaskedGoon : Human {
             return;
         }
 
-        if (isAiming() && target) { // the aim animations don't move, turn to Lara in place
-            float w = GOON_TURN * Core::deltaTime;
-            angle.y += clamp(targetAngle(), -w, w);
-        } else
-            turn(state == STATE_RUN, (state == STATE_WALK || state == STATE_RUN) ? GOON_TURN : 0.0f);
+        turn(state == STATE_RUN, (state == STATE_WALK || state == STATE_RUN) ? GOON_TURN : 0.0f); // no turning while aiming, the head follows Lara
 
         Enemy::updatePosition();
         setOverrides(true, jointChest, jointHead);
