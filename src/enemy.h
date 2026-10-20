@@ -3888,18 +3888,8 @@ struct Dog : Enemy {
 // TR2 crow
 #define CROW_DAMAGE          20
 #define CROW_DIST_ATTACK     512
-#define CROW_TURN            (DEG2RAD * 6 * 30)
+#define CROW_TURN            (DEG2RAD * 3 * 30)
 #define CROW_LIFT_SPEED      512.0f
-#define CROW_BEAK_REACH      96.0f
-#define CROW_DIST_LEAD       2048.0f
-#define CROW_DIST_DETECT     (3 * 1024.0f)
-#define CROW_ATTACK_DELAY    3.0f
-#define CROW_FLOCK_DELAY     1000 // ms between bites of any crows
-#define CROW_ATTACK_CHANCE   0.6f // per approach, a missed roll is a fly-by
-#define CROW_SKIP_DELAY      1.5f
-
-static int crowNextBite; // shared by all crows so a flock takes turns
-#define CROW_LEAD_FRAMES     20.0f
 
 struct Crow : Enemy {
 
@@ -3920,10 +3910,9 @@ struct Crow : Enemy {
         STATE_EAT,
     };
 
-    int   requiredState;
-    float attackDelay; // rest after a bite before the next attack
+    int requiredState;
 
-    Crow(IGame *game, int entity) : Enemy(game, entity, 15, 204, 0.0f, 1.0f), requiredState(STATE_EMPTY), attackDelay(0.0f) {
+    Crow(IGame *game, int entity) : Enemy(game, entity, 15, 204, 0.0f, 1.0f), requiredState(STATE_EMPTY) {
         stand      = STAND_AIR;
         stepHeight =  20 * 1024;
         dropHeight = -20 * 1024;
@@ -3938,16 +3927,6 @@ struct Crow : Enemy {
             animation.setAnim(ANIM_FLY);
     }
 
-    // the beak near Lara's body counts as a hit (mesh spheres alone miss too often)
-    bool beakReach() {
-        vec3 beak = getJoint(14) * vec3(2.0f, 10.0f, 60.0f);
-        Box  box  = target->getBoundingBox();
-        float r = CROW_BEAK_REACH;
-        return beak.x > box.min.x - r && beak.x < box.max.x + r &&
-               beak.y > box.min.y - r && beak.y < box.max.y + r &&
-               beak.z > box.min.z - r && beak.z < box.max.z + r;
-    }
-
     bool onFloor() {
         return state == STATE_STOP || state == STATE_EAT;
     }
@@ -3956,25 +3935,10 @@ struct Crow : Enemy {
         if (!think(false))
             return state;
 
-        vec3  d  = target->pos - pos;
-        float hd = sqrtf(SQR(d.x) + SQR(d.z)); // horizontal distance
-        bool attack = targetInView && hd < CROW_DIST_ATTACK && attackDelay <= 0.0f && Core::getTime() >= crowNextBite;
-        if (attack && (state == STATE_FLY || state == STATE_GLIDE) && randf() >= CROW_ATTACK_CHANCE) {
-            attack      = false;
-            attackDelay = CROW_SKIP_DELAY; // pass this time
-        }
+        bool attack = targetInView && targetDist < CROW_DIST_ATTACK;
 
-    // Lara nearby is attacked whatever her height or zone
-        if (target->health > 0.0f && hd < CROW_DIST_DETECT) {
-            mood     = MOOD_ATTACK;
+        if (mood == MOOD_ATTACK) // flying, it heads straight for Lara
             waypoint = target->pos;
-        }
-
-    // aim where a moving Lara will be when we get there
-        if (mood == MOOD_ATTACK && targetInView && hd < CROW_DIST_LEAD) {
-            float t = min(hd / max(animation.getSpeed(), 1.0f), CROW_LEAD_FRAMES);
-            waypoint = target->pos + vec3(target->velocity.x, 0.0f, target->velocity.z) * t;
-        }
 
         switch (state) {
             case STATE_FLY :
@@ -4003,10 +3967,8 @@ struct Crow : Enemy {
                     return STATE_ATTACK;
                 break;
             case STATE_ATTACK :
-                if (flags.unused == 0 && targetInView && (touching() || beakReach())) {
+                if (flags.unused == 0 && touching()) {
                     bite(14, vec3(2.0f, 10.0f, 60.0f), CROW_DAMAGE);
-                    attackDelay  = CROW_ATTACK_DELAY;
-                    crowNextBite = Core::getTime() + CROW_FLOCK_DELAY;
                     flags.unused = 1;
                 }
                 break;
@@ -4034,18 +3996,7 @@ struct Crow : Enemy {
         }
     }
 
-    virtual void updateVelocity() {
-        Enemy::updateVelocity();
-    // keep up with Lara while pecking
-        if (health > 0.0f && state == STATE_ATTACK && target) {
-            velocity.x += target->velocity.x;
-            velocity.z += target->velocity.z;
-        }
-    }
-
     virtual void updatePosition() {
-        attackDelay = max(attackDelay - Core::deltaTime, 0.0f);
-
         if (health > 0.0f) {
             turn(false, CROW_TURN);
 
