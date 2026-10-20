@@ -3495,6 +3495,8 @@ struct MaskedGoon : Human {
 #define THUG_WALK_CHANCE    0x100
 #define THUG_WAIT_CHANCE    0x100
 #define THUG_VAULT_SHIFT    260
+#define SND_TR2_ENEMY_HIT_1 71
+#define SND_TR2_ENEMY_HIT_2 72
 
 struct ClubThug : Enemy {
 
@@ -3537,10 +3539,11 @@ struct ClubThug : Enemy {
         nextState  = STATE_EMPTY;
     }
 
-    void punch(float damage, int hitFlag) {
+    void punch(float damage, int hitFlag, int sound) {
         if (flags.unused == hitFlag || !(touching() & HIT_MASK))
             return;
         bite(10, vec3(247.0f, 10.0f, 11.0f), damage);
+        game->playSound(sound, pos, Sound::PAN);
         flags.unused = hitFlag;
     }
 
@@ -3607,15 +3610,15 @@ struct ClubThug : Enemy {
                 flags.unused = 0;
                 return (reach && targetDist < THUG_DIST_ATTACK_2) ? STATE_PUNCH_2 : STATE_WALK;
             case STATE_PUNCH_0 :
-                punch(THUG_HIT_DAMAGE, 1);
+                punch(THUG_HIT_DAMAGE, 1, SND_TR2_ENEMY_HIT_2);
                 break;
             case STATE_PUNCH_1 :
-                punch(THUG_HIT_DAMAGE, 1);
+                punch(THUG_HIT_DAMAGE, 1, SND_TR2_ENEMY_HIT_1);
                 if (targetInView && targetDist > THUG_DIST_ATTACK_1 && targetDist < THUG_DIST_ATTACK_2)
                     return STATE_PUNCH_2;
                 break;
             case STATE_PUNCH_2 :
-                punch(THUG_SWIPE_DAMAGE, 2);
+                punch(THUG_SWIPE_DAMAGE, 2, SND_TR2_ENEMY_HIT_1);
                 break;
         }
         return state;
