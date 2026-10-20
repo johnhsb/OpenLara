@@ -375,8 +375,10 @@ struct Enemy : Character {
 
         target = (Character*)game->getLara(pos);
 
+        bool tr2 = (level->version & TR::VER_TR2) != 0;
+
         vec3 targetVec  = target->pos - pos - getDir() * length;
-        targetDist      = targetVec.length();
+        targetDist      = tr2 ? sqrtf(SQR(targetVec.x) + SQR(targetVec.z)) : targetVec.length(); // TR2 ranges are horizontal
         targetAngle     = clampAngle(atan2f(targetVec.x, targetVec.z) - angle.y);
         targetDead      = target->health <= 0;
         targetInView    = targetVec.dot(getDir()) > 0;
@@ -461,6 +463,14 @@ struct Enemy : Character {
         // the waypoint is reached when close to it or inside the box it leads to (a fast runner may circle around the point)
             if ((fabsf(d.x) < 512 && fabsf(d.y) < 512 && fabsf(d.z) < 512) || (path->index > 0 && path->index < path->count && box == path->boxes[path->index]))
                 nextWaypoint();
+        }
+
+        if (tr2) {
+        // attacking, it heads for Lara herself every frame once on her box or the last leg of the path to it
+            if (mood == MOOD_ATTACK && targetBox != TR::NO_BOX && targetBox == target->box && (box == targetBox || !path || path->index >= path->count - 1))
+                waypoint = target->pos;
+        // only the moment of a hit may scare it away
+            wound = false;
         }
 
         return true;
@@ -3345,7 +3355,6 @@ struct MaskedGoon : Human {
             return state;
 
         bool bored = mood == MOOD_SLEEP;
-        wound = false; // only the moment of a hit may scare it away, like in the original
 
         if (nextState == state)
             nextState = STATE_EMPTY;
@@ -3499,7 +3508,7 @@ struct ClubThug : Enemy {
         STATE_FALL_3,
     };
 
-    ClubThug(IGame *game, int entity) : Enemy(game, entity, 27, 102, 0.0f, 0.25f) {
+    ClubThug(IGame *game, int entity) : Enemy(game, entity, 27, 102, 0.0f, 1.0f) {
         stepHeight =  1024;
         dropHeight = -1024;
         jointChest = 1;
@@ -3517,8 +3526,6 @@ struct ClubThug : Enemy {
     virtual int getStateGround() {
         if (!think(false))
             return state;
-
-        wound = false; // only the moment of a hit may scare it away, like in the original
 
         if (nextState == state)
             nextState = STATE_EMPTY;
@@ -3711,7 +3718,7 @@ struct Dog : Enemy {
         STATE_DEATH,
     };
 
-    Dog(IGame *game, int entity) : Enemy(game, entity, 10, 341, 300.0f, 0.25f) {
+    Dog(IGame *game, int entity) : Enemy(game, entity, 10, 341, 300.0f, 1.0f) {
         jointChest = -1;
         jointHead  = 20;
         nextState  = STATE_EMPTY;
@@ -3729,8 +3736,6 @@ struct Dog : Enemy {
     virtual int getStateGround() {
         if (!think(false))
             return state;
-
-        wound = false; // only the moment of a hit may scare it away, like in the original
 
         if (nextState == state)
             nextState = STATE_EMPTY;
@@ -3897,7 +3902,7 @@ struct Crow : Enemy {
     int   requiredState;
     float attackDelay; // rest after a bite before the next attack
 
-    Crow(IGame *game, int entity) : Enemy(game, entity, 15, 204, 0.0f, 0.25f), requiredState(STATE_EMPTY), attackDelay(0.0f) {
+    Crow(IGame *game, int entity) : Enemy(game, entity, 15, 204, 0.0f, 1.0f), requiredState(STATE_EMPTY), attackDelay(0.0f) {
         stand      = STAND_AIR;
         stepHeight =  20 * 1024;
         dropHeight = -20 * 1024;
@@ -4075,7 +4080,7 @@ struct Mouse : Enemy {
         STATE_DEATH,
     };
 
-    Mouse(IGame *game, int entity) : Enemy(game, entity, 4, 102, 0.0f, 0.25f) {
+    Mouse(IGame *game, int entity) : Enemy(game, entity, 4, 102, 0.0f, 1.0f) {
         stepHeight = 256;
         dropHeight = -1024;
         jointChest = -1;
@@ -4187,7 +4192,7 @@ struct Spider : Enemy {
         STATE_DEATH,
     };
 
-    Spider(IGame *game, int entity) : Enemy(game, entity, 5, 102, 0.0f, 0.25f) {
+    Spider(IGame *game, int entity) : Enemy(game, entity, 5, 102, 0.0f, 1.0f) {
         stepHeight = 512;
         dropHeight = -1024;
         jointChest = jointHead = -1;
@@ -4307,7 +4312,7 @@ struct Tiger : Enemy {
         STATE_ATTACK_3 ,
     };
 
-    Tiger(IGame *game, int entity) : Enemy(game, entity, 20, 341, 200.0f, 0.25f) {
+    Tiger(IGame *game, int entity) : Enemy(game, entity, 20, 341, 200.0f, 1.0f) {
         dropHeight = -1024;
         jointChest = -1;//21;
         jointHead  = -1;//22;
