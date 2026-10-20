@@ -4217,7 +4217,6 @@ struct Spider : Enemy {
     }
 };
 
-#define TIGER_WALK           1120
 #define TIGER_ROAR           96
 #define TIGER_DIST_ATTACK_1  341
 #define TIGER_DIST_ATTACK_2  1536
@@ -4249,7 +4248,9 @@ struct Tiger : Enemy {
         STATE_ATTACK_3 ,
     };
 
-    Tiger(IGame *game, int entity) : Enemy(game, entity, 20, 341, 200.0f, 1.0f) {
+    float maxTurn; // kept from the state that leads to an attack, as in the original
+
+    Tiger(IGame *game, int entity) : Enemy(game, entity, 20, 341, 200.0f, 1.0f), maxTurn(0.0f) {
         dropHeight = -1024;
         jointChest = -1;//21;
         jointHead  = -1;//22;
@@ -4265,26 +4266,25 @@ struct Tiger : Enemy {
 
         switch (state) {
             case STATE_STOP    :
+                maxTurn = 0.0f;
+                flags.unused = 0;
                 if (mood == MOOD_ESCAPE)
                     return STATE_RUN;
-                if (mood == MOOD_SLEEP) {
-                    int r = randControl();
-                    if (r < TIGER_ROAR) return STATE_ROAR;
-                    if (r < TIGER_WALK) return STATE_WALK;
-                    return state;
-                }
+                if (mood == MOOD_SLEEP)
+                    return STATE_WALK; // the roar the original rolls for here is overwritten
                 if (targetInView && targetDist < TIGER_DIST_ATTACK_1)
                     return STATE_ATTACK_1;
-                if (targetInView && targetDist < TIGER_DIST_ATTACK_3)
+                if (targetInView && targetDist < TIGER_DIST_ATTACK_3) {
+                    maxTurn = TIGER_TURN_SLOW;
                     return STATE_ATTACK_3;
+                }
                 if (nextState != STATE_NONE)
                     return nextState;
                 if (mood != MOOD_ATTACK && randControl() < TIGER_ROAR)
                     return STATE_ROAR;
                 return STATE_RUN;
             case STATE_WALK     : 
-                if (mood == MOOD_ATTACK || mood == MOOD_ESCAPE)
-                    return STATE_RUN;
+                maxTurn = TIGER_TURN_SLOW;
                 if (randControl() < TIGER_ROAR) {
                     nextState = STATE_ROAR;
                     return STATE_STOP;
@@ -4293,6 +4293,7 @@ struct Tiger : Enemy {
             case STATE_RUN      : {
                 bool melee = flags.unused != 0;
                 flags.unused = 0;
+                maxTurn = TIGER_TURN_FAST;
 
                 if (mood == MOOD_SLEEP)
                     return STATE_STOP;
@@ -4328,7 +4329,7 @@ struct Tiger : Enemy {
     }
 
     virtual void updatePosition() {
-        turn(state == STATE_RUN || state == STATE_WALK || state == STATE_ROAR, state == STATE_RUN ? TIGER_TURN_FAST : TIGER_TURN_SLOW);
+        turn(state == STATE_RUN, maxTurn);
 
         if (state == STATE_DEATH) {
             animation.overrideMask = 0;
