@@ -3840,6 +3840,276 @@ struct ClubThug : Enemy {
     }
 };
 
+// TR2 gunmen of the rig and the diving area ("worker_1" and "worker_2" in the original), the first one fires single
+// shots, the second one bursts of them
+#define GUNMAN_1_DAMAGE     150
+#define GUNMAN_2_DAMAGE     30
+#define GUNMAN_2_RELOAD     5               // frames between the shots of a burst
+#define GUNMAN_WALK_TURN    (DEG2RAD * 3 * 30)
+#define GUNMAN_RUN_TURN     (DEG2RAD * 5 * 30)
+#define GUNMAN_DIST_RUN     (1024 * 2)
+#define GUNMAN_DIST_STAND   (1024 * 3)      // closer it shoots standing
+#define GUNMAN_DIST_SHOT    (1024 * 8)
+
+struct Gunman1 : Human {
+
+    enum {
+        ANIM_DEATH = 18,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_WALK,
+        STATE_STOP,
+        STATE_WAIT,
+        STATE_SHOOT_1,
+        STATE_RUN,
+        STATE_SHOOT_2,  // walking
+        STATE_DEATH,
+        STATE_AIM_1,
+        STATE_AIM_2,
+        STATE_SHOOT_3,
+    };
+
+    Gunman1(IGame *game, int entity) : Human(game, entity, 25) {
+        jointChest = 5;
+        jointHead  = 14;
+        jointGun   = 9;
+        animDeath  = ANIM_DEATH;
+    }
+
+    bool canShoot() {
+        return targetIsVisible(GUNMAN_DIST_SHOT);
+    }
+
+    void fire() { // the muzzle (0, 281, 40) of the gun mesh in the flash space
+        if (flags.unused == 0) {
+            doShot(GUNMAN_1_DAMAGE, vec3(0.0f, -40.0f, 101.0f));
+            flags.unused = 1;
+        }
+    }
+
+    virtual int getStateGround() {
+        if (!think(true))
+            return state;
+
+        bool bored = mood == MOOD_SLEEP;
+
+        switch (state) {
+            case STATE_STOP :
+                flags.unused = 0;
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (canShoot()) {
+                    if (targetDist >= GUNMAN_DIST_STAND && zone == targetZone())
+                        return STATE_WALK;
+                    return randControl() < 0x4000 ? STATE_AIM_1 : STATE_AIM_2;
+                }
+                if (bored && targetInView)
+                    return STATE_WAIT;
+                return targetDist > GUNMAN_DIST_RUN ? STATE_RUN : STATE_WALK;
+            case STATE_WAIT :
+                if (canShoot())
+                    return STATE_SHOOT_1;
+                if (!bored || !targetInView)
+                    return STATE_STOP;
+                break;
+            case STATE_WALK :
+                flags.unused = 0;
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (canShoot())
+                    return (targetDist < GUNMAN_DIST_STAND || zone != targetZone()) ? STATE_STOP : STATE_SHOOT_2;
+                if (bored && targetInView)
+                    return STATE_STOP;
+                if (targetDist > GUNMAN_DIST_RUN)
+                    return STATE_RUN;
+                break;
+            case STATE_RUN :
+                if (mood == MOOD_ESCAPE)
+                    break;
+                if (canShoot() || bored || mood == MOOD_STALK)
+                    return STATE_WALK;
+                break;
+            case STATE_AIM_1 :
+                flags.unused = 0;
+                break;
+            case STATE_AIM_2 :
+                flags.unused = 0;
+                if (canShoot())
+                    return STATE_SHOOT_3;
+                break;
+            case STATE_SHOOT_1 :
+            case STATE_SHOOT_3 :
+                fire();
+                if (mood == MOOD_ESCAPE || targetDist > GUNMAN_DIST_STAND || !canShoot())
+                    return STATE_STOP;
+                break;
+            case STATE_SHOOT_2 :
+                fire();
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(animDeath);
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        float w = 0.0f;
+        if (state == STATE_RUN)
+            w = GUNMAN_RUN_TURN;
+        else if (state == STATE_WALK || state == STATE_SHOOT_2)
+            w = GUNMAN_WALK_TURN;
+        turn(state == STATE_RUN, w);
+
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
+struct Gunman2 : Human {
+
+    enum {
+        ANIM_DEATH = 19,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_WALK,
+        STATE_RUN,
+        STATE_WAIT,
+        STATE_SHOOT_1,
+        STATE_SHOOT_2,  // walking
+        STATE_DEATH,
+        STATE_AIM_1,
+        STATE_AIM_2,    // walking
+        STATE_AIM_3,
+        STATE_SHOOT_3,
+    };
+
+    Gunman2(IGame *game, int entity) : Human(game, entity, 20) {
+        jointChest = 5;
+        jointHead  = 14;
+        jointGun   = 9;
+        animDeath  = ANIM_DEATH;
+    }
+
+    bool canShoot() {
+        return targetIsVisible(GUNMAN_DIST_SHOT);
+    }
+
+    void fire() { // the muzzle (0, 308, 32) of the gun mesh in the flash space
+        if (flags.unused == 0) {
+            doShot(GUNMAN_2_DAMAGE, vec3(0.0f, -32.0f, 128.0f));
+            flags.unused = GUNMAN_2_RELOAD;
+        } else
+            flags.unused--;
+    }
+
+    virtual int getStateGround() {
+        if (!think(true))
+            return state;
+
+        bool bored = mood == MOOD_SLEEP;
+
+        switch (state) {
+            case STATE_STOP :
+                flags.unused = 0;
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (canShoot()) {
+                    if (targetDist >= GUNMAN_DIST_STAND && zone == targetZone())
+                        return STATE_WALK;
+                    return randControl() < 0x4000 ? STATE_AIM_1 : STATE_AIM_3;
+                }
+                if (bored && targetInView)
+                    return STATE_WAIT;
+                return targetDist > GUNMAN_DIST_RUN ? STATE_RUN : STATE_WALK;
+            case STATE_WAIT :
+                if (canShoot())
+                    return STATE_SHOOT_1;
+                if (!bored || !targetInView)
+                    return STATE_STOP;
+                break;
+            case STATE_WALK :
+                flags.unused = 0;
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (canShoot())
+                    return (targetDist < GUNMAN_DIST_STAND || zone != targetZone()) ? STATE_STOP : STATE_AIM_2;
+                if (bored && targetInView)
+                    return STATE_STOP;
+                if (targetDist > GUNMAN_DIST_RUN)
+                    return STATE_RUN;
+                break;
+            case STATE_RUN :
+                if (mood == MOOD_ESCAPE)
+                    break;
+                if (canShoot() || bored || mood == MOOD_STALK)
+                    return STATE_WALK;
+                break;
+            case STATE_AIM_1 :
+            case STATE_AIM_3 :
+                flags.unused = 0;
+                if (targetInView) {
+                    if (!canShoot())
+                        return STATE_STOP;
+                    return state == STATE_AIM_1 ? STATE_SHOOT_1 : STATE_SHOOT_3;
+                }
+                break;
+            case STATE_AIM_2 :
+                flags.unused = 0;
+                if (targetInView)
+                    return canShoot() ? STATE_SHOOT_2 : STATE_WALK;
+                break;
+            case STATE_SHOOT_1 :
+            case STATE_SHOOT_2 :
+                fire();
+                break;
+            case STATE_SHOOT_3 :
+                fire();
+                if (mood == MOOD_ESCAPE || targetDist > GUNMAN_DIST_STAND || !canShoot())
+                    return STATE_STOP;
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(animDeath);
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        float w = 0.0f;
+        if (state == STATE_RUN)
+            w = GUNMAN_RUN_TURN;
+        else if (state == STATE_WALK || state == STATE_AIM_2 || state == STATE_SHOOT_2)
+            w = GUNMAN_WALK_TURN;
+        turn(state == STATE_RUN, w);
+
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
 // TR2 Doberman of Venice and the Opera House
 #define DOG_BITE_DAMAGE     100
 #define DOG_LUNGE_DAMAGE    100
