@@ -3483,6 +3483,146 @@ struct MaskedGoon : Human {
     }
 };
 
+// TR2 shotgun goons of the Opera House and the home ("cult_3" in the original), a double shotgun
+#define SHOTGUN_GOON_DAMAGE     50
+#define SHOTGUN_GOON_TURN       (DEG2RAD * 3 * 30)
+#define SHOTGUN_GOON_DIST_STOP  (1024 * 3)
+#define SHOTGUN_GOON_DIST_RUN   (1024 * 5)
+#define SHOTGUN_GOON_DIST_SHOT  (1024 * 8)
+
+struct ShotgunGoon : Human {
+
+    enum {
+        ANIM_WAIT  = 3,
+        ANIM_DEATH = 32,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_WAIT,
+        STATE_WALK,
+        STATE_RUN,
+        STATE_AIM_L,
+        STATE_AIM_R,
+        STATE_SHOOT_L,
+        STATE_SHOOT_R,
+        STATE_AIM_2,
+        STATE_SHOOT_2,
+        STATE_DEATH,
+    };
+
+    ShotgunGoon(IGame *game, int entity) : Human(game, entity, 150) {
+        jointChest = -1;
+        jointHead  = 11;
+        animDeath  = ANIM_DEATH;
+        animation.setAnim(ANIM_WAIT);
+    }
+
+    bool canShoot() {
+        return targetIsVisible(SHOTGUN_GOON_DIST_SHOT);
+    }
+
+    void fire(bool left) { // the muzzle (-2/2, 275, 23) of the hand mesh in the flash space
+        jointGun = left ? 6 : 10;
+        doShot(SHOTGUN_GOON_DAMAGE, vec3(left ? -2.0f : 2.0f, -23.0f, 95.0f));
+    }
+
+    virtual int getStateGround() {
+        if (!think(true))
+            return state;
+
+        bool bored    = mood == MOOD_SLEEP;
+        bool laraDead = target->health <= 0.0f;
+
+        switch (state) {
+            case STATE_STOP :
+            case STATE_WAIT :
+                if (bored && laraDead)
+                    return STATE_WAIT;
+                if (canShoot())
+                    return targetDist > SHOTGUN_GOON_DIST_STOP ? STATE_WALK : STATE_AIM_2;
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (mood == MOOD_ATTACK)
+                    return (targetDist > SHOTGUN_GOON_DIST_RUN || !targetInView) ? STATE_RUN : STATE_WALK;
+                if (mood == MOOD_STALK || !targetInView)
+                    return STATE_WALK;
+                break;
+            case STATE_WALK :
+                if (canShoot()) {
+                    if (targetDist < SHOTGUN_GOON_DIST_STOP || zone != targetZone())
+                        return STATE_STOP;
+                    return targetAngle < 0.0f ? STATE_AIM_L : STATE_AIM_R;
+                }
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (mood == MOOD_STALK || mood == MOOD_ATTACK) {
+                    if (targetDist > SHOTGUN_GOON_DIST_RUN || !targetInView)
+                        return STATE_RUN;
+                } else if (laraDead)
+                    return STATE_WAIT;
+                else if (targetInView)
+                    return STATE_STOP;
+                break;
+            case STATE_RUN :
+                if (canShoot()) {
+                    if (zone != targetZone())
+                        return STATE_STOP;
+                    return targetAngle < 0.0f ? STATE_AIM_L : STATE_AIM_R;
+                }
+                if (bored)
+                    return laraDead ? STATE_WAIT : STATE_STOP;
+                if (targetInView && targetDist < SHOTGUN_GOON_DIST_RUN)
+                    return STATE_WALK;
+                break;
+            case STATE_AIM_L :
+            case STATE_AIM_R :
+                flags.unused = 0;
+                if (canShoot())
+                    return state == STATE_AIM_L ? STATE_SHOOT_L : STATE_SHOOT_R;
+                return STATE_WALK;
+            case STATE_AIM_2 :
+                flags.unused = 0;
+                return canShoot() ? STATE_SHOOT_2 : STATE_STOP;
+            case STATE_SHOOT_L :
+            case STATE_SHOOT_R :
+                if (flags.unused == 0) {
+                    fire(state == STATE_SHOOT_L);
+                    flags.unused = 1;
+                }
+                break;
+            case STATE_SHOOT_2 :
+                if (flags.unused == 0) {
+                    fire(true);
+                    fire(false);
+                    flags.unused = 1;
+                }
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(animDeath);
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        turn(state == STATE_RUN, (state == STATE_WALK || state == STATE_RUN) ? SHOTGUN_GOON_TURN : 0.0f);
+
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
 // TR2 club thugs of Venice, the Opera House and the rig ("worker_3" in the original), they climb up to a block
 #define THUG_HIT_DAMAGE     80
 #define THUG_SWIPE_DAMAGE   100
