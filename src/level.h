@@ -1217,7 +1217,8 @@ struct Level : IGame {
             case TR::Entity::INV_KEY_ITEM_2        :
             case TR::Entity::INV_KEY_ITEM_3        :
             case TR::Entity::INV_KEY_ITEM_4        : return new KeyItemInv(this, index);
-            case TR::Entity::TRAP_FLOOR            : return new TrapFloor(this, index);
+            case TR::Entity::TRAP_FLOOR            :
+            case TR::Entity::TRAP_BOARDS           : return new TrapFloor(this, index);
             case TR::Entity::CRYSTAL               : return new Crystal(this, index);
             case TR::Entity::TRAP_SWING_BLADE      : return new TrapSwingBlade(this, index);
             case TR::Entity::TRAP_SPIKES           : return new TrapSpikes(this, index);

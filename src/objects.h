@@ -870,8 +870,16 @@ struct TrapFloor : Controller {
     };
 
     float velocity;
+    int   origin; // the top of it, from the first frame (the TR2 boards differ from the TR1 floors)
 
-    TrapFloor(IGame *game, int entity) : Controller(game, entity), velocity(0) {}
+    TrapFloor(IGame *game, int entity) : Controller(game, entity), velocity(0) {
+        TR::AnimFrame *frame = animation.getFrame(&level->anims[getModel()->animation], 0);
+        origin = (frame->pos.y < 0 ? -(-frame->pos.y + 128) : (frame->pos.y + 128)) / 256 * 256;
+    }
+
+    virtual int floorOrigin() {
+        return origin;
+    }
 
     virtual bool isCollider() {
         return state == STATE_STATIC || state == STATE_SHAKE;
@@ -880,7 +888,7 @@ struct TrapFloor : Controller {
     virtual bool activate() {
         if (state != STATE_STATIC) return false;
         vec3 &p = game->getLara(pos)->pos;
-        if (fabsf(p.y - (pos.y - 512.0f)) <= 8 && Controller::activate()) {
+        if (fabsf(p.y - (pos.y + origin)) <= 8 && Controller::activate()) {
             animation.setState(STATE_SHAKE);
             return true;
         }

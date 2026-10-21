@@ -318,12 +318,13 @@ struct Controller {
                         }
                         break;
                     }
-                    case TR::Entity::TRAP_FLOOR  : {
+                    case TR::Entity::TRAP_FLOOR  :
+                    case TR::Entity::TRAP_BOARDS : {
                         if (!controller->isCollider()) continue;
 
                         if (sx != int(controller->pos.x) / 1024 || sz != int(controller->pos.z) / 1024) 
                             break;
-                        int ey = int(controller->pos.y) - 512;
+                        int ey = int(controller->pos.y) + controller->floorOrigin();
                         if (ey >= y - 128 && ey < info.floor) {
                             info.floor  = float(ey);
                             info.slantX = info.slantZ = 0;
@@ -878,6 +879,9 @@ struct Controller {
 
     // Lara touched these meshes of it before she was pushed out (the touch bits of the original)
     virtual void touchedBy(int mask) {}
+
+    // the top of a collapsing floor above its origin
+    virtual int floorOrigin() { return -512; }
 
     int collide(Controller *controller, bool checkBoxes = true) {
         const TR::Model *a = getModel();
