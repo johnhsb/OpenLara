@@ -5229,6 +5229,16 @@ struct Lara : Character {
         #pragma GCC optimize ("O0")
     #endif
 
+    // standing she belongs to the room of her middle, as in the original: on a floor opening (a trapdoor) she stays in
+    // the room above
+    virtual void updateRoom() {
+        if (stand == STAND_GROUND) {
+            level->getSector(roomIndex, pos - vec3(0.0f, LARA_HEIGHT * 0.5f, 0.0f));
+            level->getWaterInfo(getRoomIndex(), pos, waterLevel, waterDepth);
+        } else
+            Controller::updateRoom();
+    }
+
     void move() {
         if (stand == STAND_HANG && isLadderState()) {
             moveLadder();
