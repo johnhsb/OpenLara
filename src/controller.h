@@ -9,7 +9,7 @@
 #define GRAVITY     6.0f
 #define SPRITE_FPS  10.0f
 
-#define MAX_LAYERS  4
+#define MAX_LAYERS  5
 
 #define UNLIMITED_AMMO  10000
 
@@ -318,12 +318,13 @@ struct Controller {
                         }
                         break;
                     }
-                    case TR::Entity::TRAP_FLOOR  : {
+                    case TR::Entity::TRAP_FLOOR  :
+                    case TR::Entity::TRAP_BOARDS : {
                         if (!controller->isCollider()) continue;
 
                         if (sx != int(controller->pos.x) / 1024 || sz != int(controller->pos.z) / 1024) 
                             break;
-                        int ey = int(controller->pos.y) - 512;
+                        int ey = int(controller->pos.y) + controller->floorOrigin();
                         if (ey >= y - 128 && ey < info.floor) {
                             info.floor  = float(ey);
                             info.slantX = info.slantZ = 0;
@@ -331,6 +332,10 @@ struct Controller {
                         }
                         if (ey < y - 128 && ey > info.ceiling)
                             info.ceiling = float(ey);
+                        break;
+                    }
+                    case TR::Entity::ELEVATOR    : {
+                        controller->liftFloor(sx, sz, y, game->getLara(pos)->pos, info.floor, info.ceiling);
                         break;
                     }
                     case TR::Entity::DRAWBRIDGE  : {
@@ -630,7 +635,7 @@ struct Controller {
                e.isVehicle() ||
                e.isDoor() ||
                e.type == TR::Entity::SCION_HOLDER ||
-               e.type == TR::Entity::TRAP_BOULDER ||
+               e.isBoulder() ||
                e.type == TR::Entity::MUTANT_EGG_SMALL;
     }
 
@@ -874,6 +879,15 @@ struct Controller {
             return local ? getBoundingBoxLocal() : getBoundingBox();
     }
 
+
+    // Lara touched these meshes of it before she was pushed out (the touch bits of the original)
+    virtual void touchedBy(int mask) {}
+
+    // the top of a collapsing floor above its origin
+    virtual int floorOrigin() { return -512; }
+
+    // a lift of TR2 changes the floor and the ceiling of its shaft (subject: who asks, Lara)
+    virtual void liftFloor(int sx, int sz, int y, const vec3 &subject, float &floor, float &ceiling) {}
 
     int collide(Controller *controller, bool checkBoxes = true) {
         const TR::Model *a = getModel();
@@ -1172,7 +1186,12 @@ struct Controller {
                                     case TR::Effect::FLOOR_SHAKE  : game->setEffect(this, TR::Effect::Type(fx)); break;
                                     case TR::Effect::FINISH_LEVEL : game->loadNextLevel(); break;
                                     case TR::Effect::FLIP_MAP     : game->flipMap(); break;
-                                    default                       : cmdEffect(fx); break;
+                                    default                       :
+                                        if (TR::Effect::remap(level->version, fx) >= TR::Effect::TR2_FLOOD)
+                                            game->setEffect(this, TR::Effect::remap(level->version, fx));
+                                        else
+                                            cmdEffect(fx);
+                                        break;
                                 }
                             } else {
                                 if (!(level->version & TR::VER_TR1)) {
@@ -1251,7 +1270,8 @@ struct Controller {
 
                 if (explode) {
                     explodeMask &= ~(1 << i);
-                    game->addEntity(TR::Entity::EXPLOSION, part.roomIndex, p);
+                    if (explodeFx())
+                        game->addEntity(TR::Entity::EXPLOSION, part.roomIndex, p);
                 }
             }
 
@@ -1347,6 +1367,9 @@ struct Controller {
         }
         return matrix;
     }
+
+    // the pieces burst into an explosion when they land
+    virtual bool explodeFx() { return true; }
 
     void explode(int32 mask, float damage) {
         const TR::Model *model = getModel();
@@ -1448,7 +1471,7 @@ struct Controller {
         TR::Entity::Type type = getEntity().type;
         float fDiffuse = TR::Entity::isPickup(type) ? 1.0f : 0.5f;
         float fAmbient = (intensity < 0.0f ? intensityf(getRoom().ambient) : intensity) * fDiffuse;
-        float fAlpha   = (type == TR::Entity::SMOKE || type == TR::Entity::WATER_SPLASH || type == TR::Entity::SPARKLES) ? 0.75f : 1.0f;
+        float fAlpha   = (type == TR::Entity::SMOKE || type == TR::Entity::WATER_SPLASH || type == TR::Entity::SPARKLES) ? 0.75f : (type == TR::Entity::WAKE_BOAT ? 0.5f : 1.0f);
 
         uint8 ambient = clamp(int(fAmbient * 255.0f), 0, 255);
         uint8 alpha   = clamp(int(fAlpha   * 255.0f), 0, 255);

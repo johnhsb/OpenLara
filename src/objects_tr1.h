@@ -108,7 +108,7 @@ struct TrapSwingBlade : Controller {
             return;
 
         Character* lara = (Character*)game->getLara(pos);
-        if (!checkRange(lara, BLADE_RANGE) || !collide(lara))
+        if (!checkRange(lara, BLADE_RANGE) || !touchLara(this, lara))
             return;
 
         lara->hit(BLADE_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
@@ -149,12 +149,11 @@ struct TrapSword : Controller {
                 deactivate(true);
             }
 
-            if (collide(lara))
+            if (touchLara(this, lara, false)) // the original tests the bounds only
                 lara->hit(SWORD_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_SWORD); // TODO: push lara
         }
     }
 };
-
 
 struct ThorHammerBlock : Controller {
     Controller *handle;
@@ -429,7 +428,7 @@ struct TrapLava : Controller {
 
     virtual void update() {
         Character *lara = (Character*)game->getLara(pos);
-        if (lara->health > 0.0f && collide(lara))
+        if (lara->health > 0.0f && touchLara(this, lara))
             lara->hit(1001.0f, this, TR::HIT_LAVA);
 
         vec3 dir = getDir();

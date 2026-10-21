@@ -287,6 +287,8 @@ const char *STR_IT[] = { ""
     /* 54 */ , "Non puoi liberarti di me e della mia stirpe@cos$i facilmente, Lara!"
     /* 55 */ , "Un po' in ritardo per la premiazione, no?@Ma l'importante in fin dei conti $e partecipare, sbaglio?"
     /* 56 */ , "Mi stai sparando?@Ehi, stai sparando a me?@Eh s$i, non c'$e nessun altro, stai proprio sparando a me!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Casa di Lara"
     , "Caverne"
@@ -350,6 +352,16 @@ const char *STR_IT[] = { ""
     , "Citt$a perduta di Tinnos"
     , "Caverna del meteorite"
     , "Hallows"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif

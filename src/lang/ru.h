@@ -291,6 +291,8 @@ const char *STR_RU[] = { ""
     /* 54 */ , "Так просто от меня и моих выродков тебе не избавиться, Лара."
     /* 55 */ , "Немного поздно для разадчи призов, но...@впрочем, тво~е участие ещ~е считается."
     /* 56 */ , "Ты в меня стреляешь? Ты в меня стреляешь?! Тут больше никого, значит ты в меня стреляешь!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Особняк Лары"
     , "Пещеры"
@@ -354,6 +356,16 @@ const char *STR_RU[] = { ""
     , "Lost City Of Tinnos"
     , "Meteorite Cavern"
     , "All Hallows"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 inline bool isCyrillic(char c) {

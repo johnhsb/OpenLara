@@ -197,6 +197,7 @@ namespace TR {
         TRACK_TR1_CUT_4     = 22,
     // TR2
         TRACK_TR2_TITLE     = 64,
+        TRACK_TR2_SECRET    = 43,
         TRACK_TR2_CHINA_1   = 33,
         TRACK_TR2_CHINA_2   = 59,
         TRACK_TR2_ITALY     = 31,
@@ -1257,7 +1258,10 @@ namespace TR {
         if ((version & VER_TR1) && (track >= 22 && track <= 56 && track != 24)) {
             return StringID(STR_TR1_SUB_22 + (track - 22));
         }
-        // TR2, TR3 TODO
+        if ((version & VER_TR2) && (track >= TRACK_TR2_CUT_1 && track <= TRACK_TR2_CUT_3)) {
+            return StringID(STR_TR2_SUB_CUT1 + (track - TRACK_TR2_CUT_1));
+        }
+        // TR3 TODO
         return STR_EMPTY;
     }
 
@@ -1295,8 +1299,11 @@ namespace TR {
                     track = remapTrack(version, track);
                     sprintf(title, "track_%02d", track);
                     if (!checkTrack("", title) && !checkTrack("audio/2/", title) && !checkTrack("audio/", title)) {
-                        callback(NULL, userData);
-                        return;
+                        sprintf(title, "Track%02d", track); // PC music pack
+                        if (!checkTrack("music/", title)) {
+                            callback(NULL, userData);
+                            return;
+                        }
                     }
                     break;
                 case VER_TR3_PC  :

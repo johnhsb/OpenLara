@@ -287,6 +287,8 @@ const char *STR_SV[] = { ""
     /* 54 */ , "Jag och mina v~anner f~orsvinner inte s^a l~att, Lara."
     /* 55 */ , "Inte lite sent f~or prisutdelningen?@Men den som tar priset har vunnit"
     /* 56 */ , "Du skjuter p^a mig?@Du skjuter p^a mig?@Det finns ingen annan h~ar, s^a du m^aste skjuta p^a mig!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Lara's Hem"
     , "Grottan"
@@ -350,6 +352,16 @@ const char *STR_SV[] = { ""
     , "Tinnos F~orlorade Stad"
     , "Meteoritgrottan"
     , "All Hallows"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif

@@ -6,6 +6,27 @@
 #include "character.h"
 #include "sprite.h"
 
+#define TRAP_TOUCH_RADIUS       100.0f // Lara's collision radius
+
+// the meshes of the trap touching Lara, as in the original (Object_Collision): only when her origin is
+// within the bounds of the trap widened by her radius, then the spheres of their meshes are tested
+// (spheres = false: the bounds only, returns 1 then)
+inline int touchLara(Controller *trap, Controller *lara, bool spheres = true) {
+    Box box = trap->getBoundingBoxLocal();
+    Box laraBox = lara->getBoundingBoxLocal();
+
+    if (trap->pos.y + box.min.y >= lara->pos.y + laraBox.max.y || trap->pos.y + box.max.y <= lara->pos.y + laraBox.min.y)
+        return 0;
+
+    vec3 d = (lara->pos - trap->pos).rotateY(trap->angle.y);
+    if (d.x < box.min.x - TRAP_TOUCH_RADIUS || d.x > box.max.x + TRAP_TOUCH_RADIUS ||
+        d.z < box.min.z - TRAP_TOUCH_RADIUS || d.z > box.max.z + TRAP_TOUCH_RADIUS)
+        return 0;
+
+    return spheres ? trap->collide(lara, false) : 1;
+}
+
+
 struct Switch : Controller {
     enum {
         STATE_DOWN,
@@ -72,7 +93,7 @@ struct Dart : Controller {
         pos = pos + velocity * (Core::deltaTime * 30.0f);
 
         Controller *lara = game->getLara(pos);
-        if (armed && collide(lara)) {
+        if (armed && touchLara(this, lara)) {
             lara->hit(DART_DAMAGE, this, TR::HIT_DART);
             armed = false;
         }
@@ -411,18 +432,68 @@ struct TrapLavaEmitter : Controller {
 
 
 #define BOULDER_DAMAGE_GROUND 1000
+#define SND_TR2_ROLLING_BALL  147
+#define SND_TR2_ROLLING_BALL_2_ROLL 222
+#define SND_TR2_ROLLING_BALL_2_STOP 223
+#define SND_TR2_ROLLING_DRUMS_ROLL  227
+#define SND_TR2_ROLLING_DRUMS_STOP  228
 #define BOULDER_DAMAGE_AIR    100
 
 struct TrapBoulder : Controller {
     enum {
         STATE_FALL,
         STATE_ROLL,
+        STATE_STOP_TR2, // the second TR2 ball settling
     };
 
     vec3 velocity;
 
     TrapBoulder(IGame *game, int entity) : Controller(game, entity), velocity(0) {
         flags.unused = false;
+    }
+
+    // the second TR2 ball and the rolling drums settle where they stop, the first ball just stays
+    bool settles() {
+        return getEntity().type != TR::Entity::TRAP_BOULDER;
+    }
+
+    int soundRoll() {
+        switch (getEntity().type) {
+            case TR::Entity::TRAP_BOULDERS : return SND_TR2_ROLLING_BALL_2_ROLL;
+            case TR::Entity::ROLLING_DRUMS : return SND_TR2_ROLLING_DRUMS_ROLL;
+            default                        : return SND_TR2_ROLLING_BALL; // the Opera House has no such sample
+        }
+    }
+
+    int soundStop() {
+        switch (getEntity().type) {
+            case TR::Entity::TRAP_BOULDERS : return SND_TR2_ROLLING_BALL_2_STOP;
+            case TR::Entity::ROLLING_DRUMS : return SND_TR2_ROLLING_DRUMS_STOP;
+            default                        : return -1;
+        }
+    }
+
+    // a TR2 ball stops at a wall, a raised floor or a gap too low for it ahead (as the original tests it)
+    bool testStopTR2() {
+        float dist = settles() ? 1024.0f : 384.0f;
+        vec3 v = pos + getDir() * dist;
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), v, info);
+        if (info.floor == -32512.0f || info.floor < pos.y)
+            return true;
+
+        Box box = getBoundingBoxLocal();
+        int h = (int(fabsf(box.max.y - box.min.y)) + 255) / 256 * 256;
+        if (h > 768)
+            h = h / 768 * 768;
+
+        TR::Level::FloorInfo up;
+        getFloorInfo(getRoomIndex(), v - vec3(0.0f, float(h), 0.0f), up);
+        if (up.ceiling == -32512.0f || (up.ceiling > pos.y && velocity.y == 0.0f))
+            return true;
+
+        return fabsf(up.ceiling - info.floor) < h;
     }
 
     virtual void update() {
@@ -438,11 +509,24 @@ struct TrapBoulder : Controller {
             return;
         }
 
+        bool tr2 = (level->version & TR::VER_TR2) != 0;
+
         if (flags.unused) {
+            if (tr2 && settles()) { // it plays its stop animation and stays
+                animation.setState(STATE_STOP_TR2);
+                updateAnimation(true);
+            }
             return;
         }
 
         vec3 p = pos;
+        vec3 old = pos;
+
+        if (tr2) { // the TR2 balls roll with the speed of their animation whatever their state
+            vec3 d = getDir() * animation.getSpeed();
+            velocity.x = d.x;
+            velocity.z = d.z;
+        }
 
         if (velocity.y != 0.0f) {
             applyGravity(velocity.y);
@@ -456,7 +540,7 @@ struct TrapBoulder : Controller {
             if (velocity.y == 0.0f) {
                 velocity.y = -10.0f;
             }
-        } else {
+        } else if (!tr2) {
             if (state != STATE_ROLL) {
                 animation.setState(STATE_ROLL);
                 velocity = getDir() * animation.getSpeed();
@@ -466,25 +550,40 @@ struct TrapBoulder : Controller {
         if (pos.y >= p.y - 256.0f) {
             velocity.y = 0.0f;
             pos.y      = p.y;
+            if (tr2)
+                game->playSound(soundRoll(), pos, Sound::PAN | Sound::UNIQUE);
         }
 
-        int16 roomIdx = this->roomIndex;
-        vec3 v = pos + getDir() * 512.0f;
-        sector = level->getSector(roomIdx, v);
-        if (pos.y > level->getFloor(sector, v)) {
-            flags.unused = true;
+        if (tr2) {
+            if (testStopTR2()) {
+                flags.unused = true;
+                pos.x    = old.x;
+                pos.z    = old.z;
+                velocity = vec3(0.0f);
+                if (soundStop() != -1)
+                    game->playSound(soundStop(), pos, Sound::PAN);
+                if (settles())
+                    animation.setState(STATE_STOP_TR2);
+            }
+        } else {
+            int16 roomIdx = this->roomIndex;
+            vec3 v = pos + getDir() * 512.0f;
+            sector = level->getSector(roomIdx, v);
+            if (pos.y > level->getFloor(sector, v)) {
+                flags.unused = true;
 
-            pos.x = int(pos.x / 1024.0f) * 1024.0f + 512.0f;
-            pos.z = int(pos.z / 1024.0f) * 1024.0f + 512.0f;
-            sector = level->getSector(roomIndex, pos);
-            pos.y = level->getFloor(sector, pos);
+                pos.x = int(pos.x / 1024.0f) * 1024.0f + 512.0f;
+                pos.z = int(pos.z / 1024.0f) * 1024.0f + 512.0f;
+                sector = level->getSector(roomIndex, pos);
+                pos.y = level->getFloor(sector, pos);
+            }
         }
 
         game->checkTrigger(this, true);
         updateAnimation(true);
 
         Character *lara = (Character*)game->getLara(pos);
-        if (lara->health > 0.0f && collide(lara)) {
+        if (lara->health > 0.0f && touchLara(this, lara)) {
             if (lara->stand == Character::STAND_GROUND)
                 lara->hit(BOULDER_DAMAGE_GROUND, this, TR::HIT_BOULDER);
             if (lara->stand == Character::STAND_AIR)
@@ -725,8 +824,16 @@ struct TrapFloor : Controller {
     };
 
     float velocity;
+    int   origin; // the top of it, from the first frame (the TR2 boards differ from the TR1 floors)
 
-    TrapFloor(IGame *game, int entity) : Controller(game, entity), velocity(0) {}
+    TrapFloor(IGame *game, int entity) : Controller(game, entity), velocity(0) {
+        TR::AnimFrame *frame = animation.getFrame(&level->anims[getModel()->animation], 0);
+        origin = (frame->pos.y < 0 ? -(-frame->pos.y + 128) : (frame->pos.y + 128)) / 256 * 256;
+    }
+
+    virtual int floorOrigin() {
+        return origin;
+    }
 
     virtual bool isCollider() {
         return state == STATE_STATIC || state == STATE_SHAKE;
@@ -735,7 +842,7 @@ struct TrapFloor : Controller {
     virtual bool activate() {
         if (state != STATE_STATIC) return false;
         vec3 &p = game->getLara(pos)->pos;
-        if (fabsf(p.y - (pos.y - 512.0f)) <= 8 && Controller::activate()) {
+        if (fabsf(p.y - (pos.y + origin)) <= 8 && Controller::activate()) {
             animation.setState(STATE_SHAKE);
             return true;
         }
@@ -881,7 +988,7 @@ struct TrapSpikes : Controller {
         Character *lara = (Character*)game->getLara(pos);
         if (lara->health <= 0.0f) return;
 
-        if (!checkRange(lara, SPIKES_RANGE) || !collide(lara))
+        if (!checkRange(lara, SPIKES_RANGE) || !touchLara(this, lara))
             return;
 
         if (lara->stand != Character::STAND_AIR || lara->velocity.y <= 0.0f || (pos.y - lara->pos.y) > 256.0f) {
@@ -926,7 +1033,7 @@ struct TrapCeiling : Controller {
             }
 
             Controller *lara = game->getLara(pos);
-            if (collide(lara))
+            if (touchLara(this, lara))
                 lara->hit(1000);
         }
     }
@@ -952,7 +1059,7 @@ struct TrapSlam : Controller {
                 bite = false;
 
             Character *lara = (Character*)game->getLara(pos);
-            if (animation.state == STATE_SLAM && !bite && collide(lara)) {
+            if (animation.state == STATE_SLAM && !bite && touchLara(this, lara)) {
                 lara->hit(SLAM_DAMAGE, this, TR::HIT_SLAM);
                 bite = true;
             }
@@ -1087,14 +1194,25 @@ struct Bubble : Sprite {
 
 
 struct Explosion : Sprite {
+    float volume; // of the explosion sound
+    bool  sounded;
 
-    Explosion(IGame *game, int entity) : Sprite(game, entity, true, Sprite::FRAME_ANIMATED) {
-        game->playSound(TR::SND_EXPLOSION, pos, Sound::PAN);
+    Explosion(IGame *game, int entity) : Sprite(game, entity, true, Sprite::FRAME_ANIMATED), volume(1.0f), sounded(false) {
         level->spriteSequences[-(getEntity().modelIndex + 1)].transp = 2; // fix blending mode to additive
     }
 
     virtual bool getSaveData(SaveEntity &data) {
         return false;
+    }
+
+    virtual void update() {
+        if (!sounded) {
+            sounded = true;
+            Sound::Sample *sample = game->playSound((level->version & TR::VER_TR1) ? TR::SND_EXPLOSION : 105, pos, Sound::PAN); // TR2+ explosion sound id
+            if (sample)
+                sample->volume *= volume;
+        }
+        Sprite::update();
     }
 };
 
@@ -1130,6 +1248,10 @@ struct StoneItem : Controller {
 #define CENTAUR_BULLET_DIST   SQR(1024.0f)
 #define CENTAUR_BULLET_DAMAGE 100.0f
 #define MUTANT_BULLET_DAMAGE  30.0f
+#define HARPOON_WTF_DAMAGE    50.0f
+#define HARPOON_WTF_PITCH     (-67.5f * DEG2RAD) // the lowest it dips to out of the water
+#define SND_TR2_PROJECTILE_HIT 258
+#define SND_TR2_CRUNCH_1      317
 
 struct Bullet : Controller {
     vec3 velocity;
@@ -1151,12 +1273,24 @@ struct Bullet : Controller {
             case TR::Entity::NATLA_BULLET   : speed = 220.0f; break;
             case TR::Entity::MUTANT_BULLET  : speed = 250.0f; break;
             case TR::Entity::CENTAUR_BULLET : speed = 220.0f; break;
+            case TR::Entity::HARPOON_WTF    : speed = 150.0f; break;
             default : speed = 200.0f;
         }
         velocity = getDir() * (speed * 30.0f);
     }
 
     virtual void update() {
+        bool harpoon = getEntity().type == TR::Entity::HARPOON_WTF;
+        if (harpoon) { // the harpoon of a diver dips out of the water, it leaves bubbles in it
+            if (!getRoom().flags.water) {
+                if (angle.x > HARPOON_WTF_PITCH) {
+                    angle.x = max(HARPOON_WTF_PITCH, angle.x - DEG2RAD * 30.0f * Core::deltaTime);
+                    velocity = getDir() * velocity.length();
+                }
+            } else if (randf() < 0.2f)
+                game->addEntity(TR::Entity::BUBBLE, getRoomIndex(), pos);
+        }
+
         //getRoom().removeDynLight(entity);
         pos = pos + velocity * Core::deltaTime;
 
@@ -1200,6 +1334,17 @@ struct Bullet : Controller {
                 else
                     game->getLara()->addRicochet(pos - getDir() * 64.0f, true);
                 break;
+            case TR::Entity::HARPOON_WTF    :
+                if (directHit) {
+                    lara->hit(HARPOON_WTF_DAMAGE);
+                    game->addEntity(TR::Entity::BLOOD, getRoomIndex(), pos);
+                    game->playSound(SND_TR2_CRUNCH_1, pos, Sound::PAN);
+                } else {
+                    game->getLara()->addRicochet(pos - getDir() * 64.0f, false);
+                    game->playSound(SND_TR2_PROJECTILE_HIT, pos, Sound::PAN);
+                }
+                game->removeEntity(this);
+                return;
             default : ;
         }
 

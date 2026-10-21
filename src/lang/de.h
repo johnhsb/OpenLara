@@ -286,6 +286,8 @@ const char *STR_DE[] = { ""
     /* 54 */ , "So leicht wirst du mich und meine Brut nicht los, Lara."
     /* 55 */ , "Ein bisschen sp~at dran f~ur die Preisverleihung, non?@Aber dabei sein ist ja alles, obwohl das nicht jeder so sieht.@Jammerschade, aber... c'est la vie."
     /* 56 */ , "Du schie=t auf mich? Du schie=t auf mich, Puppe, he?@Hier ist kein anderer. Du musst auf mich schie=en!"
+// TR2 subtitles
+    STR_TR2_SUBS
 // TR1 levels
     , "Laras Haus"
     , "Die Kavernen"
@@ -349,6 +351,16 @@ const char *STR_DE[] = { ""
     , "Die vergessene Stadt Tinnos"
     , "H~ohle des Meteoriten"
     , "All Hallows"
+// TR2+ inventory items
+    , "Automatic Pistols"
+    , "Harpoon Gun"
+    , "M16"
+    , "Grenade Launcher"
+    , "Automatic Pistol Clips"
+    , "Harpoons"
+    , "M16 Clips"
+    , "Grenades"
+    , "Flares"
 };
 
 #endif

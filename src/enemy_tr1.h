@@ -58,9 +58,9 @@ struct Wolf : Enemy {
 
         switch (state) {
             case STATE_SLEEP    :
-                if (mood == MOOD_ESCAPE || target->zone == zone)
+                if (mood == MOOD_ESCAPE || targetZone() == zone)
                     nextState = STATE_GROWL;
-                else if (rand() < 32)
+                else if (randControl() < 32)
                     nextState = STATE_WALK;
                 else
                     break;
@@ -71,7 +71,7 @@ struct Wolf : Enemy {
                     nextState = STATE_NONE;
                     return STATE_STALK;
                 }
-                if (rand() < 32) {
+                if (randControl() < 32) {
                     nextState = STATE_SLEEP;
                     return STATE_STOP;
                 }
@@ -91,7 +91,7 @@ struct Wolf : Enemy {
                     if (!targetInView || targetFromView || targetDist > WOLF_DIST_ATTACK)
                         return STATE_RUN;
                 }
-                if (rand() < 384) {
+                if (randControl() < 384) {
                     nextState = STATE_HOWL;
                     return STATE_GROWL;
                 }
@@ -324,7 +324,7 @@ struct Gorilla : Enemy {
                     return nextState;
                 if (targetCanAttack && targetDist < GORILLA_DIST_ATTACK)
                     return STATE_ATTACK;
-                if (!(flags.unused & FLAG_ATTACK) && zone == target->zone && targetInView) {
+                if (!(flags.unused & FLAG_ATTACK) && zone == targetZone() && targetInView) {
                     int r = rand() % 512;
                     if (r < 120) return STATE_JUMP;
                     if (r < 240) return STATE_IDLE1;
@@ -341,7 +341,7 @@ struct Gorilla : Enemy {
                     return STATE_STOP;
                 }
                 if (mood != MOOD_ESCAPE) {
-                    int r = rand();
+                    int r = randControl();
                     if (r < 160)
                         nextState = STATE_JUMP;
                     else if (r < 320)
@@ -1187,13 +1187,13 @@ struct Mutant : Enemy {
                 if (targetAngle > PI * 0.25f)
                     flags.unused &= ~(FLAG_BULLET_1 | FLAG_BULLET_2);
             } else {
-                if (targetAngle < PI * 0.25f && state != STATE_FIRE && (targetDist > MUTANT_DIST_SHOT || zone != target->zone) && targetIsVisible(MAX_SHOT_DIST))
+                if (targetAngle < PI * 0.25f && state != STATE_FIRE && (targetDist > MUTANT_DIST_SHOT || zone != targetZone()) && targetIsVisible(MAX_SHOT_DIST))
                     flags.unused |= (rand() % 2) ? FLAG_BULLET_1 : FLAG_BULLET_2;
             }
         }
 
         if (getEntity().type == TR::Entity::ENEMY_MUTANT_1) { // flying mutant
-            if (mood == MOOD_ESCAPE || (zone != target->zone && !(flags.unused & (FLAG_BULLET_1 | FLAG_BULLET_2)))) {
+            if (mood == MOOD_ESCAPE || (zone != targetZone() && !(flags.unused & (FLAG_BULLET_1 | FLAG_BULLET_2)))) {
                 flags.unused |= FLAG_FLY;
             }
         }
@@ -1220,8 +1220,8 @@ struct Mutant : Enemy {
                     return STATE_STOP;
                 if (mood == MOOD_ATTACK || mood == MOOD_ESCAPE)
                     return STATE_STOP;
-                if (mood == MOOD_SLEEP || (mood == MOOD_STALK && target->zone != zone)) {
-                    if (rand() < 50)
+                if (mood == MOOD_SLEEP || (mood == MOOD_STALK && targetZone() != zone)) {
+                    if (randControl() < 50)
                         return STATE_LOOKING;
                 } else if (mood == MOOD_STALK && targetDist > MUTANT_DIST_STALK)
                     return STATE_STOP;
@@ -1245,12 +1245,12 @@ struct Mutant : Enemy {
                     return STATE_STOP;
                 switch (mood) {
                     case MOOD_SLEEP :
-                        if (rand() < 256)
+                        if (randControl() < 256)
                             return STATE_WALK;
                         break;
                     case MOOD_STALK :
                         if (targetDist < MUTANT_DIST_STALK) {
-                            if (target->zone == zone && rand() < 256)
+                            if (targetZone() == zone && randControl() < 256)
                                 return STATE_WALK;
                         } else
                             return STATE_STOP;
@@ -1301,7 +1301,7 @@ struct Mutant : Enemy {
         if (!think(true))
             return state;
 
-        if ((flags.unused & FLAG_FLY) && mood != MOOD_ESCAPE && zone == target->zone)
+        if ((flags.unused & FLAG_FLY) && mood != MOOD_ESCAPE && zone == targetZone())
             flags.unused &= ~FLAG_FLY;
 
         if (!(flags.unused & FLAG_FLY)) {
@@ -1570,7 +1570,7 @@ struct Centaur : Enemy {
                     nextState = STATE_AIM;
                     return STATE_STOP;
                 }
-                if (rand() < 96) {
+                if (randControl() < 96) {
                     nextState = STATE_IDLE;
                     return STATE_STOP;
                 }
@@ -2003,13 +2003,13 @@ struct SkaterBoy : Human {
                 return STATE_MOVE;
             case STATE_MOVE :
                 flags.unused = 0;
-                if (rand() < 512)
+                if (randControl() < 512)
                     return STATE_STEP;
                 if (targetIsVisible(HUMAN_DIST_SHOT))
                     return (mood != MOOD_ESCAPE && targetDist > SKATERBOY_DIST_MIN && targetDist < SKATERBOY_DIST_MAX) ? STATE_STOP : STATE_MOVE_FIRE;
                 break;
             case STATE_STEP :
-                if (rand() < 1024)
+                if (randControl() < 1024)
                     return STATE_MOVE;
                 break;
             case STATE_STAND_FIRE :
@@ -2245,7 +2245,7 @@ struct Natla : Human {
         timer += Core::deltaTime;
         bool canShot = target && target->health > 0.0f && targetIsVisible(HUMAN_DIST_SHOT);
 
-        if (canShot && state == STATE_FLY && flying && rand() < 256)
+        if (canShot && state == STATE_FLY && flying && randControl() < 256)
             flags.unused &= ~FLAG_FLY;
         else if (!canShot)
             flags.unused |= FLAG_FLY;

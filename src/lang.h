@@ -188,6 +188,10 @@ enum StringID {
     , STR_TR1_SUB_54
     , STR_TR1_SUB_55
     , STR_TR1_SUB_56
+// TR2 subtitles
+    , STR_TR2_SUB_CUT1
+    , STR_TR2_SUB_CUT2
+    , STR_TR2_SUB_CUT3
 // TR1 levels
     , STR_TR1_GYM
     , STR_TR1_LEVEL1
@@ -251,6 +255,16 @@ enum StringID {
     , STR_TR3_CITY
     , STR_TR3_CHAMBER
     , STR_TR3_STPAUL
+// TR2+ inventory items
+    , STR_AUTOPISTOLS
+    , STR_HARPOON
+    , STR_M16
+    , STR_GRENADE
+    , STR_AMMO_AUTOPISTOLS
+    , STR_AMMO_HARPOON
+    , STR_AMMO_M16
+    , STR_AMMO_GRENADE
+    , STR_FLARES
 
     , STR_MAX
 };
@@ -278,6 +292,85 @@ enum StringID {
     , "Magyar" \
     , "Svenska" \
     , "Korean"
+
+// TR2 cutscene subtitles (English, the other languages fall back to them)
+#define STR_TR2_SUBS \
+    /* CUT1 */ , \
+    "[10980]Pardon me, if that was just your@way of trying the doors for me." \
+    "[15200]Well, that tour may@go on my keyring." \
+    "[18940]Though not anymore. So, after you." \
+    "[21260]Somehow, you don't behave@like you got a monk's blood." \
+    "[25900]I understand that@'somehow' is in my favor." \
+    "[29429]So indulge me about the dagger.@I'd be indebted with your life." \
+    "[34600]These doors are waiting for the@right one, the right time to arrive." \
+    "[40196]And then, the dagger's blade will" \
+    "[42912]honor the hearts of@those who believe." \
+    "[46039]So unless you pledge@your loyalty as well..." \
+    "[49660]" \
+    "[50000]And which one is that?" \
+    "[52340]" \
+    "[53740]To the sins and fortunes@of Marco Bartoli!" \
+    "[59580]" \
+    "[60300]Perhaps not just yet then." \
+    "[62600]" \
+    "[77460]Aha, Gianni Bartoli,@Via Caravelli, Venice." \
+    "[84980]" \
+    /* CUT2 */ , \
+    "[18640]...Believe me, but it's not@quite the same now, is it?" \
+    "[21960]" \
+    "[34200]Someday you'll get a speeding@ticket for that tongue, Fabio." \
+    "[43900]Eh, it's just a gut feeling that@maybe you are wrong to look there..." \
+    "[55140]" \
+    "[56400]Is your belief so fragile?@Relax, breathe deep." \
+    "[60253]The gut, Fabio, has no more" \
+    "[62466]direction than a@simple through-and-out." \
+    "[65745]When my father left when I was a@boy, he confided to me that he was" \
+    "[71236]enlightened, echo of his heart's@inclination rather than impulse." \
+    "[76564]He possessed the Seraph." \
+    "[78532]But he was just a disciple@in this design, his death" \
+    "[82794]plotting a path to be short by the@lower one. His son, you understand?" \
+    "[88532]Have faith, Fabio, not gut rot.@We are searching the right place." \
+    "[93860]I know it. I believe it, Marco." \
+    "[98160]" \
+    "[99140]Good. Eros, have you...@fixed that rail yet?" \
+    "[104380]Si." \
+    "[105660]" \
+    /* CUT3 */ , \
+    "[22120]Ah... You are not one of them." \
+    "[24440]But you are a monk." \
+    "[26960]Brother Chen Barkhang.@You have come for me!" \
+    "[30769]I saw bright lights around me..." \
+    "[33600]That was gunfire. I think it was@them who got taken away by it." \
+    "[40340]But you are my guide, my@path-beater to the next incarnation." \
+    "[45610]I have done my time here, haven't I?" \
+    "[48920]What are you doing@here? And Marco Bartoli?" \
+    "[53300]" \
+    "[54440]Nothing! I led a@righteous life, here for" \
+    "[57391]reasons rooted only@in necessary evil." \
+    "[60125]As my father was before@me, when he bombed" \
+    "[63148]Gianni's vessel deep@into these waters." \
+    "[65954]Now I'm here, was here, to prevent@his son from salvaging the Seraph." \
+    "[70920]The Seraph?" \
+    "[73040]" \
+    "[75500]You not know my life's work well.@You sure you're not here for them?" \
+    "[80840]Their Jackaknoori@days are well over." \
+    "[84200]They want the Seraph@to unlock a malignant" \
+    "[86460]treasure we contain in@our monastery in Tibet." \
+    "[88935]Since being stolen by@imbecile vagabonds centuries" \
+    "[91625]ago, we've been without key@to it, relying solely on" \
+    "[94423]cleansing of our prayers@to keep it subdued." \
+    "[96790]Then the occultist@Gianni re-acquired it." \
+    "[98996]Trouble we knew: he breathed@life back into ancient belief," \
+    "[102170]one not to be stopped by@any amount of head-bowing." \
+    "[104914]And now again, it is here:@Marco, infected with madness." \
+    "[107927]He has violent mind, but not@yet the power to satiate it." \
+    "[110994]So, we reach for our@weapons once more..." \
+    "[113200]" \
+    "[114100]The true detox of evil." \
+    "[118460]" \
+    "[121400]Where can you be taking me?@Thought this was my big break." \
+    "[128434]Guess changes are as good@as rest. Oh, I need one..." \
+    "[134740]"
 
 #define LANG_PREFIXES "_EN", "_FR", "_DE", "_ES", "_IT", "_PL", "_PT", "_RU", "_JA", "_GR", "_FI", "_CZ", "_CN", "_HU", "_SV", "_KO"
 

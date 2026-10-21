@@ -70,7 +70,7 @@ struct Character : Controller {
         rotHead  = rotChest = quat(0, 0, 0, 1);
 
         burn   = false;
-        flying = getEntity().type == TR::Entity::ENEMY_BAT;
+        flying = getEntity().type == TR::Entity::ENEMY_BAT || getEntity().type == TR::Entity::ENEMY_CROW;
         fullChestRotation = false;
         updateZone();
     }

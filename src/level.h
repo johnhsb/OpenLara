@@ -703,6 +703,9 @@ struct Level : IGame {
     }
     
     virtual void setEffect(Controller *controller, TR::Effect::Type effect) {
+        if (effect >= TR::Effect::TR2_FLOOD && this->effect == effect)
+            return; // still going (the trigger is stood on)
+
         this->effect      = effect;
         this->effectTimer = 0.0f;
         this->effectIdx   = 0;
@@ -723,8 +726,22 @@ struct Level : IGame {
                 playSound(TR::SND_STAIRS2SLOPE);
                 break;
             case TR::Effect::EXPLOSION :
-                playSound(TR::SND_TNT);
+                playSound((level.version & TR::VER_TR2) ? SND_TR2_EXPLOSION_1 : TR::SND_TNT);
                 shakeCamera(1.0f);
+                break;
+        // TR2
+            case TR::Effect::TR2_RUBBLE :
+                playSound(SND_TR2_MASSIVE_CRASH);
+                shakeCamera(1.0f);
+                break;
+            case TR::Effect::TR2_PISTON :
+                playSound(SND_TR2_PULLEY_CRANE);
+                break;
+            case TR::Effect::TR2_CURTAIN :
+                playSound(SND_TR2_CURTAIN);
+                break;
+            case TR::Effect::TR2_SET_CHANGE :
+                playSound(SND_TR2_STAGE_BACKDROP);
                 break;
             default : ;
         }
@@ -1147,6 +1164,11 @@ struct Level : IGame {
         if (level.entities[index].type == TR::Entity::CUT_1 && (level.version & TR::VER_TR1))
             return new Lara(this, index);
 
+        if (level.entities[index].type == TR::Entity::FLARE && index >= level.entitiesBaseCount)
+            return new FlareItem(this, index); // flare thrown by Lara
+        if (level.entities[index].type == TR::Entity::FLARE_SPARKLES && index >= level.entitiesBaseCount)
+            return new FlareFlame(this, index);
+
         switch (level.entities[index].type) {
             case TR::Entity::LARA                  : return new Lara(this, index);
             case TR::Entity::ENEMY_DOPPELGANGER    : return new Doppelganger(this, index);
@@ -1195,12 +1217,14 @@ struct Level : IGame {
             case TR::Entity::INV_KEY_ITEM_2        :
             case TR::Entity::INV_KEY_ITEM_3        :
             case TR::Entity::INV_KEY_ITEM_4        : return new KeyItemInv(this, index);
-            case TR::Entity::TRAP_FLOOR            : return new TrapFloor(this, index);
+            case TR::Entity::TRAP_FLOOR            :
+            case TR::Entity::TRAP_BOARDS           : return new TrapFloor(this, index);
             case TR::Entity::CRYSTAL               : return new Crystal(this, index);
             case TR::Entity::TRAP_SWING_BLADE      : return new TrapSwingBlade(this, index);
             case TR::Entity::TRAP_SPIKES           : return new TrapSpikes(this, index);
             case TR::Entity::TRAP_BOULDER          : 
-            case TR::Entity::TRAP_BOULDERS         : return new TrapBoulder(this, index);
+            case TR::Entity::TRAP_BOULDERS         :
+            case TR::Entity::ROLLING_DRUMS         : return new TrapBoulder(this, index);
             case TR::Entity::DART                  : return new Dart(this, index);
             case TR::Entity::TRAP_DART_EMITTER     : return new TrapDartEmitter(this, index);
             case TR::Entity::DRAWBRIDGE            : return new Drawbridge(this, index);
@@ -1221,7 +1245,8 @@ struct Level : IGame {
             case TR::Entity::SWITCH                :
             case TR::Entity::SWITCH_WATER          :
             case TR::Entity::SWITCH_BUTTON         : 
-            case TR::Entity::SWITCH_BIG            : return new Switch(this, index);
+            case TR::Entity::SWITCH_BIG            :
+            case TR::Entity::WHEEL_KNOB            : return new Switch(this, index);
             case TR::Entity::PUZZLE_HOLE_1         :
             case TR::Entity::PUZZLE_HOLE_2         :
             case TR::Entity::PUZZLE_HOLE_3         :
@@ -1235,10 +1260,13 @@ struct Level : IGame {
             case TR::Entity::WATERFALL             : return new Waterfall(this, index);
             case TR::Entity::NATLA_BULLET          :
             case TR::Entity::MUTANT_BULLET         :
+            case TR::Entity::HARPOON_WTF           :
             case TR::Entity::CENTAUR_BULLET        : return new Bullet(this, index);
             case TR::Entity::TRAP_LAVA             : return new TrapLava(this, index);
             case TR::Entity::BUBBLE                : return new Bubble(this, index);
             case TR::Entity::EXPLOSION             : return new Explosion(this, index);
+            case TR::Entity::GRENADE_BULLET        :
+            case TR::Entity::HARPOON_BULLET        : return new Projectile(this, index);
             case TR::Entity::WATER_SPLASH          :
             case TR::Entity::BLOOD                 :
             case TR::Entity::SMOKE                 :
@@ -1258,28 +1286,28 @@ struct Level : IGame {
 
             case TR::Entity::ENEMY_DOG              : return new Dog(this, index);
             case TR::Entity::ENEMY_TIGER            : return new Tiger(this, index);
+            case TR::Entity::ENEMY_SPIDER           : return new Spider(this, index);
+            case TR::Entity::ENEMY_CROW             : return new Crow(this, index);
+            case TR::Entity::ENEMY_RAT              : return new Mouse(this, index);
             case TR::Entity::ENEMY_GOON_MASK_1      :
             case TR::Entity::ENEMY_GOON_MASK_2      :
-            case TR::Entity::ENEMY_GOON_MASK_3      :
+            case TR::Entity::ENEMY_GOON_MASK_3      : return new MaskedGoon(this, index);
+            case TR::Entity::ENEMY_GOON_STICK_1     : return new ClubThug(this, index);
+            case TR::Entity::ENEMY_GOON_SHOTGUN     : return new ShotgunGoon(this, index);
+            case TR::Entity::ENEMY_DIVER            : return new Diver(this, index);
+            case TR::Entity::ENEMY_GUNMAN_1         : return new Gunman1(this, index);
+            case TR::Entity::ENEMY_GUNMAN_2         : return new Gunman2(this, index);
             case TR::Entity::ENEMY_GOON_KNIFE       :
-            case TR::Entity::ENEMY_GOON_SHOTGUN     :
-            case TR::Entity::ENEMY_RAT              :
             case TR::Entity::ENEMY_DRAGON_FRONT     :
             case TR::Entity::ENEMY_DRAGON_BACK      :
             case TR::Entity::ENEMY_SHARK            :
             case TR::Entity::ENEMY_MORAY_1          :
             case TR::Entity::ENEMY_MORAY_2          :
             case TR::Entity::ENEMY_BARACUDA         :
-            case TR::Entity::ENEMY_DIVER            :
-            case TR::Entity::ENEMY_GUNMAN_1         :
-            case TR::Entity::ENEMY_GUNMAN_2         :
-            case TR::Entity::ENEMY_GOON_STICK_1     :
             case TR::Entity::ENEMY_GOON_STICK_2     :
             case TR::Entity::ENEMY_GOON_FLAME       :
             case TR::Entity::UNUSED_23              :
-            case TR::Entity::ENEMY_SPIDER           :
             case TR::Entity::ENEMY_SPIDER_GIANT     :
-            case TR::Entity::ENEMY_CROW             :
             case TR::Entity::ENEMY_MARCO            :
             case TR::Entity::ENEMY_GUARD_SPEAR        :
             case TR::Entity::ENEMY_GUARD_SPEAR_STATUE :
@@ -1308,6 +1336,27 @@ struct Level : IGame {
             case TR::Entity::HELICOPTER_FLYING      : return new HelicopterFlying(this, index);
 
             case TR::Entity::FISH_EMITTER           : return new DummyController(this, index);
+
+            case TR::Entity::TRAP_SPINDLE           : return new TrapSpindle(this, index);
+            case TR::Entity::TRAP_BLADE_WALL        : return new TrapBladeWall(this, index);
+            case TR::Entity::TRAP_SPIKES_WALL       : return new TrapSpikeWall(this, index);
+            case TR::Entity::ZIPLINE_HANDLE         : return new Zipline(this, index);
+            case TR::Entity::VEHICLE_BOAT           : return new SpeedBoat(this, index);
+            case TR::Entity::GONDOLA                : return new Gondola(this, index);
+            case TR::Entity::TRAP_MINE              : return new TrapMine(this, index);
+            case TR::Entity::SOUND_BIRD             :
+            case TR::Entity::SOUND_WATER            : return new SoundSource(this, index);
+            case TR::Entity::SOUND_CLOCK            : return new ClockChimes(this, index);
+            case TR::Entity::DETONATOR              : return new DetonatorBox(this, index);
+            case TR::Entity::TRAP_BLADE_STATUE      : return new TrapBladeStatue(this, index);
+            case TR::Entity::TRAP_SWING_BAG         :
+            case TR::Entity::TRAP_SWING_BOX         : return new TrapPendulum(this, index);
+            case TR::Entity::SOUND_ALARM            : return new SoundAlarm(this, index);
+            case TR::Entity::PROPELLER_PLANE        :
+            case TR::Entity::PROPELLER_WATER        :
+            case TR::Entity::PROPELLER_AIR          : return new TrapPropeller(this, index);
+            case TR::Entity::ELEVATOR               : return new Elevator(this, index);
+            case TR::Entity::WAKE_BOAT              : return new BoatWake(this, index);
 
             default                                 : return new Controller(this, index);
         }
@@ -1420,7 +1469,9 @@ struct Level : IGame {
                             case 6  :
                             case 7  : glyphsData = (Color32*)owner->glyphsCN + (page - 4) * 256 * 256; break;
                             case 8  :
-                            case 9  : glyphsData = (Color32*)owner->glyphsKO + (page - 8) * 256 * 256; break;
+                            case 9  :
+                            case 10 :
+                            case 11 : glyphsData = (Color32*)owner->glyphsKO + (page - 8) * 256 * 256; break;
                             default : ASSERT(false);
                         }
 
@@ -2170,6 +2221,82 @@ struct Level : IGame {
         controller->render(camera->frustum, mesh, type, room.flags.water);
     }
 
+    // the floor of the boat is the hull bottom, below the water surface OpenLara draws (the original draws none), keep
+    // the water out of it: the hull goes into the depth buffer only, with the part under the water raised up to the surface
+    void renderBoatWaterOccluders() {
+        if (!(level.version & TR::VER_TR2) || camera->isUnderwater())
+            return;
+
+        Core::Pass pass = Core::pass;
+        Core::pass = Core::passCompose;
+
+        for (int i = 0; i < level.entitiesCount; i++) {
+            TR::Entity &e = level.entities[i];
+            if (e.type != TR::Entity::VEHICLE_BOAT || !e.controller)
+                continue;
+            SpeedBoat *boat = (SpeedBoat*)e.controller;
+            if (!boat->flags.rendered || boat->flags.invisible || boat->isDestroyed())
+                continue;
+
+            float surface;
+            if (boat->water != 0 && boat->water != BOAT_NO_HEIGHT) {
+                surface = float(boat->water - BOAT_SHIFT_Y);
+            } else { // not boarded yet
+                int16 roomIndex = boat->getRoomIndex();
+                TR::Room::Sector *sector = level.getWaterLevelSector(roomIndex, boat->pos);
+                if (!sector)
+                    continue;
+                surface = float(sector->ceiling * 256);
+            }
+
+            Basis &joint = boat->getJoint(0);
+            int16 top = int16(surface - joint.pos.y - 2.0f); // the surface in the hull space (the hull barely tilts)
+
+            const TR::Model *model = boat->getModel();
+            const TR::Mesh  &hull  = level.meshes[level.meshOffsets[model->mStart]];
+
+            setRoomParams(boat->getRoomIndex(), Shader::ENTITY, 1.0f, 1.0f, 0.0f, 1.0f, false);
+            Core::whiteTex->bind(sDiffuse);
+            Core::setBasis(&joint, 1);
+            Core::setBlendMode(bmNone);
+            Core::setColorWrite(false, false, false, false);
+            Core::setDepthWrite(true);
+            Core::setCullMode(cmNone);
+
+            mesh->dynBegin();
+            for (int j = 0; j < hull.fCount; j++) {
+                const TR::Face &f = hull.faces[j];
+                int count = f.triangle ? 3 : 4;
+                if (mesh->dynICount + 6 > COUNT(mesh->dynIndices))
+                    break;
+
+                int base = mesh->dynVCount;
+                for (int k = 0; k < count; k++) {
+                    short4 c = hull.vertices[f.vertices[k]].coord;
+                    Vertex &v  = mesh->dynVertices[mesh->dynVCount++];
+                    v.coord    = short4(c.x, min(c.y, top), c.z, 0);
+                    v.normal   = short4(0, -32767, 0, 0);
+                    v.texCoord = short4(0, 0, 32767, 32767);
+                    v.color    = ubyte4(255, 255, 255, 255);
+                    v.light    = ubyte4(255, 255, 255, 255);
+                }
+
+                Index *idx = mesh->dynIndices + mesh->dynICount;
+                idx[0] = base; idx[1] = base + 1; idx[2] = base + 2;
+                mesh->dynICount += 3;
+                if (count == 4) {
+                    idx[3] = base; idx[4] = base + 2; idx[5] = base + 3;
+                    mesh->dynICount += 3;
+                }
+            }
+            mesh->dynEnd();
+        }
+
+        Core::setColorWrite(true, true, true, true);
+        Core::setCullMode(cmFront);
+        Core::pass = pass;
+    }
+
     void loadNextLevelData() {
         isEnded = true;
         char buf[64];
@@ -2397,6 +2524,23 @@ struct Level : IGame {
                 }
                 break;
             }
+            case TR::Effect::TR2_FLOOD : { // the rush of water around Lara for 4 seconds
+                if (effectTimer > 4.0f) {
+                    effect = TR::Effect::NONE;
+                    break;
+                }
+                vec3 p = players[0]->pos;
+                p.y = camera->target.pos.y;
+                playSound(SND_TR2_FLOOD, p, Sound::PAN | Sound::UNIQUE);
+                break;
+            }
+            case TR::Effect::TR2_CHANDELIER : // the chain of the chandelier for a second
+                if (effectTimer > 1.0f) {
+                    effect = TR::Effect::NONE;
+                    break;
+                }
+                playSound(SND_TR2_CHAIN_PULLEY, vec3(0.0f), Sound::UNIQUE);
+                break;
             default : effect = TR::Effect::NONE; return;
         }
     }
@@ -2680,6 +2824,9 @@ struct Level : IGame {
         if (water) {
             screen = (waterCache && waterCache->visible) ? waterCache->getScreenTex() : NULL;
 
+        // under water the background takes the fog color so the distant geometry doesn't end with a sharp edge
+            Core::setClearColor(camera->isUnderwater() ? vec4(underwaterFogParams.xyz(), 0.0f) : vec4(0.0f));
+
             int clearFlags = RT_STORE_COLOR;
 
             if (screen) {
@@ -2692,6 +2839,7 @@ struct Level : IGame {
 
             Core::setTarget(screen, NULL, clearFlags); // render to screen texture or back buffer
             Core::validateRenderState();
+            Core::setClearColor(vec4(0.0f));
             setupBinding();
         }
 
@@ -2712,6 +2860,7 @@ struct Level : IGame {
                 waterCache->renderRays();
             waterCache->renderMask();
             waterCache->copyScreenToRefraction();
+            renderBoatWaterOccluders();
             setMainLight(player);
             waterCache->compose();
             if (camera->isUnderwater())

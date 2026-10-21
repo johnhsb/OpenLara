@@ -10,6 +10,11 @@
 
 #define MAX_SHOT_DIST   (64 * 1024)
 
+// random number of the original games, rand() goes up to 0x7FFFFFFF on some platforms
+inline int randControl() {
+    return rand() & 0x7FFF;
+}
+
 struct Enemy : Character {
 
     struct Path {
@@ -38,9 +43,13 @@ struct Enemy : Character {
             int maxX = min(a.maxX, b.maxX);
             int maxZ = min(a.maxZ, b.maxZ);
 
-            point.x = float(minX + 512) + randf() * (maxX - minX - 1024);
+        // the point of the overlap nearest to the center of the next box, the overlap of box rectangles may be wide
+        // and a random point there could lie behind the enemy
+            if (maxX - minX > 1024) { minX += 512; maxX -= 512; } else minX = maxX = (minX + maxX) / 2;
+            if (maxZ - minZ > 1024) { minZ += 512; maxZ -= 512; } else minZ = maxZ = (minZ + maxZ) / 2;
+            point.x = float(clamp((b.minX + b.maxX) / 2, minX, maxX));
             point.y = float((a.floor + b.floor) / 2);
-            point.z = float(minZ + 512) + randf() * (maxZ - minZ - 1024);
+            point.z = float(clamp((b.minZ + b.maxZ) / 2, minZ, maxZ));
 
             return true;
         }
@@ -61,6 +70,8 @@ struct Enemy : Character {
     vec3   waypoint;
 
     float thinkTime;
+    int   touchBits;    // the meshes Lara touched since the last think
+    int   touchNow;
     float length;       // dist from center to head (jaws)
     float aggression;
     int   radius;
@@ -76,7 +87,7 @@ struct Enemy : Character {
     bool  targetFromView;   // enemy in target view zone
     bool  targetCanAttack;
 
-    Enemy(IGame *game, int entity, float health, int radius, float length, float aggression) : Character(game, entity, health), ai(AI_RANDOM), mood(MOOD_SLEEP), wound(false), nextState(0), targetBox(TR::NO_BOX), thinkTime(1.0f / 30.0f), length(length), aggression(aggression), radius(radius), hitSound(-1), target(NULL), path(NULL) {
+    Enemy(IGame *game, int entity, float health, int radius, float length, float aggression) : Character(game, entity, health), ai(AI_RANDOM), mood(MOOD_SLEEP), wound(false), nextState(0), targetBox(TR::NO_BOX), thinkTime(1.0f / 30.0f), touchBits(0), touchNow(0), length(length), aggression(aggression), radius(radius), hitSound(-1), target(NULL), path(NULL) {
         targetDist   = +INF;
         targetInView = targetFromView = targetCanAttack = false;
         waypoint     = pos;
@@ -191,12 +202,27 @@ struct Enemy : Character {
 
         TR::Level::FloorInfo info;
         getFloorInfo(getRoomIndex(), pos, info);
+
+    // blocked, slide along the wall instead of stopping dead (the corners of narrow passages)
+        if (!canEnter(info) && stand == STAND_GROUND) {
+            vec3 slide[2] = { vec3(pos.x, pos.y, p.z), vec3(p.x, pos.y, pos.z) };
+            for (int i = 0; i < 2; i++) {
+                TR::Level::FloorInfo slideInfo;
+                getFloorInfo(getRoomIndex(), slide[i], slideInfo);
+                if (canEnter(slideInfo)) {
+                    pos  = slide[i];
+                    info = slideInfo;
+                    break;
+                }
+            }
+        }
+
         if (stand == STAND_AIR && !flying && info.floor < pos.y) {
             stand = STAND_GROUND;
             pos.y = info.floor;
         }
 
-        if (info.boxIndex != 0xFFFF && zone == getZones()[info.boxIndex] && !level->boxes[info.boxIndex].overlap.block) {
+        if (canEnter(info)) {
             switch (stand) {
                 case STAND_GROUND : {
                     float fallSpeed = 2048.0f * Core::deltaTime;
@@ -212,6 +238,10 @@ struct Enemy : Character {
             pos = p;
 
         updateRoom();
+    }
+
+    bool canEnter(const TR::Level::FloorInfo &info) {
+        return info.boxIndex != 0xFFFF && zone == getZones()[info.boxIndex] && !level->boxes[info.boxIndex].overlap.block;
     }
 
     void setOverrides(bool active, int chest, int head) {
@@ -289,6 +319,15 @@ struct Enemy : Character {
         wound = true;
     };
 
+    virtual void touchedBy(int mask) {
+        touchBits |= mask;
+    }
+
+    // the meshes touching Lara, also when she was pushed off them since (an attack tests these, as in the original)
+    int touching() {
+        return touchNow | collide(target);
+    }
+
     void bite(int joint, const vec3 &offset, float damage) {
         ASSERT(target);
         target->hit(damage, this);
@@ -296,8 +335,15 @@ struct Enemy : Character {
             game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(joint) * offset);
     }
 
+    // Lara's zone in the zone table of this enemy (it depends on how the enemy can move)
+    int targetZone() {
+        if (!target || target->box == TR::NO_BOX)
+            return -1;
+        return getZones()[target->box];
+    }
+
     Mood getMoodFixed() {
-        bool inZone = zone == target->zone;
+        bool inZone = zone == targetZone();
 
         if (mood == MOOD_SLEEP || mood == MOOD_STALK)
             return inZone ? MOOD_ATTACK : (wound ? MOOD_ESCAPE : mood);
@@ -309,8 +355,8 @@ struct Enemy : Character {
     }
 
     Mood getMoodRandom() {
-        bool inZone = zone == target->zone;
-        bool brave  = rand() < (mood != MOOD_ESCAPE ? 0x7800 : 0x0100) && inZone;
+        bool inZone = zone == targetZone();
+        bool brave  = randControl() < (mood != MOOD_ESCAPE ? 0x7800 : 0x0100) && inZone;
             
         if (mood == MOOD_SLEEP || mood == MOOD_STALK) {
             if (wound && !brave)
@@ -335,13 +381,18 @@ struct Enemy : Character {
             return false;
         thinkTime -= 1.0f / 30.0f;
 
+        touchNow  = touchBits;
+        touchBits = 0;
+
         int zoneOld = zone;
         updateZone();
 
         target = (Character*)game->getLara(pos);
 
+        bool tr2 = (level->version & TR::VER_TR2) != 0;
+
         vec3 targetVec  = target->pos - pos - getDir() * length;
-        targetDist      = targetVec.length();
+        targetDist      = tr2 ? sqrtf(SQR(targetVec.x) + SQR(targetVec.z)) : targetVec.length(); // TR2 ranges are horizontal
         targetAngle     = clampAngle(atan2f(targetVec.x, targetVec.z) - angle.y);
         targetDead      = target->health <= 0;
         targetInView    = targetVec.dot(getDir()) > 0;
@@ -350,7 +401,7 @@ struct Enemy : Character {
 
         int targetBoxOld = targetBox;
 
-        bool inZone = zone == target->zone;
+        bool inZone = zone == targetZone();
 
         if (target->health <= 0.0f || !inZone)
             targetBox = TR::NO_BOX;
@@ -423,8 +474,17 @@ struct Enemy : Character {
         if (targetBox != TR::NO_BOX && path) {
             vec3 d = pos - waypoint;
 
-            if (fabsf(d.x) < 512 && fabsf(d.y) < 512 && fabsf(d.z) < 512)
+        // the waypoint is reached when close to it or inside the box it leads to (a fast runner may circle around the point)
+            if ((fabsf(d.x) < 512 && fabsf(d.y) < 512 && fabsf(d.z) < 512) || (path->index > 0 && path->index < path->count && box == path->boxes[path->index]))
                 nextWaypoint();
+        }
+
+        if (tr2) {
+        // attacking, it heads for Lara herself every frame once on her box or the last leg of the path to it
+            if (mood == MOOD_ATTACK && targetBox != TR::NO_BOX && targetBox == target->box && (box == targetBox || !path || path->index >= path->count - 1))
+                waypoint = target->pos;
+        // only the moment of a hit may scare it away
+            wound = false;
         }
 
         return true;
@@ -574,7 +634,7 @@ struct Rex : Enemy {
         STATE_FATAL,
     };
 
-    Rex(IGame *game, int entity) : Enemy(game, entity, 100, 341, 2000.0f, 1.0f) {
+    Rex(IGame *game, int entity) : Enemy(game, entity, 100, 341, (game->getLevel()->version & TR::VER_TR2) ? 1800.0f : 2000.0f, 1.0f) {
         jointChest = 10;
         jointHead  = 12;    
         nextState  = STATE_NONE;
@@ -596,7 +656,9 @@ struct Rex : Enemy {
             return STATE_WALK;
         }
 
-        int mask = collide(target);
+        int mask = touching();
+        if (mask) // any touch hurts, trampling more
+            target->hit(state == STATE_RUN ? REX_DAMAGE_RUN : REX_DAMAGE_WALK, this);
 
         // if Lara is behind and watching Rex we need to rotate
         bool walk = targetFromView && !targetInView && mood != MOOD_ESCAPE;
@@ -610,15 +672,13 @@ struct Rex : Enemy {
                 if (mood == MOOD_SLEEP || walk)                     return STATE_WALK;
                 return STATE_RUN;
             case STATE_WALK :
-                if (mask) target->hit(REX_DAMAGE_WALK, this);
-                if (mood != MOOD_SLEEP && !walk)    return STATE_STOP;
+                if (mood != MOOD_SLEEP || !walk)    return STATE_STOP;
                 if (targetInView && randf() < 0.015f) {
                     nextState = STATE_BAWL;
                     return STATE_STOP;
                 }
                 break;
             case STATE_RUN :
-                if (mask) target->hit(REX_DAMAGE_RUN, this);
                 if ((targetCanAttack && targetDist < REX_DIST_WALK) || walk)
                     return STATE_STOP;
                 if (targetInView && mood != MOOD_ESCAPE && randf() < 0.015f) {
@@ -827,10 +887,39 @@ struct Human : Enemy {
 
     virtual void onDead() {}
 
+    // TR2: from 87.5% close up down to 25% at 8 blocks, a sidestepping Lara is harder to hit (the 32-bit overflow of
+    // the original is part of it)
+    bool shotHitTR2() {
+        const int32 range = SQR(8 * 1024);
+        int32 dist2 = int32(SQR(targetDist));
+        if (targetDist >= 8 * 1024)
+            return false;
+
+        vec3  d      = target->pos - pos;
+        float facing = atan2f(d.x, d.z) - target->angle.y + PI;
+        vec3  dir    = target->getDir();
+        int32 speed  = int32((target->velocity.x * dir.x + target->velocity.z * dir.z) / 30.0f); // per frame
+        int32 lead   = int32(speed * sinf(facing));
+
+        int32 lag = int32(uint32(uint64(int64(lead) * range))) / 300;
+        lag = int32(uint32(uint64(int64(dist2) + int64(int32(uint32(uint64(int64(lag) * lag)))))));
+        if (lag > range)
+            return false;
+
+        int32 chance = 0x2000 + (range - dist2) / (range / 0x5000);
+        return randControl() < chance;
+    }
+
     bool doShot(float damage, const vec3 &muzzleOffset) {
         game->addMuzzleFlash(this, jointGun, muzzleOffset, -1);
 
-        if (targetDist < HUMAN_DIST_SHOT && randf() < ((HUMAN_DIST_SHOT - targetDist) / HUMAN_DIST_SHOT - 0.25f)) {
+        bool hit;
+        if (level->version & TR::VER_TR2)
+            hit = shotHitTR2();
+        else
+            hit = targetDist < HUMAN_DIST_SHOT && randf() < ((HUMAN_DIST_SHOT - targetDist) / HUMAN_DIST_SHOT - 0.25f);
+
+        if (hit) {
             bite(-1, vec3(0.0f), damage);
             game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), target->getJoint(rand() % target->getModel()->mCount).pos);
             game->playSound(target->stand == STAND_UNDERWATER ? TR::SND_HIT_UNDERWATER : TR::SND_HIT, target->pos, Sound::PAN);

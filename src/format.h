@@ -8,7 +8,7 @@
 #define MAX_RESERVED_ENTITIES 128
 #define MAX_TRIGGER_COMMANDS  32
 #define MAX_MESHES            1024
-#define MAX_WEAPONS           4
+#define MAX_WEAPONS           8
 #define MAX_JOINTS            32
 
 // Lara's height in units / height in meters
@@ -434,8 +434,8 @@
     E( DRAGON_BONES_FRONT    ) \
     E( DRAGON_BONES_BACK     ) \
     E( TRAP_EXTRA_FIRE       ) \
+    E( BOAT_BITS             ) \
     E( TRAP_MINE             ) \
-    E( UNUSED_30             ) \
     E( INV_BACKGROUND        ) \
     E( GRAY_DISK             ) \
     E( GONG_STICK            ) \
@@ -1436,7 +1436,20 @@ namespace TR {
             FOOTPRINT      ,
         // specific
             TR1_FLICKER    = 16,
+        // TR2 numbers 5-10 differently
+            TR2_FLOOD      = 100,
+            TR2_CHANDELIER ,
+            TR2_RUBBLE     ,
+            TR2_PISTON     ,
+            TR2_CURTAIN    ,
+            TR2_SET_CHANGE ,
         };
+
+        static Type remap(int version, int fx) {
+            if ((version & VER_TR2) && fx >= 5 && fx <= 10)
+                return Type(TR2_FLOOD + fx - 5);
+            return Type(fx);
+        }
     };
 
     enum {
@@ -1574,6 +1587,10 @@ namespace TR {
             0, 376, 30,     ::Box(vec3(-200, 0, 312), vec3(200, 0, 512)), true, false
         };
 
+        Limit SWITCH_AIRLOCK = { // Lara stands right in front of the wheel
+            0, 212, 30,     ::Box(vec3(-220, 0, 292), vec3(220, 0, 512)), true, true
+        };
+
         Limit SWITCH_UNDERWATER = {
             0, 100, 80,     ::Box(vec3(-1024, -1024, -1024), vec3(1024, 1024, 512)), true, true
         };
@@ -1602,12 +1619,20 @@ namespace TR {
             0, -612, 30,    ::Box(vec3(-300, 0, -692), vec3(300, 0, -512)), true, false
         };
 
+        Limit ZIPLINE = { 
+            0, 371, 25,     ::Box(vec3(-256, -100, 256), vec3(256, 100, 512)), true, true
+        };
+
         Limit MIDAS = { 
             512, -612, 30,  ::Box(vec3(-700, 284, -700), vec3(700, 996, 700)), true, false
         };
 
         Limit SCION = { 
             640, -202, 30,  ::Box(vec3(-256, 540, -350), vec3(256, 740, -200)), false, false
+        };
+
+        Limit DETONATOR = { // Lara stands on the box, whichever way she faces
+            0, 0, 180,      ::Box(vec3(-256, -100, -256), vec3(256, 100, 256)), false, true
         };
 
         Limit SCION_HOLDER = { 
@@ -2430,6 +2455,10 @@ namespace TR {
             return type >= DOOR_1 && type <= DOOR_8;
         }
 
+        bool isBoulder() const {
+            return type == TRAP_BOULDER || type == TRAP_BOULDERS || type == ROLLING_DRUMS;
+        }
+
         static bool isPuzzleItem(Type type) {
             return (type >= PUZZLE_1 && type <= PUZZLE_4) || (type >= INV_PUZZLE_1 && type <= INV_PUZZLE_4);
         }
@@ -2480,6 +2509,15 @@ namespace TR {
                 || type == INV_AMMO_SHOTGUN
                 || type == INV_AMMO_MAGNUMS
                 || type == INV_AMMO_UZIS
+                || type == INV_AUTOPISTOLS
+                || type == INV_HARPOON
+                || type == INV_M16
+                || type == INV_GRENADE
+                || type == INV_AMMO_AUTOPISTOLS
+                || type == INV_AMMO_HARPOON
+                || type == INV_AMMO_M16
+                || type == INV_AMMO_GRENADE
+                || type == INV_FLARES
                 || type == INV_EXPLOSIVE
                 || type == INV_MEDIKIT_SMALL
                 || type == INV_MEDIKIT_BIG
@@ -2522,7 +2560,8 @@ namespace TR {
         bool isSprite() const {
             return type == EXPLOSION || type == WATER_SPLASH || type == BUBBLE || 
                    type == BLOOD || type == SMOKE || type == FLAME || 
-                   type == RICOCHET || type == SPARKLES || type == LAVA_PARTICLE;
+                   type == RICOCHET || type == SPARKLES || type == LAVA_PARTICLE ||
+                   type == WAKE_BOAT;
         }
 
         bool castShadow() const {
@@ -2550,6 +2589,7 @@ namespace TR {
                 case KEY_HOLE_3    : return KEY_ITEM_3;
                 case KEY_HOLE_4    : return KEY_ITEM_4;
                 case MIDAS_HAND    : return LEADBAR;
+                case DETONATOR     : return KEY_ITEM_2;
                 default            : return LARA;
             }
         }
@@ -3066,7 +3106,7 @@ namespace TR {
         struct Extra {
 
             static int getWeaponIndex(Entity::Type type) {
-                #if MAX_WEAPONS != 4
+                #if MAX_WEAPONS != 8
                     #error update this func first
                 #endif
 
@@ -3095,6 +3135,30 @@ namespace TR {
                     case Entity::INV_AMMO_UZIS     : 
                     case Entity::AMMO_UZIS         : 
                     case Entity::UZIS              : return  3;
+                // automatic pistols
+                    case Entity::LARA_AUTOPISTOLS  :
+                    case Entity::INV_AUTOPISTOLS   :
+                    case Entity::INV_AMMO_AUTOPISTOLS :
+                    case Entity::AMMO_AUTOPISTOLS  :
+                    case Entity::AUTOPISTOLS       : return  4;
+                // harpoon gun
+                    case Entity::LARA_HARPOON      :
+                    case Entity::INV_HARPOON       :
+                    case Entity::INV_AMMO_HARPOON  :
+                    case Entity::AMMO_HARPOON      :
+                    case Entity::HARPOON           : return  5;
+                // M16
+                    case Entity::LARA_M16          :
+                    case Entity::INV_M16           :
+                    case Entity::INV_AMMO_M16      :
+                    case Entity::AMMO_M16          :
+                    case Entity::M16               : return  6;
+                // grenade launcher
+                    case Entity::LARA_GRENADE      :
+                    case Entity::INV_GRENADE       :
+                    case Entity::INV_AMMO_GRENADE  :
+                    case Entity::AMMO_GRENADE      :
+                    case Entity::GRENADE           : return  7;
 
                     default : ASSERT(false);
                 }
@@ -3107,6 +3171,7 @@ namespace TR {
             int16 laraSpec;
             int16 laraSkin;
             int16 laraJoints;
+            int16 laraFlare;
             int16 meshSwap[3];
             int16 sky;
             int16 smoke;
@@ -3148,6 +3213,7 @@ namespace TR {
                 } ammo;
 
                 int16 medikit[2];
+                int16 flares;
                 int16 puzzle[4];
                 int16 key[4];
 
@@ -4839,6 +4905,20 @@ namespace TR {
         }
 
 
+        void shareAnimations(Entity::Type from, Entity::Type to) {
+            Model *src = NULL;
+            for (int i = 0; i < modelsCount; i++)
+                if (models[i].type == from)
+                    src = &models[i];
+            if (!src) return;
+
+            for (int i = 0; i < modelsCount; i++)
+                if (models[i].type == to) {
+                    models[i].animation = src->animation;
+                    models[i].frame     = src->frame;
+                }
+        }
+
         void initExtra() {
         // get special models indices
             memset(&extra, 0xFF, sizeof(extra));
@@ -4875,17 +4955,32 @@ namespace TR {
                     case Entity::LARA_PISTOLS        :
                     case Entity::LARA_SHOTGUN        :
                     case Entity::LARA_MAGNUMS        :
-                    case Entity::LARA_UZIS           : extra.weapons[type]     = i; break;
+                    case Entity::LARA_UZIS           :
+                    case Entity::LARA_AUTOPISTOLS    :
+                    case Entity::LARA_HARPOON        :
+                    case Entity::LARA_M16            :
+                    case Entity::LARA_GRENADE        : extra.weapons[type]     = i; break;
 
                     case Entity::INV_PISTOLS         :
                     case Entity::INV_SHOTGUN         :
                     case Entity::INV_MAGNUMS         :
-                    case Entity::INV_UZIS            : extra.inv.weapons[type] = i; break;
+                    case Entity::INV_UZIS            :
+                    case Entity::INV_AUTOPISTOLS     :
+                    case Entity::INV_HARPOON         :
+                    case Entity::INV_M16             :
+                    case Entity::INV_GRENADE         : extra.inv.weapons[type] = i; break;
 
                     case Entity::INV_AMMO_PISTOLS    :
                     case Entity::INV_AMMO_SHOTGUN    :
                     case Entity::INV_AMMO_MAGNUMS    :
-                    case Entity::INV_AMMO_UZIS       : extra.inv.ammo[type]  = i; break;
+                    case Entity::INV_AMMO_UZIS       :
+                    case Entity::INV_AMMO_AUTOPISTOLS:
+                    case Entity::INV_AMMO_HARPOON    :
+                    case Entity::INV_AMMO_M16        :
+                    case Entity::INV_AMMO_GRENADE    : extra.inv.ammo[type]  = i; break;
+
+                    case Entity::INV_FLARES          : extra.inv.flares      = i; break;
+                    case Entity::LARA_FLARE          : extra.laraFlare       = i; break;
 
                     case Entity::INV_MEDIKIT_SMALL   : extra.inv.medikit[0]  = i; break;
                     case Entity::INV_MEDIKIT_BIG     : extra.inv.medikit[1]  = i; break;
@@ -4909,6 +5004,10 @@ namespace TR {
                 }
             }
                 
+        // TR2 masked goon variants use the animations of the first one
+            shareAnimations(Entity::ENEMY_GOON_MASK_1, Entity::ENEMY_GOON_MASK_2);
+            shareAnimations(Entity::ENEMY_GOON_MASK_1, Entity::ENEMY_GOON_MASK_3);
+
             for (int i = 0; i < spriteSequencesCount; i++)
                 switch (spriteSequences[i].type) {
                     case Entity::SMOKE        : extra.smoke        = i; break;
