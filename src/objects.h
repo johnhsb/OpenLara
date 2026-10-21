@@ -1320,6 +1320,37 @@ struct TrapBladeStatue : Controller {
     }
 };
 
+#define PENDULUM_DAMAGE         50
+
+// the sandbags and boxes swinging in the Opera House, they hit whoever they touch while triggered and stop at
+// the end of a swing once the trigger is off
+struct TrapPendulum : Controller {
+    int touchBits;
+
+    TrapPendulum(IGame *game, int entity) : Controller(game, entity), touchBits(0) {}
+
+    virtual void touchedBy(int mask) {
+        touchBits |= mask;
+    }
+
+    virtual void update() {
+        if (!isActive() && animation.frameIndex >= animation.framesCount - 1) {
+            animation.setAnim(0);
+            touchBits = 0;
+            deactivate(true);
+            return;
+        }
+
+        Character *lara = (Character*)game->getLara(pos);
+        int touch = touchBits | touchLara(this, lara);
+        touchBits = 0;
+        if (touch && lara->health > 0.0f)
+            lara->hit(PENDULUM_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
+
+        updateAnimation(true);
+    }
+};
+
 #define SPIKE_WALL_DAMAGE       20
 #define SPIKE_WALL_SPEED        16.0f
 

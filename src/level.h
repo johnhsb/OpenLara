@@ -1346,6 +1346,8 @@ struct Level : IGame {
             case TR::Entity::SOUND_CLOCK            : return new ClockChimes(this, index);
             case TR::Entity::DETONATOR              : return new DetonatorBox(this, index);
             case TR::Entity::TRAP_BLADE_STATUE      : return new TrapBladeStatue(this, index);
+            case TR::Entity::TRAP_SWING_BAG         :
+            case TR::Entity::TRAP_SWING_BOX         : return new TrapPendulum(this, index);
             case TR::Entity::WAKE_BOAT              : return new BoatWake(this, index);
 
             default                                 : return new Controller(this, index);

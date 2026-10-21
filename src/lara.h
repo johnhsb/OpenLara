@@ -5168,8 +5168,7 @@ struct Lara : Character {
             if (!collide(controller, false))
                 continue;
 
-            if (e.isEnemy())
-                controller->touchedBy(controller->collide(this, false));
+            controller->touchedBy(controller->collide(this, false));
 
             if (e.type == TR::Entity::VEHICLE_BOAT && !boat) {
                 int getOn = boatGetOn((SpeedBoat*)controller);
