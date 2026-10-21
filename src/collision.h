@@ -20,7 +20,7 @@ struct Collision {
     Collision() : side(NONE) {}
 
     Collision(Controller *controller, int roomIndex, vec3 &pos, const vec3 &offset, const vec3 &velocity, float radius, float angle, int minHeight, int maxHeight, int maxAscent, int maxDescent, const vec2 &slantAxis = vec2(0.0f)) : slantAxis(slantAxis) {
-        if (velocity.x > 0.0f || velocity.z > 0.0f)
+        if (velocity.x != 0.0f || velocity.z != 0.0f) // the way it moves, whichever, or is pushed (the facing of a standing one)
             angle = normalizeAngle(PI2 + vec2(velocity.z, velocity.x).angle());
         pos += velocity;
 
