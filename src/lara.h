@@ -64,6 +64,7 @@ static struct LaraStartPos {
 // TR2 special animations of LARA_SPEC (their states, the levels have different sets of them)
 #define LARA_EXTRA_PLUNGER  1
 #define LARA_EXTRA_AIRLOCK  4
+#define LARA_EXTRA_START    8       // she gets up in the cell of the rig
 
 // frames of the TR2+ flare arm animations (hold, throw, draw, ignite and hold again)
 #define FLARE_FRAME_HOLD    0
@@ -382,6 +383,7 @@ struct Lara : Character {
     SpeedBoat         *boat;
     DetonatorBox      *detonator;
     Switch            *airlock;     // the wheel Lara turns
+    bool              startAnim;    // the level starts with the special animation
     bool              extraAnim;   // playing one of the special animations (LARA_SPEC)
     int               extraState;  // the state it goes to, -1 once there
     Controller        *keyItem;
@@ -624,6 +626,7 @@ struct Lara : Character {
         airlock     = NULL;
         extraAnim   = false;
         extraState  = -1;
+        startAnim   = level->id == TR::LVL_TR2_RIG;
         lightning   = NULL;
         environment = NULL;
 
@@ -815,6 +818,7 @@ struct Lara : Character {
     virtual void setSaveData(const SaveEntity &data) {
         Character::setSaveData(data);
         statsDistDelta = 0.0f;
+        startAnim      = false;
 
         velocity = vec3(data.extra.lara.velX, data.extra.lara.velY, data.extra.lara.velZ);
         angle.x  = TR::angle(data.extra.lara.angleX);
@@ -4834,6 +4838,12 @@ struct Lara : Character {
     }
 
     virtual void update() {
+        if (startAnim) { // not for a saved game
+            startAnim = false;
+            if (!laraStartPos.set)
+                extraStart(LARA_EXTRA_START);
+        }
+
         if (laraStartPos.set && camera->cameraIndex == 0) {
             laraStartPos.set = false;
             reset(laraStartPos.room, laraStartPos.pos, laraStartPos.angle * DEG2RAD);
