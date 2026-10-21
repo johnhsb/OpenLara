@@ -33,7 +33,8 @@ static struct LaraStartPos {
     int   room;
     vec3  pos;
     float angle;
-} laraStartPos;
+    int   activate[8];   // entities to trigger once the level starts (for testing), -1 ends the list
+} laraStartPos = { false, 0, vec3(0.0f), 0.0f, { -1 } };
 
 #define LARA_MAX_HEALTH     1000.0f
 #define LARA_MAX_OXYGEN     60.0f
@@ -4797,6 +4798,16 @@ struct Lara : Character {
             reset(laraStartPos.room, laraStartPos.pos, laraStartPos.angle * DEG2RAD);
             updateRoom(); // the given room may not contain the position
             updateZone();
+        }
+
+        for (int i = 0; i < COUNT(laraStartPos.activate) && laraStartPos.activate[i] >= 0; i++) {
+            int index = laraStartPos.activate[i];
+            laraStartPos.activate[i] = -1;
+            if (index < level->entitiesBaseCount && level->entities[index].controller) {
+                Controller *c = (Controller*)level->entities[index].controller;
+                c->flags.active = TR::ACTIVE;
+                c->activate();
+            }
         }
 
         if (Input::state[camera->cameraIndex][cLook] && Input::lastState[camera->cameraIndex] == cAction)

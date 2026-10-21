@@ -563,11 +563,21 @@ int main() {
         NSString *ext = [[arg pathExtension] lowercaseString];
         if ([ext isEqualToString:@"phd"] || [ext isEqualToString:@"tr2"] || [ext isEqualToString:@"psx"] || [ext isEqualToString:@"sat"] || [ext isEqualToString:@"tr4"])
             [arg getCString:levelName maxLength:sizeof(levelName) encoding:NSUTF8StringEncoding];
+    #if defined(_DEBUG) || defined(DEBUG) // testing options of the debug builds
     // optional Lara position in the level, --pos=room,x,y,z,angle
         if ([arg hasPrefix:@"--pos="]) {
             LaraStartPos &p = laraStartPos;
             p.set = sscanf([[arg substringFromIndex:6] UTF8String], "%d,%f,%f,%f,%f", &p.room, &p.pos.x, &p.pos.y, &p.pos.z, &p.angle) == 5;
         }
+    // optional entities to trigger at the start, --activate=index[,index...]
+        if ([arg hasPrefix:@"--activate="]) {
+            int count = 0;
+            for (NSString *item in [[arg substringFromIndex:11] componentsSeparatedByString:@","])
+                if (count < COUNT(laraStartPos.activate) - 1)
+                    laraStartPos.activate[count++] = [item intValue];
+            laraStartPos.activate[count] = -1;
+        }
+    #endif
     }
     Game::init(levelName[0] ? levelName : NULL);
 
