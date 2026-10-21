@@ -1381,18 +1381,22 @@ struct TrapPendulum : Controller {
 #define PROPELLER_DAMAGE        200
 #define PROPELLER_MASK          6       // the blades
 #define SND_TR2_AIRPLANE_IDLE   213
+#define SND_TR2_UNDERWATER_FAN_ON  215
+#define SND_TR2_UNDERWATER_FAN_OFF 216
 #define SND_TR2_SMALL_FAN_ON    217
 
-// the propellers of the planes and the fans: turning while triggered they shred Lara, then slow down to a stop
+// the propellers of the planes, the underwater ones and the fans: turning while triggered they shred Lara, then slow
+// down to a stop
 struct TrapPropeller : Controller {
     enum {
         STATE_ON,
         STATE_OFF,
     };
 
-    int touchBits;
+    int  touchBits;
+    bool turning;
 
-    TrapPropeller(IGame *game, int entity) : Controller(game, entity), touchBits(0) {}
+    TrapPropeller(IGame *game, int entity) : Controller(game, entity), touchBits(0), turning(false) {}
 
     virtual void touchedBy(int mask) {
         touchBits |= mask;
@@ -1406,10 +1410,16 @@ struct TrapPropeller : Controller {
         int touch = touchBits;
         touchBits = 0;
 
-        int sound = getEntity().type == TR::Entity::PROPELLER_PLANE ? SND_TR2_AIRPLANE_IDLE : SND_TR2_SMALL_FAN_ON;
+        int sound;
+        switch (getEntity().type) {
+            case TR::Entity::PROPELLER_PLANE : sound = SND_TR2_AIRPLANE_IDLE;     break;
+            case TR::Entity::PROPELLER_WATER : sound = SND_TR2_UNDERWATER_FAN_ON; break;
+            default                          : sound = SND_TR2_SMALL_FAN_ON;
+        }
 
         if (isActive()) {
             animation.setState(STATE_ON);
+            turning = true;
 
             Character *lara = (Character*)game->getLara(pos);
             touch |= touchLara(this, lara);
@@ -1420,6 +1430,9 @@ struct TrapPropeller : Controller {
         } else {
             if (state == STATE_ON && getEntity().type == TR::Entity::PROPELLER_PLANE)
                 game->playSound(sound, pos, Sound::PAN | Sound::UNIQUE);
+            if (turning && getEntity().type == TR::Entity::PROPELLER_WATER)
+                game->playSound(SND_TR2_UNDERWATER_FAN_OFF, pos, Sound::PAN);
+            turning = false;
             animation.setState(STATE_OFF);
         }
 
