@@ -25,6 +25,8 @@
 		993F06C8225BEE3A0030AF80 /* lang */ = {isa = PBXFileReference; lastKnownFileType = folder; name = lang; path = ../../lang; sourceTree = "<group>"; };
 		993F06C9225BEE3A0030AF80 /* lang.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = lang.h; path = ../../lang.h; sourceTree = "<group>"; };
 		993F06CA225BEE3A0030AF80 /* objects.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = objects.h; path = ../../objects.h; sourceTree = "<group>"; };
+		6DC4661111C150ED7B2F1228 /* objects_tr1.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = objects_tr1.h; path = ../../objects_tr1.h; sourceTree = "<group>"; };
+		D606017A84C2B006B17EC566 /* objects_tr2.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = objects_tr2.h; path = ../../objects_tr2.h; sourceTree = "<group>"; };
 		993F06CB225BEE3A0030AF80 /* video.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = video.h; path = ../../video.h; sourceTree = "<group>"; };
 		993F06CC225BEE3A0030AF80 /* gapi */ = {isa = PBXFileReference; lastKnownFileType = folder; name = gapi; path = ../../gapi; sourceTree = "<group>"; };
 		995C97EF1E91A857003825B2 /* shaders */ = {isa = PBXFileReference; lastKnownFileType = folder; name = shaders; path = ../../shaders; sourceTree = "<group>"; };
@@ -37,6 +39,8 @@
 		99713CB4204CA3DA00006FAC /* core.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = core.h; path = ../../core.h; sourceTree = "<group>"; };
 		99713CB5204CA3DA00006FAC /* debug.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = debug.h; path = ../../debug.h; sourceTree = "<group>"; };
 		99713CB6204CA3DA00006FAC /* enemy.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = enemy.h; path = ../../enemy.h; sourceTree = "<group>"; };
+		9C6D01487E5A4F189DF870D0 /* enemy_tr1.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = enemy_tr1.h; path = ../../enemy_tr1.h; sourceTree = "<group>"; };
+		F07D5273AFD6FEE337529FDC /* enemy_tr2.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = enemy_tr2.h; path = ../../enemy_tr2.h; sourceTree = "<group>"; };
 		99713CB7204CA3DA00006FAC /* format.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = format.h; path = ../../format.h; sourceTree = "<group>"; };
 		99713CB8204CA3DA00006FAC /* frustum.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = frustum.h; path = ../../frustum.h; sourceTree = "<group>"; };
 		99713CB9204CA3DA00006FAC /* game.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = game.h; path = ../../game.h; sourceTree = "<group>"; };
@@ -87,6 +91,8 @@
 				993F06C8225BEE3A0030AF80 /* lang */,
 				993F06C9225BEE3A0030AF80 /* lang.h */,
 				993F06CA225BEE3A0030AF80 /* objects.h */,
+				6DC4661111C150ED7B2F1228 /* objects_tr1.h */,
+				D606017A84C2B006B17EC566 /* objects_tr2.h */,
 				993F06C7225BEE3A0030AF80 /* savegame.h */,
 				993F06CB225BEE3A0030AF80 /* video.h */,
 				99BF38CC21E7176900D90A38 /* main.mm */,
@@ -99,6 +105,8 @@
 				99713CB4204CA3DA00006FAC /* core.h */,
 				99713CB5204CA3DA00006FAC /* debug.h */,
 				99713CB6204CA3DA00006FAC /* enemy.h */,
+				9C6D01487E5A4F189DF870D0 /* enemy_tr1.h */,
+				F07D5273AFD6FEE337529FDC /* enemy_tr2.h */,
 				99713CB7204CA3DA00006FAC /* format.h */,
 				99713CB8204CA3DA00006FAC /* frustum.h */,
 				99713CB9204CA3DA00006FAC /* game.h */,

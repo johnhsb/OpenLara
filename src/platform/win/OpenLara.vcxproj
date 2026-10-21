@@ -123,6 +123,8 @@
     <ClInclude Include="..\..\format.h" />
     <ClInclude Include="..\..\debug.h" />
     <ClInclude Include="..\..\enemy.h" />
+    <ClInclude Include="..\..\enemy_tr1.h" />
+    <ClInclude Include="..\..\enemy_tr2.h" />
     <ClInclude Include="..\..\frustum.h" />
     <ClInclude Include="..\..\game.h" />
     <ClInclude Include="..\..\gameflow.h" />
@@ -173,6 +175,8 @@
     <ClInclude Include="..\..\sprite.h" />
     <ClInclude Include="..\..\texture.h" />
     <ClInclude Include="..\..\objects.h" />
+    <ClInclude Include="..\..\objects_tr1.h" />
+    <ClInclude Include="..\..\objects_tr2.h" />
     <ClInclude Include="..\..\utils.h" />
     <ClInclude Include="..\..\ui.h" />
     <ClInclude Include="..\..\video.h" />

@@ -22,6 +22,8 @@
     <ClInclude Include="..\..\core.h" />
     <ClInclude Include="..\..\debug.h" />
     <ClInclude Include="..\..\enemy.h" />
+    <ClInclude Include="..\..\enemy_tr1.h" />
+    <ClInclude Include="..\..\enemy_tr2.h" />
     <ClInclude Include="..\..\frustum.h" />
     <ClInclude Include="..\..\game.h" />
     <ClInclude Include="..\..\ui.h" />
@@ -77,6 +79,8 @@
       <Filter>lang</Filter>
     </ClInclude>
     <ClInclude Include="..\..\objects.h" />
+    <ClInclude Include="..\..\objects_tr1.h" />
+    <ClInclude Include="..\..\objects_tr2.h" />
     <ClInclude Include="..\..\gapi\c3d.h">
       <Filter>gapi</Filter>
     </ClInclude>
