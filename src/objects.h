@@ -1403,6 +1403,129 @@ struct TrapPropeller : Controller {
     }
 };
 
+#define LIFT_WAIT       3.0f    // seconds with the door open before it moves
+#define LIFT_TRAVEL     (22 * 256)
+#define LIFT_SPEED      16.0f   // per frame
+#define LIFT_HEIGHT     1280
+
+// the lift of the Opera House: triggered it goes down 22 clicks, back up when the trigger is off, waiting with its
+// door open at either end; the 2x2 sectors of its shaft get its floor and ceiling
+struct Elevator : Controller {
+    enum {
+        STATE_DOOR_CLOSED,
+        STATE_DOOR_OPEN,
+    };
+
+    float startY;
+    float waitTime;
+
+    Elevator(IGame *game, int entity) : Controller(game, entity), waitTime(0.0f) {
+        startY = float(getEntity().y);
+    }
+
+    // the shaft takes the sector of the lift and the ones behind and beside it, as its direction says
+    void getShaftOffset(int &ox, int &oz) {
+        switch (angleQuadrant(angle.y, 0.25f)) { // north, east, south, west
+            case 0  : ox = -1; oz = +1; break;
+            case 1  : ox = +1; oz = +1; break;
+            case 2  : ox = +1; oz = -1; break;
+            default : ox = -1; oz = -1; break;
+        }
+    }
+
+    bool inShaft(int tx, int tz) {
+        int lx = int(pos.x) / 1024, lz = int(pos.z) / 1024;
+        int ox, oz;
+        getShaftOffset(ox, oz);
+        return (tx == lx || tx + ox == lx) && (tz == lz || tz + oz == lz);
+    }
+
+    virtual void liftFloor(int sx, int sz, int y, const vec3 &subject, float &floor, float &ceiling) {
+        bool pointIn   = inShaft(sx, sz);
+        bool subjectIn = inShaft(int(subject.x) / 1024, int(subject.z) / 1024);
+
+        float liftBottom  = pos.y + 256;
+        float liftFloor   = pos.y;
+        float liftCeiling = pos.y - LIFT_HEIGHT + 256;
+        float liftTop     = pos.y - LIFT_HEIGHT;
+        bool  inside      = subject.y < liftBottom && subject.y > liftCeiling;
+
+        float newFloor   = 32512.0f;
+        float newCeiling = -32512.0f;
+
+        if (subjectIn) {
+            if (state == STATE_DOOR_CLOSED && inside) {
+                if (pointIn) {
+                    newFloor   = liftFloor;
+                    newCeiling = liftCeiling;
+                } else
+                    newFloor = newCeiling = -32512.0f; // the closed door walls her in
+            } else if (pointIn) {
+                if (subject.y <= liftCeiling)
+                    newFloor = liftTop;
+                else if (subject.y <= liftBottom) {
+                    newFloor   = liftFloor;
+                    newCeiling = liftCeiling;
+                } else
+                    newCeiling = liftBottom;
+            }
+        } else if (pointIn) {
+            if (y <= liftTop)
+                newFloor = liftTop;
+            else if (y >= liftBottom)
+                newCeiling = liftBottom;
+            else if (state == STATE_DOOR_OPEN) {
+                newFloor   = liftFloor;
+                newCeiling = liftCeiling;
+            } else
+                newFloor = newCeiling = -32512.0f;
+        }
+
+        if (newFloor == -32512.0f && newCeiling == -32512.0f) {
+            floor = ceiling = -32512.0f;
+            return;
+        }
+        if (newFloor < floor)
+            floor = newFloor;
+        if (newCeiling > ceiling)
+            ceiling = newCeiling;
+    }
+
+    virtual void update() {
+        float target = startY + (isActive() ? LIFT_TRAVEL : 0.0f);
+
+        if (pos.y == target) {
+            animation.setState(STATE_DOOR_OPEN);
+            waitTime = 0.0f;
+        } else if (waitTime < LIFT_WAIT) {
+            animation.setState(STATE_DOOR_OPEN);
+            waitTime += Core::deltaTime;
+        } else {
+            animation.setState(STATE_DOOR_CLOSED);
+            float step = LIFT_SPEED * 30.0f * Core::deltaTime;
+            float d = target - pos.y;
+
+        // Lara standing on it rides along (the original snaps her down to the floor that drops away)
+            Character *lara = (Character*)game->getLara(pos);
+            bool riding = lara->stand == Character::STAND_GROUND && fabsf(lara->pos.y - pos.y) < 32.0f &&
+                          inShaft(int(lara->pos.x) / 1024, int(lara->pos.z) / 1024);
+
+            pos.y += clamp(d, -step, step);
+
+            if (riding)
+                lara->pos.y = pos.y;
+        }
+
+        updateAnimation(true);
+
+        // the room a click up, not to sit on a portal
+        vec3 p = pos - vec3(0.0f, 256.0f, 0.0f);
+        int16 roomIndex = getRoomIndex();
+        level->getSector(roomIndex, p);
+        this->roomIndex = roomIndex;
+    }
+};
+
 #define SPIKE_WALL_DAMAGE       20
 #define SPIKE_WALL_SPEED        16.0f
 

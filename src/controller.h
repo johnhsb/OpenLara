@@ -334,6 +334,10 @@ struct Controller {
                             info.ceiling = float(ey);
                         break;
                     }
+                    case TR::Entity::ELEVATOR    : {
+                        controller->liftFloor(sx, sz, y, game->getLara(pos)->pos, info.floor, info.ceiling);
+                        break;
+                    }
                     case TR::Entity::DRAWBRIDGE  : {
                         if (controller->isCollider()) continue; // drawbridge is collidable in inactive state, but it works as floor only when active
 
@@ -882,6 +886,9 @@ struct Controller {
 
     // the top of a collapsing floor above its origin
     virtual int floorOrigin() { return -512; }
+
+    // a lift of TR2 changes the floor and the ceiling of its shaft (subject: who asks, Lara)
+    virtual void liftFloor(int sx, int sz, int y, const vec3 &subject, float &floor, float &ceiling) {}
 
     int collide(Controller *controller, bool checkBoxes = true) {
         const TR::Model *a = getModel();
