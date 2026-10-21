@@ -447,6 +447,10 @@ struct TrapLavaEmitter : Controller {
 
 #define BOULDER_DAMAGE_GROUND 1000
 #define SND_TR2_ROLLING_BALL  147
+#define SND_TR2_ROLLING_BALL_2_ROLL 222
+#define SND_TR2_ROLLING_BALL_2_STOP 223
+#define SND_TR2_ROLLING_DRUMS_ROLL  227
+#define SND_TR2_ROLLING_DRUMS_STOP  228
 #define BOULDER_DAMAGE_AIR    100
 
 struct TrapBoulder : Controller {
@@ -462,9 +466,30 @@ struct TrapBoulder : Controller {
         flags.unused = false;
     }
 
+    // the second TR2 ball and the rolling drums settle where they stop, the first ball just stays
+    bool settles() {
+        return getEntity().type != TR::Entity::TRAP_BOULDER;
+    }
+
+    int soundRoll() {
+        switch (getEntity().type) {
+            case TR::Entity::TRAP_BOULDERS : return SND_TR2_ROLLING_BALL_2_ROLL;
+            case TR::Entity::ROLLING_DRUMS : return SND_TR2_ROLLING_DRUMS_ROLL;
+            default                        : return SND_TR2_ROLLING_BALL; // the Opera House has no such sample
+        }
+    }
+
+    int soundStop() {
+        switch (getEntity().type) {
+            case TR::Entity::TRAP_BOULDERS : return SND_TR2_ROLLING_BALL_2_STOP;
+            case TR::Entity::ROLLING_DRUMS : return SND_TR2_ROLLING_DRUMS_STOP;
+            default                        : return -1;
+        }
+    }
+
     // a TR2 ball stops at a wall, a raised floor or a gap too low for it ahead (as the original tests it)
     bool testStopTR2() {
-        float dist = getEntity().type == TR::Entity::TRAP_BOULDERS ? 1024.0f : 384.0f;
+        float dist = settles() ? 1024.0f : 384.0f;
         vec3 v = pos + getDir() * dist;
 
         TR::Level::FloorInfo info;
@@ -501,7 +526,7 @@ struct TrapBoulder : Controller {
         bool tr2 = (level->version & TR::VER_TR2) != 0;
 
         if (flags.unused) {
-            if (tr2 && getEntity().type == TR::Entity::TRAP_BOULDERS) { // the second TR2 ball plays its stop animation and stays
+            if (tr2 && settles()) { // it plays its stop animation and stays
                 animation.setState(STATE_STOP_TR2);
                 updateAnimation(true);
             }
@@ -540,7 +565,7 @@ struct TrapBoulder : Controller {
             velocity.y = 0.0f;
             pos.y      = p.y;
             if (tr2)
-                game->playSound(SND_TR2_ROLLING_BALL, pos, Sound::PAN | Sound::UNIQUE); // the Opera House has no such sample
+                game->playSound(soundRoll(), pos, Sound::PAN | Sound::UNIQUE);
         }
 
         if (tr2) {
@@ -549,7 +574,9 @@ struct TrapBoulder : Controller {
                 pos.x    = old.x;
                 pos.z    = old.z;
                 velocity = vec3(0.0f);
-                if (getEntity().type == TR::Entity::TRAP_BOULDERS)
+                if (soundStop() != -1)
+                    game->playSound(soundStop(), pos, Sound::PAN);
+                if (settles())
                     animation.setState(STATE_STOP_TR2);
             }
         } else {

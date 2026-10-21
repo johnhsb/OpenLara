@@ -2375,7 +2375,7 @@ struct Lara : Character {
                 animation.setAnim(ANIM_DEATH_BOULDER);
 
                 vec3 v(0.0f);
-                if (enemy && enemy->getEntity().type == TR::Entity::TRAP_BOULDER) {
+                if (enemy && enemy->getEntity().isBoulder()) {
                     angle = enemy->angle;
                     TR::Level::FloorInfo info;
                     getFloorInfo(getRoomIndex(), pos, info);
@@ -5151,7 +5151,7 @@ struct Lara : Character {
                         fabsf(pos.y - controller->pos.y) > COLLIDE_MAX_RANGE) continue;
             }
 
-            if ((e.type == TR::Entity::TRAP_BOULDER || e.type == TR::Entity::TRAP_BOULDERS) && !controller->flags.unused &&
+            if (e.isBoulder() && !controller->flags.unused &&
                 (controller->flags.active || !(level->version & TR::VER_TR2)))
                 continue; // a rolling boulder doesn't push, it crushes (a TR2 one blocks before it rolls, as in the original)
 

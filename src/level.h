@@ -1223,7 +1223,8 @@ struct Level : IGame {
             case TR::Entity::TRAP_SWING_BLADE      : return new TrapSwingBlade(this, index);
             case TR::Entity::TRAP_SPIKES           : return new TrapSpikes(this, index);
             case TR::Entity::TRAP_BOULDER          : 
-            case TR::Entity::TRAP_BOULDERS         : return new TrapBoulder(this, index);
+            case TR::Entity::TRAP_BOULDERS         :
+            case TR::Entity::ROLLING_DRUMS         : return new TrapBoulder(this, index);
             case TR::Entity::DART                  : return new Dart(this, index);
             case TR::Entity::TRAP_DART_EMITTER     : return new TrapDartEmitter(this, index);
             case TR::Entity::DRAWBRIDGE            : return new Drawbridge(this, index);
