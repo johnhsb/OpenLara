@@ -61,6 +61,10 @@ static struct LaraStartPos {
 #define SND_TR2_M16_STOP    104
 #define HARPOON_RELOAD      4       // harpoon gun reloads after this count of shots
 
+// TR2 special animations of LARA_SPEC (their states, the levels have different sets of them)
+#define LARA_EXTRA_PLUNGER  1
+#define LARA_EXTRA_AIRLOCK  4
+
 // frames of the TR2+ flare arm animations (hold, throw, draw, ignite and hold again)
 #define FLARE_FRAME_HOLD    0
 #define FLARE_FRAME_THROW   1
@@ -377,6 +381,7 @@ struct Lara : Character {
     Zipline           *zipline;
     SpeedBoat         *boat;
     DetonatorBox      *detonator;
+    Switch            *airlock;     // the wheel Lara turns
     bool              extraAnim;   // playing one of the special animations (LARA_SPEC)
     int               extraState;  // the state it goes to, -1 once there
     Controller        *keyItem;
@@ -616,6 +621,7 @@ struct Lara : Character {
         keyHole     = NULL;
         keyItem     = NULL;
         detonator   = NULL;
+        airlock     = NULL;
         extraAnim   = false;
         extraState  = -1;
         lightning   = NULL;
@@ -819,6 +825,7 @@ struct Lara : Character {
         if (extraAnim) {
             extraAnim = false;
             detonator = NULL;
+            airlock   = NULL;
             animation.setModel(getModel());
             animation.setAnim(ANIM_STAND);
         }
@@ -894,6 +901,7 @@ struct Lara : Character {
         zipline = NULL;
         boat    = NULL;
         detonator = NULL;
+        airlock   = NULL;
         if (extraAnim) {
             extraAnim = false;
             animation.setModel(getModel());
@@ -2777,6 +2785,15 @@ struct Lara : Character {
             case TR::Level::Trigger::SWITCH : {
                 Switch *controller = (Switch*)level->entities[info.trigCmd[cmdIndex++].args].controller;
 
+                if (controller->getEntity().type == TR::Entity::WHEEL_KNOB) { // it goes off once, as the wheel turns
+                    if (controller != airlock || controller->state != Switch::STATE_UP) {
+                        useAirlock(controller);
+                        return;
+                    }
+                    airlock = NULL;
+                    break;
+                }
+
                 if (controller->flags.state != TR::Entity::asActive) {
                     limit = state == STATE_STOP ? (controller->getEntity().type == TR::Entity::SWITCH_BUTTON ? &TR::Limits::SWITCH_BUTTON : &TR::Limits::SWITCH) : &TR::Limits::SWITCH_UNDERWATER;
                     if (checkInteraction(controller, limit, Input::state[camera->cameraIndex][cAction])) {
@@ -3319,7 +3336,7 @@ struct Lara : Character {
             return;
         }
 
-        if (!extraStart(1)) // the plunger, after the breath
+        if (!extraStart(LARA_EXTRA_PLUNGER))
             return;
 
         game->invUse(camera->cameraIndex, usedItem);
@@ -3328,15 +3345,35 @@ struct Lara : Character {
         box->use(angle.y);
     }
 
-    // plays a special animation of LARA_SPEC (the first one of it is the breath it comes back to)
-    bool extraStart(int anim) {
+    // Lara turns the wheel of an airlock, it turns once
+    void useAirlock(Switch *wheel) {
+        if (wheel->state != Switch::STATE_DOWN || wheel->flags.state != TR::Entity::asNone)
+            return;
+        if (!checkInteraction(wheel, &TR::Limits::SWITCH_AIRLOCK, Input::state[camera->cameraIndex][cAction]))
+            return;
+        if (!extraStart(LARA_EXTRA_AIRLOCK))
+            return;
+        airlock = wheel;
+        wheel->activate();
+    }
+
+    // plays a special animation of LARA_SPEC, from the breath it comes back to (the first one of it)
+    bool extraStart(int extra) {
         const TR::Model *model = getLaraModel(TR::Entity::LARA_SPEC);
-        if (!model || model->animation + anim >= level->animsCount)
+        if (!model)
+            return false;
+
+        const TR::Animation &breath = level->anims[model->animation];
+        bool exists = false;
+        for (int i = 0; i < breath.scCount; i++)
+            if (level->states[breath.scOffset + i].state == extra)
+                exists = true;
+        if (!exists)
             return false;
 
         animation.setModel(model);
         animation.setAnim(0);
-        extraState = level->anims[model->animation + anim].state;
+        extraState = extra;
         extraAnim  = true;
         velocity   = vec3(0.0f);
         speed      = 0.0f;
@@ -3356,10 +3393,14 @@ struct Lara : Character {
 
         Controller::updateAnimation(true);
 
+        if (airlock && airlock->state == Switch::STATE_UP)
+            checkTrigger(this, false); // the wheel turns
+
         if (extraState < 0 && animation.state == 0) { // back to the breath, done
             extraAnim = false;
             animation.setModel(getModel());
             animation.setAnim(ANIM_STAND);
+            airlock = NULL;
             if (detonator) { // the key trigger goes off now, then the box is spent
                 detonator->flags.state  = TR::Entity::asInactive;
                 detonator->flags.active = TR::ACTIVE;

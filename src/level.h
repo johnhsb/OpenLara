@@ -1245,7 +1245,8 @@ struct Level : IGame {
             case TR::Entity::SWITCH                :
             case TR::Entity::SWITCH_WATER          :
             case TR::Entity::SWITCH_BUTTON         : 
-            case TR::Entity::SWITCH_BIG            : return new Switch(this, index);
+            case TR::Entity::SWITCH_BIG            :
+            case TR::Entity::WHEEL_KNOB            : return new Switch(this, index);
             case TR::Entity::PUZZLE_HOLE_1         :
             case TR::Entity::PUZZLE_HOLE_2         :
             case TR::Entity::PUZZLE_HOLE_3         :

@@ -1587,6 +1587,10 @@ namespace TR {
             0, 376, 30,     ::Box(vec3(-200, 0, 312), vec3(200, 0, 512)), true, false
         };
 
+        Limit SWITCH_AIRLOCK = { // Lara stands right in front of the wheel
+            0, 212, 30,     ::Box(vec3(-220, 0, 292), vec3(220, 0, 512)), true, true
+        };
+
         Limit SWITCH_UNDERWATER = {
             0, 100, 80,     ::Box(vec3(-1024, -1024, -1024), vec3(1024, 1024, 512)), true, true
         };
