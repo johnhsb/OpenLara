@@ -4110,6 +4110,157 @@ struct Gunman2 : Human {
         lookAt(target);
     }
 };
+
+// TR2 divers, they swim after Lara and fire harpoons at her, up to the surface when she is out of the water
+#define DIVER_SWIM_TURN     (DEG2RAD * 3 * 30)
+#define DIVER_FRONT_ARC     (DEG2RAD * 45)
+#define DIVER_FLY_SPEED     (16.0f * 30.0f)
+#define DIVER_FLOAT_SPEED   (32.0f * 30.0f) // the body comes up
+
+struct Diver : Enemy {
+
+    enum {
+        ANIM_DEATH = 16,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_SWIM_1,   // under the water
+        STATE_SWIM_2,   // at the surface
+        STATE_SHOOT_1,
+        STATE_AIM_1,
+        STATE_NULL_1,
+        STATE_AIM_2,
+        STATE_SHOOT_2,
+        STATE_NULL_2,
+        STATE_DEATH,
+    };
+
+    Diver(IGame *game, int entity) : Enemy(game, entity, 20, 341, 50.0f, 1.0f) {
+        jointChest = -1;
+        jointHead  = 11;
+        flying     = true;
+        stand      = STAND_UNDERWATER;
+    }
+
+    // the surface of the water it swims in (none for a flooded room under no air)
+    float getSurface() {
+        int16 roomIndex = getRoomIndex();
+        TR::Room::Sector *sector = level->getWaterLevelSector(roomIndex, pos);
+        return sector ? sector->ceiling * 256.0f : -32512.0f;
+    }
+
+    // it sees Lara ahead, from its eyes to hers out of the water
+    bool canShoot() {
+        if (fabsf(targetAngle) >= DIVER_FRONT_ARC || target->health <= 0.0f)
+            return false;
+
+        TR::Location from, to;
+        from.room = getRoomIndex();
+        from.pos  = pos;
+        to.pos    = target->pos;
+        if (target->stand != STAND_UNDERWATER) {
+            from.pos.y -= 256.0f;
+            to.pos.y   -= 762.0f - 150.0f; // Lara's height
+        }
+        return trace(from, to);
+    }
+
+    void fire() {
+        if (flags.unused)
+            return;
+        flags.unused = 1;
+
+        vec3 from = getJoint(18) * vec3(17.0f, 164.0f, 44.0f);
+        Box  box  = target->getBoundingBox();
+        vec3 to   = vec3(target->pos.x, box.max.y + (box.min.y - box.max.y) * 0.75f, target->pos.z);
+
+        Bullet *harpoon = (Bullet*)game->addEntity(TR::Entity::HARPOON_WTF, getRoomIndex(), from);
+        if (harpoon) {
+            vec3 d = to - from;
+            vec3 a = vec3(-atan2f(d.y, sqrtf(d.x * d.x + d.z * d.z)), atan2f(d.x, d.z), 0.0f);
+            a.x += (randf() * 2.0f - 1.0f) * (1.4f * DEG2RAD);
+            a.y += (randf() * 2.0f - 1.0f) * (1.4f * DEG2RAD);
+            harpoon->setAngle(a);
+        }
+    }
+
+    virtual int getStateUnderwater() {
+        if (!think(false))
+            return state;
+
+        bool  shoot   = canShoot();
+        float surface = getSurface() + 512.0f;
+        bool  up      = waypoint.y < surface; // Lara is out of the water
+
+        switch (state) {
+            case STATE_SWIM_1 :
+                if (up && pos.y < surface + 16.0f)
+                    return STATE_SWIM_2;
+                if (mood != MOOD_ESCAPE && shoot)
+                    return STATE_AIM_1;
+                break;
+            case STATE_SWIM_2 :
+                if (!up)
+                    return STATE_SWIM_1;
+                if (mood != MOOD_ESCAPE && shoot)
+                    return STATE_AIM_2;
+                break;
+            case STATE_SHOOT_1 :
+            case STATE_SHOOT_2 :
+                fire();
+                break;
+            case STATE_AIM_1 :
+                flags.unused = 0;
+                if (!shoot || mood == MOOD_ESCAPE || (up && pos.y < surface + 16.0f))
+                    return STATE_SWIM_1;
+                return STATE_SHOOT_1;
+            case STATE_AIM_2 :
+                flags.unused = 0;
+                if (!shoot || mood == MOOD_ESCAPE || !up)
+                    return STATE_SWIM_2;
+                return STATE_SHOOT_2;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(ANIM_DEATH);
+    }
+
+    virtual void updatePosition() {
+        float surface = getSurface();
+
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            if (pos.y > surface)
+                pos.y = max(surface, pos.y - DIVER_FLOAT_SPEED * Core::deltaTime);
+            updateRoom();
+            return;
+        }
+
+        turn(false, (state == STATE_SWIM_1 || state == STATE_SWIM_2) ? DIVER_SWIM_TURN : 0.0f);
+        angle.z = 0.0f;
+
+        Enemy::updatePosition();
+
+        if (state == STATE_SWIM_1 || state == STATE_AIM_1 || state == STATE_SHOOT_1) {
+            lift(waypoint.y - pos.y, DIVER_FLY_SPEED);
+
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), pos, info);
+            pos.y = clamp(pos.y, max(info.ceiling, surface) + 512.0f, info.floor);
+        } else
+            pos.y = surface;
+
+        updateRoom();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
 // TR2 Doberman of Venice and the Opera House
 #define DOG_BITE_DAMAGE     100
 #define DOG_LUNGE_DAMAGE    100

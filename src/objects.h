@@ -3218,6 +3218,10 @@ struct StoneItem : Controller {
 #define CENTAUR_BULLET_DIST   SQR(1024.0f)
 #define CENTAUR_BULLET_DAMAGE 100.0f
 #define MUTANT_BULLET_DAMAGE  30.0f
+#define HARPOON_WTF_DAMAGE    50.0f
+#define HARPOON_WTF_PITCH     (-67.5f * DEG2RAD) // the lowest it dips to out of the water
+#define SND_TR2_PROJECTILE_HIT 258
+#define SND_TR2_CRUNCH_1      317
 
 struct Bullet : Controller {
     vec3 velocity;
@@ -3239,12 +3243,24 @@ struct Bullet : Controller {
             case TR::Entity::NATLA_BULLET   : speed = 220.0f; break;
             case TR::Entity::MUTANT_BULLET  : speed = 250.0f; break;
             case TR::Entity::CENTAUR_BULLET : speed = 220.0f; break;
+            case TR::Entity::HARPOON_WTF    : speed = 150.0f; break;
             default : speed = 200.0f;
         }
         velocity = getDir() * (speed * 30.0f);
     }
 
     virtual void update() {
+        bool harpoon = getEntity().type == TR::Entity::HARPOON_WTF;
+        if (harpoon) { // the harpoon of a diver dips out of the water, it leaves bubbles in it
+            if (!getRoom().flags.water) {
+                if (angle.x > HARPOON_WTF_PITCH) {
+                    angle.x = max(HARPOON_WTF_PITCH, angle.x - DEG2RAD * 30.0f * Core::deltaTime);
+                    velocity = getDir() * velocity.length();
+                }
+            } else if (randf() < 0.2f)
+                game->addEntity(TR::Entity::BUBBLE, getRoomIndex(), pos);
+        }
+
         //getRoom().removeDynLight(entity);
         pos = pos + velocity * Core::deltaTime;
 
@@ -3288,6 +3304,17 @@ struct Bullet : Controller {
                 else
                     game->getLara()->addRicochet(pos - getDir() * 64.0f, true);
                 break;
+            case TR::Entity::HARPOON_WTF    :
+                if (directHit) {
+                    lara->hit(HARPOON_WTF_DAMAGE);
+                    game->addEntity(TR::Entity::BLOOD, getRoomIndex(), pos);
+                    game->playSound(SND_TR2_CRUNCH_1, pos, Sound::PAN);
+                } else {
+                    game->getLara()->addRicochet(pos - getDir() * 64.0f, false);
+                    game->playSound(SND_TR2_PROJECTILE_HIT, pos, Sound::PAN);
+                }
+                game->removeEntity(this);
+                return;
             default : ;
         }
 
