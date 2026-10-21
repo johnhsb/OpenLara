@@ -5165,6 +5165,24 @@ struct Lara : Character {
         return level->isCutsceneLevel() ? getViewPoint() : pos;
     }
 
+    // the original takes a push back when it runs her into a wall, up a step or under a low ceiling (ItemPushLara),
+    // a push out of a creature may be long enough to take her past the edge of a sector in one go
+    bool canPushTo(const vec3 &offset) {
+        float len = offset.length();
+        if (stand != STAND_GROUND || len < EPS)
+            return true;
+
+        vec3 dir = offset * (1.0f / len);
+        vec3 points[] = { pos + offset, pos + offset + dir * LARA_RADIUS };
+        for (int i = 0; i < COUNT(points); i++) {
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), points[i], info);
+            if (pos.y - info.floor > 256 + 128 || info.floor - info.ceiling < LARA_HEIGHT || info.ceiling > pos.y - LARA_HEIGHT)
+                return false;
+        }
+        return true;
+    }
+
     bool checkCollisions() {
     // check static objects (TODO: check linked rooms?)
         const TR::Room &room = getRoom();
@@ -5253,7 +5271,8 @@ struct Lara : Character {
                 if (pushBox.contains(p)) {
                     p += pushBox.pushOut2D(p);
                     p = (p.rotateY(-controller->angle.y) + controller->pos) - pos;
-                    collisionOffset += vec3(p.x, 0.0f, p.z);
+                    if (canPushTo(vec3(p.x, 0.0f, p.z)))
+                        collisionOffset += vec3(p.x, 0.0f, p.z);
                 }
             }
 
