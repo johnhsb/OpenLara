@@ -1092,7 +1092,7 @@ struct Controller {
         return fabsf(d.x) < range && fabsf(d.z) < range && fabsf(d.y) < range;
     }
 
-    void updateRoom() {
+    virtual void updateRoom() {
         level->getSector(roomIndex, pos);
         level->getWaterInfo(getRoomIndex(), pos, waterLevel, waterDepth);
     }
