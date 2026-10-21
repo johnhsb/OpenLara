@@ -1443,6 +1443,35 @@ struct TrapPropeller : Controller {
     }
 };
 
+#define SND_TR2_PLATFORM_ALARM  332
+#define ALARM_PERIOD            13      // frames of one flash
+#define ALARM_DARK              7       // frames of it before the light
+#define ALARM_LIGHT_RADIUS      2048.0f
+
+// the alarm of the rig rings while triggered, its light flashing
+struct SoundAlarm : Controller {
+    float phase;
+
+    SoundAlarm(IGame *game, int entity) : Controller(game, entity), phase(0.0f) {}
+
+    virtual void update() {
+        getRoom().removeDynLight(entity);
+
+        if (flags.active != TR::ACTIVE) {
+            deactivate(true);
+            return;
+        }
+
+        game->playSound(SND_TR2_PLATFORM_ALARM, pos, Sound::PAN | Sound::UNIQUE);
+
+        phase += 30.0f * Core::deltaTime;
+        if (phase >= ALARM_PERIOD)
+            phase -= ALARM_PERIOD;
+        if (phase >= ALARM_DARK)
+            getRoom().addDynLight(entity, vec4(pos, 0.0f), vec4(vec3(0.75f), 1.0f / ALARM_LIGHT_RADIUS));
+    }
+};
+
 #define LIFT_WAIT       3.0f    // seconds with the door open before it moves
 #define LIFT_TRAVEL     (22 * 256)
 #define LIFT_SPEED      16.0f   // per frame

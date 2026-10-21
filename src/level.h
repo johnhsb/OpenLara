@@ -1349,6 +1349,7 @@ struct Level : IGame {
             case TR::Entity::TRAP_BLADE_STATUE      : return new TrapBladeStatue(this, index);
             case TR::Entity::TRAP_SWING_BAG         :
             case TR::Entity::TRAP_SWING_BOX         : return new TrapPendulum(this, index);
+            case TR::Entity::SOUND_ALARM            : return new SoundAlarm(this, index);
             case TR::Entity::PROPELLER_PLANE        :
             case TR::Entity::PROPELLER_WATER        :
             case TR::Entity::PROPELLER_AIR          : return new TrapPropeller(this, index);
