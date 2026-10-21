@@ -631,6 +631,7 @@ struct Controller {
                e.isDoor() ||
                e.type == TR::Entity::SCION_HOLDER ||
                e.type == TR::Entity::TRAP_BOULDER ||
+               e.type == TR::Entity::TRAP_BOULDERS ||
                e.type == TR::Entity::MUTANT_EGG_SMALL;
     }
 

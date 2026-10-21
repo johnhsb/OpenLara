@@ -5140,7 +5140,9 @@ struct Lara : Character {
                         fabsf(pos.y - controller->pos.y) > COLLIDE_MAX_RANGE) continue;
             }
 
-            if (e.type == TR::Entity::TRAP_BOULDER && !controller->flags.unused) continue; // boulder should stay still
+            if ((e.type == TR::Entity::TRAP_BOULDER || e.type == TR::Entity::TRAP_BOULDERS) && !controller->flags.unused &&
+                (controller->flags.active || !(level->version & TR::VER_TR2)))
+                continue; // a rolling boulder doesn't push, it crushes (a TR2 one blocks before it rolls, as in the original)
 
             if (e.type == TR::Entity::WINDOW_1 && fabsf(speed * cosf(angle.y - controller->angle.y)) >= WINDOW_SMASH_SPEED) {
                 vec3 dir = pos - vec3(0.0f, 128.0f, 0.0f) - controller->pos;

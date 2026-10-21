@@ -446,18 +446,43 @@ struct TrapLavaEmitter : Controller {
 
 
 #define BOULDER_DAMAGE_GROUND 1000
+#define SND_TR2_ROLLING_BALL  147
 #define BOULDER_DAMAGE_AIR    100
 
 struct TrapBoulder : Controller {
     enum {
         STATE_FALL,
         STATE_ROLL,
+        STATE_STOP_TR2, // the second TR2 ball settling
     };
 
     vec3 velocity;
 
     TrapBoulder(IGame *game, int entity) : Controller(game, entity), velocity(0) {
         flags.unused = false;
+    }
+
+    // a TR2 ball stops at a wall, a raised floor or a gap too low for it ahead (as the original tests it)
+    bool testStopTR2() {
+        float dist = getEntity().type == TR::Entity::TRAP_BOULDERS ? 1024.0f : 384.0f;
+        vec3 v = pos + getDir() * dist;
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), v, info);
+        if (info.floor == -32512.0f || info.floor < pos.y)
+            return true;
+
+        Box box = getBoundingBoxLocal();
+        int h = (int(fabsf(box.max.y - box.min.y)) + 255) / 256 * 256;
+        if (h > 768)
+            h = h / 768 * 768;
+
+        TR::Level::FloorInfo up;
+        getFloorInfo(getRoomIndex(), v - vec3(0.0f, float(h), 0.0f), up);
+        if (up.ceiling == -32512.0f || (up.ceiling > pos.y && velocity.y == 0.0f))
+            return true;
+
+        return fabsf(up.ceiling - info.floor) < h;
     }
 
     virtual void update() {
@@ -473,11 +498,24 @@ struct TrapBoulder : Controller {
             return;
         }
 
+        bool tr2 = (level->version & TR::VER_TR2) != 0;
+
         if (flags.unused) {
+            if (tr2 && getEntity().type == TR::Entity::TRAP_BOULDERS) { // the second TR2 ball plays its stop animation and stays
+                animation.setState(STATE_STOP_TR2);
+                updateAnimation(true);
+            }
             return;
         }
 
         vec3 p = pos;
+        vec3 old = pos;
+
+        if (tr2) { // the TR2 balls roll with the speed of their animation whatever their state
+            vec3 d = getDir() * animation.getSpeed();
+            velocity.x = d.x;
+            velocity.z = d.z;
+        }
 
         if (velocity.y != 0.0f) {
             applyGravity(velocity.y);
@@ -491,7 +529,7 @@ struct TrapBoulder : Controller {
             if (velocity.y == 0.0f) {
                 velocity.y = -10.0f;
             }
-        } else {
+        } else if (!tr2) {
             if (state != STATE_ROLL) {
                 animation.setState(STATE_ROLL);
                 velocity = getDir() * animation.getSpeed();
@@ -501,18 +539,31 @@ struct TrapBoulder : Controller {
         if (pos.y >= p.y - 256.0f) {
             velocity.y = 0.0f;
             pos.y      = p.y;
+            if (tr2)
+                game->playSound(SND_TR2_ROLLING_BALL, pos, Sound::PAN | Sound::UNIQUE); // the Opera House has no such sample
         }
 
-        int16 roomIdx = this->roomIndex;
-        vec3 v = pos + getDir() * 512.0f;
-        sector = level->getSector(roomIdx, v);
-        if (pos.y > level->getFloor(sector, v)) {
-            flags.unused = true;
+        if (tr2) {
+            if (testStopTR2()) {
+                flags.unused = true;
+                pos.x    = old.x;
+                pos.z    = old.z;
+                velocity = vec3(0.0f);
+                if (getEntity().type == TR::Entity::TRAP_BOULDERS)
+                    animation.setState(STATE_STOP_TR2);
+            }
+        } else {
+            int16 roomIdx = this->roomIndex;
+            vec3 v = pos + getDir() * 512.0f;
+            sector = level->getSector(roomIdx, v);
+            if (pos.y > level->getFloor(sector, v)) {
+                flags.unused = true;
 
-            pos.x = int(pos.x / 1024.0f) * 1024.0f + 512.0f;
-            pos.z = int(pos.z / 1024.0f) * 1024.0f + 512.0f;
-            sector = level->getSector(roomIndex, pos);
-            pos.y = level->getFloor(sector, pos);
+                pos.x = int(pos.x / 1024.0f) * 1024.0f + 512.0f;
+                pos.z = int(pos.z / 1024.0f) * 1024.0f + 512.0f;
+                sector = level->getSector(roomIndex, pos);
+                pos.y = level->getFloor(sector, pos);
+            }
         }
 
         game->checkTrigger(this, true);
