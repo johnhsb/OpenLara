@@ -1351,6 +1351,58 @@ struct TrapPendulum : Controller {
     }
 };
 
+#define PROPELLER_DAMAGE        200
+#define PROPELLER_MASK          6       // the blades
+#define SND_TR2_AIRPLANE_IDLE   213
+#define SND_TR2_SMALL_FAN_ON    217
+
+// the propellers of the planes and the fans: turning while triggered they shred Lara, then slow down to a stop
+struct TrapPropeller : Controller {
+    enum {
+        STATE_ON,
+        STATE_OFF,
+    };
+
+    int touchBits;
+
+    TrapPropeller(IGame *game, int entity) : Controller(game, entity), touchBits(0) {}
+
+    virtual void touchedBy(int mask) {
+        touchBits |= mask;
+    }
+
+    virtual bool isCollider() { // turning it doesn't push Lara off, it cuts her (a trap collision in the original)
+        return !isActive();
+    }
+
+    virtual void update() {
+        int touch = touchBits;
+        touchBits = 0;
+
+        int sound = getEntity().type == TR::Entity::PROPELLER_PLANE ? SND_TR2_AIRPLANE_IDLE : SND_TR2_SMALL_FAN_ON;
+
+        if (isActive()) {
+            animation.setState(STATE_ON);
+
+            Character *lara = (Character*)game->getLara(pos);
+            touch |= touchLara(this, lara);
+            if ((touch & PROPELLER_MASK) && lara->health > 0.0f)
+                lara->hit(PROPELLER_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
+            else
+                game->playSound(sound, pos, Sound::PAN | Sound::UNIQUE);
+        } else {
+            if (state == STATE_ON && getEntity().type == TR::Entity::PROPELLER_PLANE)
+                game->playSound(sound, pos, Sound::PAN | Sound::UNIQUE);
+            animation.setState(STATE_OFF);
+        }
+
+        updateAnimation(true);
+
+        if (state == STATE_OFF && animation.isEnded)
+            deactivate(true);
+    }
+};
+
 #define SPIKE_WALL_DAMAGE       20
 #define SPIKE_WALL_SPEED        16.0f
 
