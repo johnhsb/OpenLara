@@ -70,9 +70,9 @@ else
     "${BUILD_CMD[@]}"
 fi
 
-APP_PATH=$(find "$BUILD_DIR" -name "OpenLara.app" -maxdepth 6 | head -1)
+APP_PATH="$BUILD_DIR/Build/Products/$CONFIG/OpenLara.app"
 
-if [[ -z "$APP_PATH" ]]; then
+if [[ ! -d "$APP_PATH" ]]; then
     echo "[ERROR] OpenLara.app 를 찾을 수 없습니다."
     exit 1
 fi
