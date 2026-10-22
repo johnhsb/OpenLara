@@ -2515,11 +2515,13 @@ struct Lara : Character {
 
         vec3 dst = pos + getDir() * (LARA_RADIUS + 32.0f);
 
-    // a floor under the surface is in the room of the water, one out of it in the room above
+    // a floor under the surface is in the room of the water, one out of it in the room above (the front of the
+    // collision tells which, the point ahead may be out of the room of the water)
         int room = getRoomIndex();
         TR::Level::FloorInfo info;
-        getFloorInfo(room, dst, info);
-        if (info.floor <= pos.y) {
+        if (collision.info[Collision::FRONT].floor > pos.y)
+            getFloorInfo(room, dst, info);
+        else {
             getFloorInfo(room, pos, info);
             room = info.roomAbove;
             if (room == TR::NO_ROOM)
