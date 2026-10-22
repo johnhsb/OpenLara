@@ -1097,6 +1097,24 @@ struct Level : IGame {
         inventory->init(playLogo, playVideo);
     }
 
+    // TR2+: a pickup in the room of an enemy at its very position is carried by it (the eels carry nothing)
+    void initCarriedItems() {
+        if (level.version & TR::VER_TR1)
+            return;
+
+        for (int i = 0; i < level.entitiesBaseCount; i++) {
+            const TR::Entity &e = level.entities[i];
+            if (!e.controller || !e.isEnemy() || e.type == TR::Entity::ENEMY_MORAY_1 || e.type == TR::Entity::ENEMY_MORAY_2)
+                continue;
+
+            for (int j = 0; j < level.entitiesBaseCount; j++) {
+                const TR::Entity &p = level.entities[j];
+                if (p.controller && p.isPickup() && p.room == e.room && p.x == e.x && p.y == e.y && p.z == e.z)
+                    ((Controller*)e.controller)->carry((Controller*)p.controller);
+            }
+        }
+    }
+
     void initEntities() {
         for (int i = 0; i < level.entitiesBaseCount; i++) {
             TR::Entity &e = level.entities[i];
@@ -1104,6 +1122,8 @@ struct Level : IGame {
             if (e.type == TR::Entity::LARA || ((level.version & TR::VER_TR1) && e.type == TR::Entity::CUT_1))
                 players[0] = (Lara*)e.controller;
         }
+
+        initCarriedItems();
 
         Sound::listenersCount = 1;
     }

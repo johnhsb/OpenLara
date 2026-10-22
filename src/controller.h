@@ -883,6 +883,9 @@ struct Controller {
     // Lara touched these meshes of it before she was pushed out (the touch bits of the original)
     virtual void touchedBy(int mask) {}
 
+    // an enemy carries pickups (TR2+)
+    virtual void carry(Controller *pickup) {}
+
     // the top of a collapsing floor above its origin
     virtual int floorOrigin() { return -512; }
 

@@ -9,6 +9,7 @@
 #define ATTACK_BOX      STALK_BOX
 
 #define MAX_SHOT_DIST   (64 * 1024)
+#define MAX_CARRIED     8       // the pickups an enemy carries
 
 // random number of the original games, rand() goes up to 0x7FFFFFFF on some platforms
 inline int randControl() {
@@ -80,6 +81,9 @@ struct Enemy : Character {
     Character *target;
     Path      *path;
 
+    int carried[MAX_CARRIED];   // the pickups it drops when it dies (TR2+, hidden until then)
+    int carriedCount;
+
     float targetDist;
     float targetAngle;
     bool  targetDead;
@@ -87,7 +91,7 @@ struct Enemy : Character {
     bool  targetFromView;   // enemy in target view zone
     bool  targetCanAttack;
 
-    Enemy(IGame *game, int entity, float health, int radius, float length, float aggression) : Character(game, entity, health), ai(AI_RANDOM), mood(MOOD_SLEEP), wound(false), nextState(0), targetBox(TR::NO_BOX), thinkTime(1.0f / 30.0f), touchBits(0), touchNow(0), length(length), aggression(aggression), radius(radius), hitSound(-1), target(NULL), path(NULL) {
+    Enemy(IGame *game, int entity, float health, int radius, float length, float aggression) : Character(game, entity, health), ai(AI_RANDOM), mood(MOOD_SLEEP), wound(false), nextState(0), targetBox(TR::NO_BOX), thinkTime(1.0f / 30.0f), touchBits(0), touchNow(0), length(length), aggression(aggression), radius(radius), hitSound(-1), target(NULL), path(NULL), carriedCount(0) {
         targetDist   = +INF;
         targetInView = targetFromView = targetCanAttack = false;
         waypoint     = pos;
@@ -313,11 +317,39 @@ struct Enemy : Character {
     }
 
     virtual void hit(float damage, Controller *enemy = NULL, TR::HitType hitType = TR::HIT_DEFAULT) {
-        if (hitSound > -1 && health > 0.0f) 
+        bool alive = health > 0.0f;
+        if (hitSound > -1 && alive)
             game->playSound(hitSound, pos, Sound::PAN);
         Character::hit(damage, enemy, hitType);
         wound = true;
+        if (alive && health <= 0.0f)
+            dropCarried();
     };
+
+    // a TR2 level has the pickups an enemy carries where the enemy is, they show up on the floor where it dies
+    virtual void carry(Controller *pickup) {
+        if (carriedCount == MAX_CARRIED)
+            return;
+        carried[carriedCount++] = pickup->entity;
+        pickup->flags.invisible = true;
+    }
+
+    void dropCarried() {
+        for (int i = 0; i < carriedCount; i++) {
+            Controller *pickup = (Controller*)level->entities[carried[i]].controller;
+            if (!pickup || !pickup->flags.invisible)
+                continue;
+
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), pos, info);
+
+            pickup->pos       = vec3(pos.x, info.floor, pos.z);
+            pickup->roomIndex = getRoomIndex();
+            pickup->updateRoom();
+            pickup->flags.invisible = false;
+        }
+        carriedCount = 0;
+    }
 
     virtual void touchedBy(int mask) {
         touchBits |= mask;
