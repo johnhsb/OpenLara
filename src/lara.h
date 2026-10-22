@@ -2600,6 +2600,49 @@ struct Lara : Character {
         return false;
     }
 
+    // all three secrets of a TR2 level found, the reward of the level goes to the inventory at once (a gun she has
+    // turns into its ammo)
+    void giveSecretReward() {
+        static const struct {
+            TR::LevelID      level;
+            TR::Entity::Type type;
+            int              count;
+        } rewards[] = {
+            { TR::LVL_TR2_WALL,     TR::Entity::GRENADE,          1 },
+            { TR::LVL_TR2_WALL,     TR::Entity::AMMO_GRENADE,     2 },
+            { TR::LVL_TR2_WALL,     TR::Entity::MEDIKIT_SMALL,    1 },
+            { TR::LVL_TR2_BOAT,     TR::Entity::AMMO_AUTOPISTOLS, 4 },
+            { TR::LVL_TR2_VENICE,   TR::Entity::AMMO_SHOTGUN,     4 },
+            { TR::LVL_TR2_OPERA,    TR::Entity::UZIS,             1 },
+            { TR::LVL_TR2_OPERA,    TR::Entity::AMMO_UZIS,        4 },
+            { TR::LVL_TR2_RIG,      TR::Entity::UZIS,             1 },
+            { TR::LVL_TR2_RIG,      TR::Entity::AMMO_UZIS,        2 },
+            { TR::LVL_TR2_PLATFORM, TR::Entity::AMMO_UZIS,        4 },
+            { TR::LVL_TR2_UNWATER,  TR::Entity::AMMO_HARPOON,     4 },
+            { TR::LVL_TR2_KEEL,     TR::Entity::GRENADE,          1 },
+            { TR::LVL_TR2_KEEL,     TR::Entity::AMMO_GRENADE,     2 },
+            { TR::LVL_TR2_LIVING,   TR::Entity::AMMO_M16,         4 },
+            { TR::LVL_TR2_DECK,     TR::Entity::AMMO_GRENADE,     4 },
+            { TR::LVL_TR2_SKIDOO,   TR::Entity::AMMO_UZIS,        4 },
+            { TR::LVL_TR2_MONASTRY, TR::Entity::AMMO_M16,         4 },
+            { TR::LVL_TR2_CATACOMB, TR::Entity::AMMO_GRENADE,     2 },
+            { TR::LVL_TR2_CATACOMB, TR::Entity::AMMO_M16,         2 },
+            { TR::LVL_TR2_ICECAVE,  TR::Entity::AMMO_GRENADE,     4 },
+            { TR::LVL_TR2_EMPRTOMB, TR::Entity::AMMO_UZIS,        8 },
+            { TR::LVL_TR2_FLOATING, TR::Entity::AMMO_GRENADE,     8 },
+        };
+
+        vec2 center = vec2(UI::width * (game->getLara(1) ? 0.25f : 0.5f), UI::height * 0.5f);
+        for (int i = 0; i < COUNT(rewards); i++) {
+            if (rewards[i].level != level->id)
+                continue;
+            for (int j = 0; j < rewards[i].count; j++) {
+                game->invAdd(rewards[i].type, 1);
+                UI::addPickup(rewards[i].type, camera->cameraIndex, center);
+            }
+        }
+    }
+
     bool canPickup(Controller *controller) {
         TR::Entity::Type type = controller->getEntity().type;
 
@@ -4805,8 +4848,11 @@ struct Lara : Character {
 
                         TR::Entity::Type type = item->getEntity().type;
                         if (type >= TR::Entity::SECRET_1 && type <= TR::Entity::SECRET_3) { // TR2 secrets are counted, not kept in the inventory
+                            bool found = (saveStats.secrets & 7) == 7;
                             saveStats.secrets |= 1 << (type - TR::Entity::SECRET_1);
                             game->playTrack(TR::TRACK_TR2_SECRET, true);
+                            if (!found && (saveStats.secrets & 7) == 7)
+                                giveSecretReward();
                         } else
                             game->invAdd(type, 1);
 
