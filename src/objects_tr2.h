@@ -1475,6 +1475,36 @@ struct FlameStream : Sprite {
     }
 };
 
+#define DYING_MONK_ROOMIES 2
+
+// the monk lying in the Diving Area, once the enemies of his room are dead Lara ends the level standing next to him
+struct DyingMonk : Controller {
+    int roomies[DYING_MONK_ROOMIES];
+
+    DyingMonk(IGame *game, int entity) : Controller(game, entity) {
+        int count = 0;
+        for (int i = 0; i < DYING_MONK_ROOMIES; i++)
+            roomies[i] = -1;
+        for (int i = 0; i < level->entitiesBaseCount && count < DYING_MONK_ROOMIES; i++)
+            if (level->entities[i].isEnemy() && level->entities[i].room == getEntity().room)
+                roomies[count++] = i;
+    }
+
+    virtual void update() {
+        for (int i = 0; i < DYING_MONK_ROOMIES; i++) {
+            if (roomies[i] == -1) continue;
+            Character *enemy = (Character*)level->entities[roomies[i]].controller;
+            if (enemy && enemy->health > 0.0f)
+                return;
+        }
+
+        Character *lara = (Character*)game->getLara(pos);
+        if (fabsf(lara->pos.x - pos.x) < 1024.0f && fabsf(lara->pos.z - pos.z) < 1024.0f &&
+            lara->stand == Character::STAND_GROUND && fabsf(lara->pos.y - pos.y) < 1.0f)
+            game->loadNextLevel();
+    }
+};
+
 // TR2 flares
 #define FLARE_MAX_AGE           60.0f   // burn time in seconds
 #define FLARE_LIGHT_RADIUS      4096.0f

@@ -469,7 +469,7 @@
     E( _TRAP_FLAME_EMITTER   ) \
     E( SKY                   ) \
     E( _GLYPHS               ) \
-    E( ENEMY_MONK_3          ) \
+    E( DYING_MONK            ) \
     E( SOUND_DOOR_BELL       ) \
     E( SOUND_ALARM_BELL      ) \
     E( HELICOPTER_FLYING     ) \

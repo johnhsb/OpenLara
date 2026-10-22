@@ -1379,6 +1379,7 @@ struct Level : IGame {
             case TR::Entity::SAW                    : return new TrapPropeller(this, index);
             case TR::Entity::HELICOPTER             : return new Helicopter(this, index);
             case TR::Entity::FLAME_STREAM           : return new FlameStream(this, index);
+            case TR::Entity::DYING_MONK             : return new DyingMonk(this, index);
             case TR::Entity::ELEVATOR               : return new Elevator(this, index);
             case TR::Entity::WAKE_BOAT              : return new BoatWake(this, index);
 
