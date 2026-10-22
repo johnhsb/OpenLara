@@ -2611,7 +2611,7 @@ struct Lara : Character {
         switch (type) {
             case TR::Entity::SCION_PICKUP_QUALOPEC : limit = &TR::Limits::SCION; break;
             case TR::Entity::SCION_PICKUP_HOLDER   : limit = &TR::Limits::SCION_HOLDER; break;
-            default : limit = level->rooms[getRoomIndex()].flags.water ? &TR::Limits::PICKUP_UNDERWATER : &TR::Limits::PICKUP;
+            default : limit = stand == STAND_UNDERWATER ? &TR::Limits::PICKUP_UNDERWATER : &TR::Limits::PICKUP; // standing in the water she picks up as on the ground
         }
 
         if (!checkInteraction(controller, limit, true))
@@ -4416,6 +4416,9 @@ struct Lara : Character {
         if (waterDepth > 0.0f && !(animation.frameIndex % 4))
             game->waterDrop(getJoint(jointChest).pos + vec3(randf(), 0.0f, randf()) * 64.0f, 96.0f, 0.02f);
 
+        if ((input == ACTION) && (state == STATE_STOP) && emptyHands() && doPickUp())
+            return state;
+
         if ((input & FORTH) && (input & BACK))
             input &= ~(FORTH | BACK);
 
@@ -4788,7 +4791,7 @@ struct Lara : Character {
     virtual void doCustomCommand(int curFrame, int prevFrame) {
         switch (state) {
             case STATE_PICK_UP : {
-                int pickupFrame = stand == STAND_GROUND ? PICKUP_FRAME_GROUND : PICKUP_FRAME_UNDERWATER;
+                int pickupFrame = stand == STAND_UNDERWATER ? PICKUP_FRAME_UNDERWATER : PICKUP_FRAME_GROUND;
                 if (animation.isFrameActive(pickupFrame)) {
                     camera->setup(true);
 
