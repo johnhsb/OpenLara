@@ -1390,6 +1390,37 @@ struct HelicopterFlying : Controller {
 };
 
 
+// the helicopter on the pad of the Diving Area, its rotor spins while triggered and it takes off for good once the
+// trigger goes off for the last time
+struct Helicopter : Controller {
+    enum {
+        STATE_EMPTY,
+        STATE_SPIN,
+        STATE_TAKEOFF,
+    };
+
+    Helicopter(IGame *game, int entity) : Controller(game, entity) {}
+
+    virtual void update() {
+        if (state == STATE_SPIN && flags.once)
+            animation.setState(STATE_TAKEOFF);
+
+        updateAnimation(true);
+        updateRoom();
+
+        // the loop sounds a quarter of the way from Lara to the body
+        Controller *lara = game->getLara(pos);
+        vec3 center = getBoundingBox().center();
+        game->playSound(TR::SND_HELICOPTER, lara->pos + (center - lara->pos) * 0.25f, Sound::PAN);
+
+        if (state == STATE_TAKEOFF && flags.state == TR::Entity::asInactive) { // the end of the takeoff kills it
+            Sound::stop(TR::SND_HELICOPTER);
+            flags.invisible = true;
+            deactivate(true);
+        }
+    }
+};
+
 // TR2 flares
 #define FLARE_MAX_AGE           60.0f   // burn time in seconds
 #define FLARE_LIGHT_RADIUS      4096.0f
