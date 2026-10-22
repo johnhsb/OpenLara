@@ -681,11 +681,15 @@ struct Gunman2 : Human {
         STATE_SHOOT_3,
     };
 
-    Gunman2(IGame *game, int entity) : Human(game, entity, 20) {
+    bool  flamer;    // the flamethrower one of the Diving Area
+    float flameTime;
+
+    Gunman2(IGame *game, int entity) : Human(game, entity, 20), flameTime(0.0f) {
         jointChest = 5;
         jointHead  = 14;
         jointGun   = 9;
         animDeath  = ANIM_DEATH;
+        flamer     = getEntity().type == TR::Entity::ENEMY_GOON_FLAME;
     }
 
     bool canShoot() {
@@ -693,6 +697,16 @@ struct Gunman2 : Human {
     }
 
     void fire() { // the muzzle (0, 308, 32) of the gun mesh in the flash space
+        if (flamer) { // a gout of fire every frame
+            flameTime += Core::deltaTime;
+            for (; flameTime >= 1.0f / 30.0f; flameTime -= 1.0f / 30.0f) {
+                FlameStream *flame = (FlameStream*)game->addEntity(TR::Entity::FLAME_STREAM, getRoomIndex(), getJoint(jointGun) * vec3(0.0f, 308.0f, 32.0f));
+                if (flame)
+                    flame->aim(target);
+            }
+            return;
+        }
+
         if (flags.unused == 0) {
             doShot(GUNMAN_2_DAMAGE, vec3(0.0f, -32.0f, 128.0f));
             flags.unused = GUNMAN_2_RELOAD;
@@ -714,7 +728,7 @@ struct Gunman2 : Human {
                 if (canShoot()) {
                     if (targetDist >= GUNMAN_DIST_STAND && zone == targetZone())
                         return STATE_WALK;
-                    return randControl() < 0x4000 ? STATE_AIM_1 : STATE_AIM_3;
+                    return (flamer || randControl() < 0x4000) ? STATE_AIM_1 : STATE_AIM_3;
                 }
                 if (bored && targetInView)
                     return STATE_WAIT;

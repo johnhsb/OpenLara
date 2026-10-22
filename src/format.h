@@ -459,7 +459,7 @@
     E( _VIEW_TARGET          ) \
     E( _WATERFALL            ) \
     E( HARPOON_WTF           ) \
-    E( UNUSED_36             ) \
+    E( FLAME_STREAM          ) \
     E( UNUSED_37             ) \
     E( GRENADE_BULLET        ) \
     E( HARPOON_BULLET        ) \
@@ -2561,7 +2561,7 @@ namespace TR {
             return type == EXPLOSION || type == WATER_SPLASH || type == BUBBLE || 
                    type == BLOOD || type == SMOKE || type == FLAME || 
                    type == RICOCHET || type == SPARKLES || type == LAVA_PARTICLE ||
-                   type == WAKE_BOAT;
+                   type == WAKE_BOAT || type == FLAME_STREAM;
         }
 
         bool castShadow() const {

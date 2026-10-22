@@ -789,7 +789,7 @@ struct Level : IGame {
             e.intensity = 4096;
         else
             if (e.isSprite()) {
-                if (e.type == TR::Entity::LAVA_PARTICLE || e.type == TR::Entity::FLAME)
+                if (e.type == TR::Entity::LAVA_PARTICLE || e.type == TR::Entity::FLAME || e.type == TR::Entity::FLAME_STREAM)
                     e.intensity = 0; // emissive
                 else
                     e.intensity = 0x1FFF - level.rooms[room].ambient;
@@ -1316,7 +1316,8 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GOON_SHOTGUN     : return new ShotgunGoon(this, index);
             case TR::Entity::ENEMY_DIVER            : return new Diver(this, index);
             case TR::Entity::ENEMY_GUNMAN_1         : return new Gunman1(this, index);
-            case TR::Entity::ENEMY_GUNMAN_2         : return new Gunman2(this, index);
+            case TR::Entity::ENEMY_GUNMAN_2         :
+            case TR::Entity::ENEMY_GOON_FLAME       : return new Gunman2(this, index);
             case TR::Entity::ENEMY_GOON_KNIFE       :
             case TR::Entity::ENEMY_DRAGON_FRONT     :
             case TR::Entity::ENEMY_DRAGON_BACK      :
@@ -1325,7 +1326,6 @@ struct Level : IGame {
             case TR::Entity::ENEMY_MORAY_2          :
             case TR::Entity::ENEMY_BARACUDA         :
             case TR::Entity::ENEMY_GOON_STICK_2     :
-            case TR::Entity::ENEMY_GOON_FLAME       :
             case TR::Entity::UNUSED_23              :
             case TR::Entity::ENEMY_SPIDER_GIANT     :
             case TR::Entity::ENEMY_MARCO            :
@@ -1378,6 +1378,7 @@ struct Level : IGame {
             case TR::Entity::PROPELLER_AIR          :
             case TR::Entity::SAW                    : return new TrapPropeller(this, index);
             case TR::Entity::HELICOPTER             : return new Helicopter(this, index);
+            case TR::Entity::FLAME_STREAM           : return new FlameStream(this, index);
             case TR::Entity::ELEVATOR               : return new Elevator(this, index);
             case TR::Entity::WAKE_BOAT              : return new BoatWake(this, index);
 

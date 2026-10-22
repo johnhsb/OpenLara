@@ -1421,6 +1421,60 @@ struct Helicopter : Controller {
     }
 };
 
+#define FLAME_STREAM_SPEED      200.0f
+#define FLAME_STREAM_TIME       (20.0f / 30.0f) // it burns out in the air
+#define FLAME_STREAM_RANGE      350.0f
+#define FLAME_STREAM_DAMAGE     3
+#define FLAME_STREAM_SPREAD     (1.4f * DEG2RAD)
+#define SND_TR2_DRAGON_FIRE     305
+
+// a gout of fire of a flamethrower, near Lara it scorches her and sets her on fire
+struct FlameStream : Sprite {
+
+    FlameStream(IGame *game, int entity) : Sprite(game, entity, false, Sprite::FRAME_RANDOM) {
+        getSequence().transp = 2; // additive
+    }
+
+    virtual bool getSaveData(SaveEntity &data) {
+        return false;
+    }
+
+    // to the middle of the lower quarter of the body of the target, give or take a bit
+    void aim(Controller *target) {
+        Box  box = target->getBoundingBox();
+        vec3 d   = vec3(target->pos.x, box.max.y + (box.min.y - box.max.y) * 0.75f, target->pos.z) - pos;
+
+        angle.x = -atan2f(d.y, sqrtf(d.x * d.x + d.z * d.z)) + (randf() * 2.0f - 1.0f) * FLAME_STREAM_SPREAD;
+        angle.y = atan2f(d.x, d.z) + (randf() * 2.0f - 1.0f) * FLAME_STREAM_SPREAD;
+        velocity = getDir() * FLAME_STREAM_SPEED;
+    }
+
+    virtual void update() {
+        Sprite::update();
+        updateRoom();
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), pos, info);
+        if (pos.y > info.floor || pos.y < info.ceiling || getRoom().flags.water) {
+            game->removeEntity(this);
+            return;
+        }
+
+        Character *lara = (Character*)game->getLara(pos);
+        if (lara->health > 0.0f && lara->collide(Sphere(pos, FLAME_STREAM_RANGE))) {
+            lara->hit(FLAME_STREAM_DAMAGE * 30.0f * Core::deltaTime, this);
+            if (!lara->burn && lara->stand != Character::STAND_UNDERWATER && lara->stand != Character::STAND_ONWATER)
+                Flame::add(game, lara, 0);
+            return;
+        }
+
+        if (time >= FLAME_STREAM_TIME) {
+            game->playSound(SND_TR2_DRAGON_FIRE, pos, Sound::PAN);
+            game->removeEntity(this);
+        }
+    }
+};
+
 // TR2 flares
 #define FLARE_MAX_AGE           60.0f   // burn time in seconds
 #define FLARE_LIGHT_RADIUS      4096.0f
