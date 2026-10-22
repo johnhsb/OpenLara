@@ -167,9 +167,11 @@ struct TrapPendulum : Controller {
 #define SND_TR2_UNDERWATER_FAN_ON  215
 #define SND_TR2_UNDERWATER_FAN_OFF 216
 #define SND_TR2_SMALL_FAN_ON    217
+#define SND_TR2_SAW_REVVING     206
+#define SND_TR2_SAW_STOP        207
 
 // the propellers of the planes, the underwater ones and the fans: turning while triggered they shred Lara, then slow
-// down to a stop
+// down to a stop, the power saws of the Diving Area as well
 struct TrapPropeller : Controller {
     enum {
         STATE_ON,
@@ -185,8 +187,8 @@ struct TrapPropeller : Controller {
         touchBits |= mask;
     }
 
-    virtual bool isCollider() { // turning it doesn't push Lara off, it cuts her (a trap collision in the original)
-        return !isActive();
+    virtual bool isCollider() { // turning it doesn't push Lara off, it cuts her (a trap collision in the original), a saw is solid
+        return !isActive() || getEntity().type == TR::Entity::SAW;
     }
 
     virtual void update() {
@@ -197,6 +199,7 @@ struct TrapPropeller : Controller {
         switch (getEntity().type) {
             case TR::Entity::PROPELLER_PLANE : sound = SND_TR2_AIRPLANE_IDLE;     break;
             case TR::Entity::PROPELLER_WATER : sound = SND_TR2_UNDERWATER_FAN_ON; break;
+            case TR::Entity::SAW             : sound = SND_TR2_SAW_REVVING;       break;
             default                          : sound = SND_TR2_SMALL_FAN_ON;
         }
 
@@ -206,9 +209,11 @@ struct TrapPropeller : Controller {
 
             Character *lara = (Character*)game->getLara(pos);
             touch |= touchLara(this, lara);
-            if ((touch & PROPELLER_MASK) && lara->health > 0.0f)
+            if ((touch & PROPELLER_MASK) && lara->health > 0.0f) {
                 lara->hit(PROPELLER_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_BLADE);
-            else
+                if (getEntity().type == TR::Entity::SAW)
+                    game->playSound(SND_TR2_SAW_STOP, pos, Sound::PAN | Sound::UNIQUE);
+            } else
                 game->playSound(sound, pos, Sound::PAN | Sound::UNIQUE);
         } else {
             if (state == STATE_ON && getEntity().type == TR::Entity::PROPELLER_PLANE)
