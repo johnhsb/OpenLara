@@ -83,6 +83,8 @@ static struct LaraStartPos {
 
 #define LARA_WADE_DEPTH     384.0f
 #define LARA_WADE_MAX_DEPTH 730.0f
+#define LARA_SURF_HEIGHT    700.0f  // the height the original takes for Lara on the surface
+#define LARA_SURF_FLOOR     316.0f  // a floor less deep under the surface stops her swimming (700 - 384 in the original)
 #define LARA_SWIM_MIN_DEPTH 512.0f
 
 #define LARA_MIN_SPECULAR   0.03f
@@ -2513,23 +2515,29 @@ struct Lara : Character {
 
         vec3 dst = pos + getDir() * (LARA_RADIUS + 32.0f);
 
+    // a floor under the surface is in the room of the water, one out of it in the room above
+        int room = getRoomIndex();
         TR::Level::FloorInfo info;
-        getFloorInfo(getRoomIndex(), pos, info);
-        int roomAbove = info.roomAbove;
-        if (roomAbove == TR::NO_ROOM)
-            return false;
-
-        getFloorInfo(roomAbove, dst, info);
+        getFloorInfo(room, dst, info);
+        if (info.floor <= pos.y) {
+            getFloorInfo(room, pos, info);
+            room = info.roomAbove;
+            if (room == TR::NO_ROOM)
+                return false;
+            getFloorInfo(room, dst, info);
+        }
 
         int h = int(pos.y - info.floor);
 
-        if (h >= 0 && h <= (256 + 128) && (state == STATE_SURF_TREAD || animation.setState(STATE_SURF_TREAD)) && animation.setState(STATE_STOP)) {
+        if (h >= -int(LARA_SURF_FLOOR) && h <= (256 + 128) && (state == STATE_SURF_TREAD || animation.setState(STATE_SURF_TREAD)) && animation.setState(STATE_STOP)) {
             if ((level->version & TR::VER_VERSION) > TR::VER_TR1) {
-                if (h < 128) // 0 clicks out of water animation
+                if (h <= -128) // up to the knees in the water
+                    animation.setAnim(ANIM_SURF_STAND);
+                else if (h < 128) // 0 clicks out of water animation
                     animation.setAnim(ANIM_WATER_OUT);
             }
             alignToWall(LARA_RADIUS);
-            roomIndex = roomAbove;
+            roomIndex = room;
             pos.y    = info.floor;
             specular = LARA_WET_SPECULAR;
             move();
@@ -3112,7 +3120,7 @@ struct Lara : Character {
                     }
                     return STAND_ONWATER;
                 }
-            } else if (waterDepth > LARA_WADE_DEPTH) {
+            } else if (waterDepth > LARA_WADE_DEPTH || (stand == STAND_ONWATER && waterDepth > LARA_SURF_FLOOR && (level->version & TR::VER_VERSION) > TR::VER_TR1)) {
                 if (stand == STAND_GROUND && (waterLevel + waterDepth) - pos.y > 300)
                     return STAND_AIR;
 
@@ -3134,7 +3142,10 @@ struct Lara : Character {
                         return STAND_WADE;
                     }
                 } else if (stand == STAND_ONWATER || stand == STAND_GROUND) {
-                    if (state == STATE_RUN || state == STATE_SURF_SWIM)
+                    // from the surface she steps up out of the water onto a floor close under it, deeper she wades on (TR2+)
+                    if (stand == STAND_ONWATER && waterDepth < LARA_SURF_HEIGHT - 128 && (level->version & TR::VER_VERSION) > TR::VER_TR1)
+                        animation.setAnim(ANIM_WADE_ASCEND);
+                    else if (state == STATE_RUN || state == STATE_SURF_SWIM)
                         animation.setAnim(ANIM_WADE);
                     pos.y = waterLevel + waterDepth;
                     updateRoom();
@@ -5344,7 +5355,7 @@ struct Lara : Character {
         if (state == STATE_STEP_LEFT || state == STATE_STEP_RIGHT)
             maxAscent = maxDescent = 64;
         if (stand == STAND_ONWATER) {
-            maxAscent = -2;
+            maxAscent = -int(LARA_SURF_FLOOR);
             maxHeight =  0;
             offset.y  = -1;
         }
