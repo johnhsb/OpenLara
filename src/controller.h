@@ -196,6 +196,8 @@ struct Controller {
 
         level->entities[entity].flags = flags;
 
+        hideAmbush();
+
         if (e.isLara() || e.isActor()) // Lara and cutscene entities is active by default
             activate();
     }
@@ -604,9 +606,17 @@ struct Controller {
         }
         flags.value = e.flags.value ^ data.flags;
         timer       = data.timer == -1 ? -1.0f : (data.timer / 30.0f);
+        hideAmbush(); // a game saved before it was hidden
     // animation
         if (m) animation.setAnim(data.animIndex, -data.animFrame);
         updateLights(false);
+    }
+
+    // since TR2 a creature never triggered lies in ambush out of sight, it shows up once its trigger activates it (as
+    // the original does)
+    void hideAmbush() {
+        if (!(level->version & TR::VER_TR1) && getEntity().isEnemy() && flags.state != TR::Entity::asActive && flags.active == 0)
+            flags.invisible = true;
     }
 
     bool isActive(bool timing = true) {
