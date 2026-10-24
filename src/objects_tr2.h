@@ -209,7 +209,7 @@ struct TrapPropeller : Controller {
             default                          : sound = SND_TR2_SMALL_FAN_ON;
         }
 
-        if (isActive()) {
+        if (isActive() && !flags.once) { // a one-shot trigger spends it, it stops for good (a saw turned off)
             animation.setState(STATE_ON);
             turning = true;
 
