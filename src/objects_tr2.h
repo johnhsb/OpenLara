@@ -1392,6 +1392,37 @@ inline BreakableWindow* getWindowHit(TR::Level *level, const vec3 &from, const v
 }
 
 
+#define GENERAL_LIGHT_RADIUS 2048.0f
+
+// an object of TR2 playing its animation while triggered (the mini sub of 40 Fathoms), with its lamp lit ahead
+struct GeneralObject : Controller {
+    enum {
+        STATE_INACTIVE,
+        STATE_ACTIVE,
+    };
+
+    GeneralObject(IGame *game, int entity) : Controller(game, entity) {}
+
+    virtual bool isCollider() {
+        return !flags.invisible;
+    }
+
+    virtual void update() {
+        animation.setState(isActive() ? STATE_ACTIVE : STATE_INACTIVE);
+        updateAnimation(true);
+        updateRoom();
+
+        getRoom().removeDynLight(entity);
+        if (flags.state == TR::Entity::asActive)
+            getRoom().addDynLight(entity, vec4(getJoint(0) * vec3(3000.0f, 720.0f, 0.0f), 0.0f), vec4(vec3(0.75f), 1.0f / GENERAL_LIGHT_RADIUS));
+        else { // the end of the animation killed it, for good
+            flags.once = true;
+            deactivate(true);
+        }
+    }
+};
+
+
 #define HELICOPTER_SPEED 3000
 #define HELICOPTER_RANGE (1024 * 30)
 
