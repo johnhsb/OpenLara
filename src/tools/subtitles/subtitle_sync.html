@@ -42,6 +42,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -187,11 +188,16 @@ pre { margin: 0; background: var(--bg); border: 1px solid var(--line); border-ra
     </div>
     <p class="hint" id="where"></p>
     <pre id="code"></pre>
+    <div id="applyBox" class="row" hidden>
+      <button class="primary" id="apply">소스에 반영</button>
+      <label class="row" for="build"><input id="build" type="checkbox"> 빌드까지</label>
+      <pre id="applyLog" style="flex: 1 1 100%">이 컷씬의 대사를 소스 파일에 씁니다. 한국어는 ko_glyphs.py 로 빌드되는 글리프 블록까지 다시 만듭니다.</pre>
+    </div>
   </section>
 </div>
 
 <script>
-let SUBS = {"ko": [{"name": "CUT1", "raw": "[10980]실례지만, 방금 그건 저를 위해@문을 열어 보려던 거였길 바라요.[15200]글쎄, 그 열쇠는 내 열쇠고리에@들어가게 될지도 모르지.[18940]이젠 아니겠지만요. 그러니 먼저 가시죠.[21260]어째서인지 당신은 수도회의 피를@물려받은 사람처럼 행동하지 않는군.[25900]그 '어째서인지'가 제게@유리한 뜻이라는 건 알겠네요.[29395]그러니 단검에 대해 좀 더 이야기해 주시죠.@당신 목숨을 건 빚을 진 셈이니까요.[34600]이 문들은 정당한 주인과 정당한@때가 오기를 기다리고 있다.[39686]그리고 그때가 되면, 단검의 날은 믿는@자들의 마음을 영광스럽게 할 것이다.[46106]그러니 당신도 충성을 맹세하지 않는 한...[49660][50000]그 충성이란 게 누구를 향한 건가요?[52340][53740]마르코 바르톨리의 죄악과 부를 향한 것이다![59580][60300]그렇다면 아직은 때가 아닌가 보네요.[62600][77460]아하, 지안니 바르톨리,@베네치아 카라벨리 거리.[84980]"}, {"name": "CUT2", "raw": "[18640]...내 말을 믿게나. 하지만@지금은 예전 같지 않지 않은가?[21960][34200]언젠가 그 입버릇 때문에 속도위반@딱지라도 떼이겠군, 파비오.[43900]어, 그저 거기서 찾는 게 틀렸을지도@모른다는 직감일 뿐일세...[55140][56400]자네의 믿음이 그렇게나 허약한가?@편히 있게, 숨을 깊이 쉬어.[60681]파비오, 직감이란 그저 드러나고@사라지는 것 이상의 방향성이 없다네.[65486]내가 어릴 적 아버지가 떠나실@때, 충동이 아닌 마음의 깊은[69552]울림을 통해 깨달음을@얻었다고 내게 털어놓으셨지.[73056]아버지는 세라프를 소유하고 계셨다네.[75688]하지만 아버지는 이 원대한 계획@안에서 한 명의 제자에 불과했고,[80198]그의 죽음은 더 낮은 자에 의해@단축될 길을 마련한 셈이었지.[84412]바로 그의 아들에게 말이야,@무슨 말인지 알겠나?[87753]직감 따위에 흔들리지@말고 믿음을 갖게, 파비오.[91095]우리는 올바른 곳을 수색하고 있는 거야.[93860]알고 있네. 믿고말고, 마르코.[98160][99140]좋아. 에로스, 난간은... 벌써 다 고쳤나?[104380]예.[105660]"}, {"name": "CUT3", "raw": "[3448]아... 당신은 그 패거리들@중 하나가 아니군요.[5593]하지만 당신은 수도사군요.[7007]첸 바르캉 형제라 부르시오.@나를 찾아오셨군요![11438]내 주변으로 환한 빛들이 보였소...[13694]그건 총격이었어요. 그 총격에 쓸려@나간 건 그쪽 사람들이었던 것 같네요.[17397]하지만 당신은 나의 안내자이자, 다음@환생으로 가는 길을 터주는 존재요.[21911]내 이승에서의 시간은 다한@것이겠지요, 그렇지 않소?[24544]여기서 뭘 하고 계셨던@건가요? 마르코 바르톨리는요?[27107][27200]아무것도 아니오![28540]난 정의로운 삶을 살아왔소, 오직 '필요악'에@뿌리를 둔 이유로 여기에 있었던 것이라오.[33460]내 아버지께서 지안니의 선박을 이 깊은@바닷속으로 폭파시켰을 때처럼 말이오.[39040]그리고 지금 내가 그 아들이 세라프를@인양하는 것을 막으려 여기에 있는...[44910]있었던 것이오.[45050]세라프라고요?[46070][46200]내 평생의 과업을 잘 모르는 모양이구려.[48660]당신, 정말 저자들을 위해@여기 온 게 아니란 말이오?[50980]그들의 '자카누리' 시절은 진작에 끝났어요.[54850]저들은 티베트에 있는@우리 사원에 봉인된 악한[56670]보물을 열기 위해 세라프를 노리고 있소.[60650]수세기 전 어리석은 방랑자들에게 빼앗긴@이후, 우리는 그것을 열 열쇠가 없었다오.[66340]오직 정화의 기도에만 의지해@그 악을 억누르고 있었지.[70860]그러다 오컬트교도인 지안니가 그것을@다시 손에 넣었소. 재앙의 시작이었지.[75460]그는 고대 신앙에 다시@생명을 불어넣었고, 그건[80590]아무리 고개를 숙여 기도한들@막을 수 없는 것이었소.[83140]그리고 지금 또다시 광기에@물든 마르코가 나타난 것이오.[88190]그는 폭력적인 심성을 가졌으나,@아직 그것을 채울 힘은 얻지 못했소.[92430]그러니 우리는 다시 한번@무기를 들 수밖에...[95680][96070]악에 대한 진정한 정화군요.[98140][98730]나를 어디로 이끄는 것이오? 이번이@내게 찾아온 큰 기회라 생각했거늘.[103310]변화 역시 휴식만큼이나 좋은@법이겠지. 아, 휴식이 필요하구려...[108960]"}], "en": [{"name": "CUT1", "raw": "[10980]Pardon me, if that was just your@way of trying the doors for me.[15200]Well, that tour may@go on my keyring.[18940]Though not anymore. So, after you.[21260]Somehow, you don't behave@like you got a monk's blood.[25900]I understand that@'somehow' is in my favor.[29429]So indulge me about the dagger.@I'd be indebted with your life.[34600]These doors are waiting for the@right one, the right time to arrive.[40196]And then, the dagger's blade will[42912]honor the hearts of@those who believe.[46039]So unless you pledge@your loyalty as well...[49660][50000]And which one is that?[52340][53740]To the sins and fortunes@of Marco Bartoli![59580][60300]Perhaps not just yet then.[62600][77460]Aha, Gianni Bartoli,@Via Caravelli, Venice.[84980]"}, {"name": "CUT2", "raw": "[18640]...Believe me, but it's not@quite the same now, is it?[21960][34200]Someday you'll get a speeding@ticket for that tongue, Fabio.[43900]Eh, it's just a gut feeling that@maybe you are wrong to look there...[55140][56400]Is your belief so fragile?@Relax, breathe deep.[60253]The gut, Fabio, has no more[62466]direction than a@simple through-and-out.[65745]When my father left when I was a@boy, he confided to me that he was[71236]enlightened, echo of his heart's@inclination rather than impulse.[76564]He possessed the Seraph.[78532]But he was just a disciple@in this design, his death[82794]plotting a path to be short by the@lower one. His son, you understand?[88532]Have faith, Fabio, not gut rot.@We are searching the right place.[93860]I know it. I believe it, Marco.[98160][99140]Good. Eros, have you...@fixed that rail yet?[104380]Si.[105660]"}, {"name": "CUT3", "raw": "[22120]Ah... You are not one of them.[24440]But you are a monk.[26960]Brother Chen Barkhang.@You have come for me![30769]I saw bright lights around me...[33600]That was gunfire. I think it was@them who got taken away by it.[40340]But you are my guide, my@path-beater to the next incarnation.[45610]I have done my time here, haven't I?[48920]What are you doing@here? And Marco Bartoli?[53300][54440]Nothing! I led a@righteous life, here for[57391]reasons rooted only@in necessary evil.[60125]As my father was before@me, when he bombed[63148]Gianni's vessel deep@into these waters.[65954]Now I'm here, was here, to prevent@his son from salvaging the Seraph.[70920]The Seraph?[73040][75500]You not know my life's work well.@You sure you're not here for them?[80840]Their Jackaknoori@days are well over.[84200]They want the Seraph@to unlock a malignant[86460]treasure we contain in@our monastery in Tibet.[88935]Since being stolen by@imbecile vagabonds centuries[91625]ago, we've been without key@to it, relying solely on[94423]cleansing of our prayers@to keep it subdued.[96790]Then the occultist@Gianni re-acquired it.[98996]Trouble we knew: he breathed@life back into ancient belief,[102170]one not to be stopped by@any amount of head-bowing.[104914]And now again, it is here:@Marco, infected with madness.[107927]He has violent mind, but not@yet the power to satiate it.[110994]So, we reach for our@weapons once more...[113200][114100]The true detox of evil.[118460][121400]Where can you be taking me?@Thought this was my big break.[128434]Guess changes are as good@as rest. Oh, I need one...[134740]"}]};
+let SUBS = {"ko": [{"name": "CUT1", "raw": "[10980]실례지만, 방금 그건 저를 위해@문을 열어 보려던 거였길 바라요.[15200]글쎄, 그 열쇠는 내 열쇠고리에@들어가게 될지도 모르지.[18940]이젠 아니겠지만요. 그러니 먼저 가시죠.[21260]어째서인지 당신은 수도회의 피를@물려받은 사람처럼 행동하지 않는군.[25900]그 '어째서인지'가 제게@유리한 뜻이라는 건 알겠네요.[29395]그러니 단검에 대해 좀 더 이야기해 주시죠.@당신 목숨을 건 빚을 진 셈이니까요.[34600]이 문들은 정당한 주인과 정당한@때가 오기를 기다리고 있다.[39686]그리고 그때가 되면, 단검의 날은 믿는@자들의 마음을 영광스럽게 할 것이다.[46106]그러니 당신도 충성을 맹세하지 않는 한...[49660][50000]그 충성이란 게 누구를 향한 건가요?[52340][53740]마르코 바르톨리의 죄악과 부를 향한 것이다![59580][60300]그렇다면 아직은 때가 아닌가 보네요.[62600][77460]아하, 지안니 바르톨리,@베네치아 카라벨리 거리.[84980]"}, {"name": "CUT2", "raw": "[36420]...내 말을 믿게나. 하지만@지금은 예전 같지 않지 않은가?[39990][40160]언젠가 그 입버릇 때문에 속도위반@딱지라도 떼이겠군, 파비오.[43420]어, 그저 거기서 찾는 게 틀렸을지도@모른다는 직감일 뿐일세...[49150][50500]자네의 믿음이 그렇게나 허약한가?@편히 있게, 숨을 깊이 쉬어.[61370]파비오, 직감이란 그저 드러나고@사라지는 것 이상의 방향성이 없다네.[71170]내가 어릴 적 아버지가 떠나실@때, 충동이 아닌 마음의 깊은[73520]울림을 통해 깨달음을@얻었다고 내게 털어놓으셨지.[80900]아버지는 세라프를 소유하고 계셨다네.[83360]하지만 아버지는 이 원대한 계획@안에서 한 명의 제자에 불과했고,[86890]그의 죽음은 더 낮은 자에 의해@단축될 길을 마련한 셈이었지.[90830]바로 그의 아들에게 말이야,@무슨 말인지 알겠나?[93710]직감 따위에 흔들리지@말고 믿음을 갖게, 파비오.[97480]우리는 올바른 곳을 수색하고 있는 거야.[100180]알고 있네. 믿고말고, 마르코.[102410][102560]좋아. 에로스, 난간은... 벌써 다 고쳤나?[112110]예.[112670]"}, {"name": "CUT3", "raw": "[3448]아... 당신은 그 패거리들@중 하나가 아니군요.[5593]하지만 당신은 수도사군요.[7007]첸 바르캉 형제라 부르시오.@나를 찾아오셨군요![11438]내 주변으로 환한 빛들이 보였소...[13694]그건 총격이었어요. 그 총격에 쓸려@나간 건 그쪽 사람들이었던 것 같네요.[17397]하지만 당신은 나의 안내자이자, 다음@환생으로 가는 길을 터주는 존재요.[21911]내 이승에서의 시간은 다한@것이겠지요, 그렇지 않소?[24544]여기서 뭘 하고 계셨던@건가요? 마르코 바르톨리는요?[27107][27200]아무것도 아니오![28540]난 정의로운 삶을 살아왔소, 오직 '필요악'에@뿌리를 둔 이유로 여기에 있었던 것이라오.[33460]내 아버지께서 지안니의 선박을 이 깊은@바닷속으로 폭파시켰을 때처럼 말이오.[39040]그리고 지금 내가 그 아들이 세라프를@인양하는 것을 막으려 여기에 있는...[44910]있었던 것이오.[45050]세라프라고요?[46070][46200]내 평생의 과업을 잘 모르는 모양이구려.[48660]당신, 정말 저자들을 위해@여기 온 게 아니란 말이오?[50980]그들의 '자카누리' 시절은 진작에 끝났어요.[54850]저들은 티베트에 있는@우리 사원에 봉인된 악한[56670]보물을 열기 위해 세라프를 노리고 있소.[60650]수세기 전 어리석은 방랑자들에게 빼앗긴@이후, 우리는 그것을 열 열쇠가 없었다오.[66340]오직 정화의 기도에만 의지해@그 악을 억누르고 있었지.[70860]그러다 오컬트교도인 지안니가 그것을@다시 손에 넣었소. 재앙의 시작이었지.[75460]그는 고대 신앙에 다시@생명을 불어넣었고, 그건[80590]아무리 고개를 숙여 기도한들@막을 수 없는 것이었소.[83140]그리고 지금 또다시 광기에@물든 마르코가 나타난 것이오.[88190]그는 폭력적인 심성을 가졌으나,@아직 그것을 채울 힘은 얻지 못했소.[92430]그러니 우리는 다시 한번@무기를 들 수밖에...[95680][96070]악에 대한 진정한 정화군요.[98140][98730]나를 어디로 이끄는 것이오? 이번이@내게 찾아온 큰 기회라 생각했거늘.[103310]변화 역시 휴식만큼이나 좋은@법이겠지. 아, 휴식이 필요하구려...[108960]"}], "en": [{"name": "CUT1", "raw": "[10980]Pardon me, if that was just your@way of trying the doors for me.[15200]Well, that tour may@go on my keyring.[18940]Though not anymore. So, after you.[21260]Somehow, you don't behave@like you got a monk's blood.[25900]I understand that@'somehow' is in my favor.[29429]So indulge me about the dagger.@I'd be indebted with your life.[34600]These doors are waiting for the@right one, the right time to arrive.[40196]And then, the dagger's blade will[42912]honor the hearts of@those who believe.[46039]So unless you pledge@your loyalty as well...[49660][50000]And which one is that?[52340][53740]To the sins and fortunes@of Marco Bartoli![59580][60300]Perhaps not just yet then.[62600][77460]Aha, Gianni Bartoli,@Via Caravelli, Venice.[84980]"}, {"name": "CUT2", "raw": "[18640]...Believe me, but it's not@quite the same now, is it?[21960][34200]Someday you'll get a speeding@ticket for that tongue, Fabio.[43900]Eh, it's just a gut feeling that@maybe you are wrong to look there...[55140][56400]Is your belief so fragile?@Relax, breathe deep.[60253]The gut, Fabio, has no more[62466]direction than a@simple through-and-out.[65745]When my father left when I was a@boy, he confided to me that he was[71236]enlightened, echo of his heart's@inclination rather than impulse.[76564]He possessed the Seraph.[78532]But he was just a disciple@in this design, his death[82794]plotting a path to be short by the@lower one. His son, you understand?[88532]Have faith, Fabio, not gut rot.@We are searching the right place.[93860]I know it. I believe it, Marco.[98160][99140]Good. Eros, have you...@fixed that rail yet?[104380]Si.[105660]"}, {"name": "CUT3", "raw": "[22120]Ah... You are not one of them.[24440]But you are a monk.[26960]Brother Chen Barkhang.@You have come for me![30769]I saw bright lights around me...[33600]That was gunfire. I think it was@them who got taken away by it.[40340]But you are my guide, my@path-beater to the next incarnation.[45610]I have done my time here, haven't I?[48920]What are you doing@here? And Marco Bartoli?[53300][54440]Nothing! I led a@righteous life, here for[57391]reasons rooted only@in necessary evil.[60125]As my father was before@me, when he bombed[63148]Gianni's vessel deep@into these waters.[65954]Now I'm here, was here, to prevent@his son from salvaging the Seraph.[70920]The Seraph?[73040][75500]You not know my life's work well.@You sure you're not here for them?[80840]Their Jackaknoori@days are well over.[84200]They want the Seraph@to unlock a malignant[86460]treasure we contain in@our monastery in Tibet.[88935]Since being stolen by@imbecile vagabonds centuries[91625]ago, we've been without key@to it, relying solely on[94423]cleansing of our prayers@to keep it subdued.[96790]Then the occultist@Gianni re-acquired it.[98996]Trouble we knew: he breathed@life back into ancient belief,[102170]one not to be stopped by@any amount of head-bowing.[104914]And now again, it is here:@Marco, infected with madness.[107927]He has violent mind, but not@yet the power to satiate it.[110994]So, we reach for our@weapons once more...[113200][114100]The true detox of evil.[118460][121400]Where can you be taking me?@Thought this was my big break.[128434]Guess changes are as good@as rest. Oh, I need one...[134740]"}]};
 // engine track number of each cutscene and the music pack file it plays (gameflow.h TRACK_TR2_CUT_n, remapTrack)
 const AUDIO = { CUT1: "Track02.ogg", CUT2: "Track03.ogg", CUT3: "Track04.ogg" };
 const PLACES = {
@@ -454,18 +460,18 @@ document.addEventListener("keydown", (e) => {
 });
 (function loop() { if (!audio.paused) { updatePreview(); draw(); } requestAnimationFrame(loop); })();
 
-// audio file
-$("audio").addEventListener("change", async () => {
-  const f = $("audio").files[0]; if (!f) return;
+// audio file, picked or served by serve.py from the music folder of the game
+async function loadAudio(f, name) {
+  audio.pause();
   if (objectUrl) URL.revokeObjectURL(objectUrl);
   objectUrl = URL.createObjectURL(f);
   audio.src = objectUrl;
   audio.playbackRate = +$("rate").value;
-  peaks = null;
+  peaks = null; duration = 0;
   $("dur").textContent = "불러오는 중…";
   audio.addEventListener("loadedmetadata", () => {
     duration = audio.duration;
-    $("dur").textContent = f.name + " · " + fmt(duration * 1000);
+    $("dur").textContent = name + " · " + fmt(duration * 1000);
     ["play", "back2", "fwd2", "tap"].forEach((id) => $(id).disabled = false);
     tapIndex = 0; draw(); updatePreview();
   }, { once: true });
@@ -485,7 +491,53 @@ $("audio").addEventListener("change", async () => {
     ctx.close();
     draw();
   } catch (e) { peaks = null; draw(); }
+}
+$("audio").addEventListener("change", () => {
+  const f = $("audio").files[0];
+  if (f) loadAudio(f, f.name);
 });
+async function serveAudio() {
+  const name = AUDIO[$("cut").value];
+  if (!served || !served.music || !name) return;
+  try {
+    const r = await fetch("/audio/" + name);
+    if (r.ok) loadAudio(await r.blob(), name);
+    else $("dur").textContent = "music/" + name + " 을 찾지 못했습니다";
+  } catch (e) {}
+}
+
+// with serve.py the subtitles come from the sources and go back to them
+let served = null;
+async function fetchServed() {
+  try {
+    const r = await fetch("/api/subs", { cache: "no-store" });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch (e) { return null; }
+}
+$("apply").onclick = async () => {
+  const errors = cues.filter((c, i) => i > 0 && c.t < cues[i - 1].t).length;
+  if (errors) { $("applyLog").textContent = "시작 시각이 앞 대사보다 빠른 줄을 먼저 고쳐 주세요."; return; }
+  $("apply").disabled = true;
+  $("applyLog").textContent = $("build").checked ? "반영하고 빌드하는 중… (빌드는 몇 분 걸릴 수 있습니다)" : "반영하는 중…";
+  try {
+    const r = await fetch("/api/apply", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lang: $("lang").value, cut: $("cut").value, cues, build: $("build").checked }),
+    });
+    const res = await r.json();
+    if (!r.ok) throw new Error(res.error || r.statusText);
+    $("applyLog").textContent = "반영했습니다.\n" + res.log;
+    const data = await fetchServed();
+    if (data) { SUBS.ko = data.ko; SUBS.en = data.en; }
+    try { localStorage.removeItem(key()); } catch (e) {}
+    load();
+  } catch (e) {
+    $("applyLog").textContent = "반영하지 못했습니다: " + e.message;
+  } finally {
+    $("apply").disabled = false;
+  }
+};
 
 // misc controls
 function fillCuts() {
@@ -493,7 +545,7 @@ function fillCuts() {
   $("cut").value = "CUT3";
 }
 function updateHint() { $("audioHint").textContent = "이 컷씬의 음성: music/" + (AUDIO[$("cut").value] || "?"); }
-$("cut").onchange = () => { updateHint(); load(); };
+$("cut").onchange = () => { updateHint(); load(); serveAudio(); };
 $("lang").onchange = load;
 $("zoom").oninput = draw;
 $("applyShift").onclick = () => {
@@ -518,7 +570,15 @@ $("copy").onclick = () => {
   });
 };
 window.addEventListener("resize", draw);
-fillCuts(); updateHint(); load();
+(async () => {
+  served = await fetchServed();
+  if (served) {
+    SUBS = { ko: served.ko, en: served.en };
+    $("srcInfo").textContent = "serve.py 로 열었습니다. 자막은 소스에서 읽었고, 소스에 반영할 수 있습니다.";
+    $("applyBox").hidden = false;
+  }
+  fillCuts(); updateHint(); load(); serveAudio();
+})();
 </script>
 
 </body>
