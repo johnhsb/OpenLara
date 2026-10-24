@@ -187,7 +187,7 @@ float normalizeAngle(float angle) {
 }
 
 int angleQuadrant(float angle, float offset) {
-    return int(normalizeAngle(angle + PI * offset) / (PI * 0.5f));
+    return int(normalizeAngle(angle + PI * offset) / (PI * 0.5f)) % 4; // normalizeAngle may leave PI2 itself
 }
 
 float decrease(float delta, float &value, float &speed) {
