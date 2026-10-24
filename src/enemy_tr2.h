@@ -958,6 +958,246 @@ struct Diver : Enemy {
     }
 };
 
+// TR2 fishes, they swim after Lara under the water and bite her, a dead one floats up to the surface
+#define FISH_FLY_SPEED      (16.0f * 30.0f)
+#define FISH_FLOAT_SPEED    (32.0f * 30.0f)
+
+struct Fish : Enemy {
+    int   stateDeath, animDeath;
+    float depth;    // how far under the surface it keeps
+
+    Fish(IGame *game, int entity, float health, int radius, float depth) : Enemy(game, entity, health, radius, 200.0f, 1.0f), depth(depth) {
+        jointChest = -1;
+        flying     = true;
+        stand      = STAND_UNDERWATER;
+    }
+
+    float getSurface() {
+        int16 roomIndex = getRoomIndex();
+        TR::Room::Sector *sector = level->getWaterLevelSector(roomIndex, pos);
+        return sector ? sector->ceiling * 256.0f : -32512.0f;
+    }
+
+    // a bite of the meshes of the mask touching Lara, once an attack
+    void attack(int mask, int joint, const vec3 &offset, float damage, TR::HitType hitType = TR::HIT_DEFAULT) {
+        if (flags.unused || !(touching() & mask))
+            return;
+        target->hit(damage, this, hitType);
+        game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(joint) * offset);
+        flags.unused = 1;
+    }
+
+    virtual int getStateDeath() {
+        if (state == stateDeath)
+            return state;
+        return animation.setAnim(animDeath);
+    }
+
+    void swim(float w) {
+        float surface = getSurface();
+
+        if (state == stateDeath) { // up to the surface, or to the ceiling of a flooded room
+            animation.overrideMask = 0;
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), pos, info);
+            float top = max(surface, info.ceiling);
+            if (pos.y > top)
+                pos.y = max(top, pos.y - FISH_FLOAT_SPEED * Core::deltaTime);
+            updateRoom();
+            return;
+        }
+
+        turn(false, w);
+        angle.z = 0.0f;
+
+        Enemy::updatePosition();
+        lift(waypoint.y - pos.y, FISH_FLY_SPEED);
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), pos, info);
+        pos.y = clamp(pos.y, max(info.ceiling, surface + depth), info.floor);
+
+        updateRoom();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
+#define SHARK_DAMAGE            400
+#define SHARK_HIT_MASK          0x3400
+#define SHARK_SWIM_1_TURN       (DEG2RAD * 0.5f * 30)
+#define SHARK_SWIM_2_TURN       (DEG2RAD * 2 * 30)
+#define SHARK_DIST_SWIM_2       (1024 * 3)
+#define SHARK_DIST_ATTACK_1     768
+#define SHARK_DIST_ATTACK_2     1365
+#define SHARK_STOP_CHANCE       0x800
+
+// the shark of the sunken ship, one bite too many it shakes Lara to death in its jaws
+struct Shark : Fish {
+
+    enum {
+        ANIM_DEATH = 4,
+        ANIM_KILL  = 19,
+    };
+
+    enum {
+        STATE_STOP,
+        STATE_SWIM_1,
+        STATE_SWIM_2,
+        STATE_ATTACK_1,
+        STATE_ATTACK_2,
+        STATE_DEATH,
+        STATE_KILL,
+    };
+
+    Shark(IGame *game, int entity) : Fish(game, entity, 30, 341, 341.0f) {
+        jointHead  = 9;
+        stateDeath = STATE_DEATH;
+        animDeath  = ANIM_DEATH;
+        ai         = AI_FIXED;
+    }
+
+    virtual int getStateUnderwater() {
+        if (!think(false) || state == STATE_KILL)
+            return state;
+
+        bool inZone = zone == targetZone();
+        bool bored  = mood == MOOD_SLEEP;
+
+        switch (state) {
+            case STATE_STOP :
+                flags.unused = 0;
+                if (targetInView && targetDist < SHARK_DIST_ATTACK_1 && inZone)
+                    return STATE_ATTACK_1;
+                return STATE_SWIM_1;
+            case STATE_SWIM_1 :
+                if (bored)
+                    break;
+                if (targetInView && targetDist < SHARK_DIST_ATTACK_1)
+                    return STATE_STOP;
+                if (mood == MOOD_ESCAPE || targetDist > SHARK_DIST_SWIM_2 || !targetInView)
+                    return STATE_SWIM_2;
+                break;
+            case STATE_SWIM_2 :
+                flags.unused = 0;
+                if (bored)
+                    return STATE_SWIM_1;
+                if (mood == MOOD_ESCAPE)
+                    break;
+                if (targetInView && targetDist < SHARK_DIST_ATTACK_2 && inZone) {
+                    if (randControl() < SHARK_STOP_CHANCE)
+                        return STATE_STOP;
+                    if (targetDist < SHARK_DIST_ATTACK_1)
+                        return STATE_ATTACK_2;
+                }
+                break;
+            case STATE_ATTACK_1 :
+            case STATE_ATTACK_2 : {
+                bool alive = target->health > 0.0f;
+                attack(SHARK_HIT_MASK, 12, vec3(17.0f, -22.0f, 344.0f), SHARK_DAMAGE, target->health <= SHARK_DAMAGE ? TR::HIT_SHARK : TR::HIT_DEFAULT);
+                if (alive && target->health <= 0.0f)
+                    return animation.setAnim(ANIM_KILL);
+                break;
+            }
+        }
+        return state;
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_KILL) { // it holds still, Lara is in its jaws
+            animation.overrideMask = 0;
+            return;
+        }
+
+        float w = 0.0f;
+        if (state == STATE_SWIM_1)
+            w = SHARK_SWIM_1_TURN;
+        else if (state == STATE_SWIM_2)
+            w = SHARK_SWIM_2_TURN;
+        swim(w);
+    }
+};
+
+#define BARRACUDA_DAMAGE        100
+#define BARRACUDA_HIT_MASK      0xE0
+#define BARRACUDA_SWIM_1_TURN   (DEG2RAD * 2 * 30)
+#define BARRACUDA_SWIM_2_TURN   (DEG2RAD * 4 * 30)
+#define BARRACUDA_DIST_ATTACK_1 682
+#define BARRACUDA_DIST_ATTACK_2 341
+
+struct Barracuda : Fish {
+
+    enum {
+        ANIM_DEATH = 6,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_SWIM_1,
+        STATE_SWIM_2,
+        STATE_ATTACK_1,
+        STATE_ATTACK_2,
+        STATE_DEATH,
+    };
+
+    Barracuda(IGame *game, int entity) : Fish(game, entity, 12, 204, 256.0f) {
+        jointHead  = 6;
+        stateDeath = STATE_DEATH;
+        animDeath  = ANIM_DEATH;
+    }
+
+    virtual int getStateUnderwater() {
+        if (!think(false))
+            return state;
+
+        bool bored = mood == MOOD_SLEEP;
+
+        switch (state) {
+            case STATE_STOP :
+                flags.unused = 0;
+                if (bored)
+                    return STATE_SWIM_1;
+                if (targetInView && targetDist < BARRACUDA_DIST_ATTACK_1)
+                    return STATE_ATTACK_1;
+                return mood == MOOD_STALK ? STATE_SWIM_1 : STATE_SWIM_2;
+            case STATE_SWIM_1 :
+                if (bored)
+                    break;
+                if (targetInView && (touching() & BARRACUDA_HIT_MASK))
+                    return STATE_STOP;
+                if (mood != MOOD_STALK)
+                    return STATE_SWIM_2;
+                break;
+            case STATE_SWIM_2 :
+                flags.unused = 0;
+                if (bored)
+                    return STATE_SWIM_1;
+                if (targetInView && targetDist < BARRACUDA_DIST_ATTACK_2)
+                    return STATE_ATTACK_2;
+                if (targetInView && targetDist < BARRACUDA_DIST_ATTACK_1)
+                    return STATE_STOP;
+                if (mood == MOOD_STALK)
+                    return STATE_SWIM_1;
+                break;
+            case STATE_ATTACK_1 :
+            case STATE_ATTACK_2 :
+                attack(BARRACUDA_HIT_MASK, 7, vec3(2.0f, -60.0f, 121.0f), BARRACUDA_DAMAGE);
+                break;
+        }
+        return state;
+    }
+
+    virtual void updatePosition() {
+        float w = 0.0f;
+        if (state == STATE_SWIM_1)
+            w = BARRACUDA_SWIM_1_TURN;
+        else if (state == STATE_SWIM_2)
+            w = BARRACUDA_SWIM_2_TURN;
+        swim(w);
+    }
+};
+
 // TR2 Doberman of Venice and the Opera House
 #define DOG_BITE_DAMAGE     100
 #define DOG_LUNGE_DAMAGE    100

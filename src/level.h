@@ -1315,16 +1315,16 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GOON_STICK_1     : return new ClubThug(this, index);
             case TR::Entity::ENEMY_GOON_SHOTGUN     : return new ShotgunGoon(this, index);
             case TR::Entity::ENEMY_DIVER            : return new Diver(this, index);
+            case TR::Entity::ENEMY_SHARK            : return new Shark(this, index);
+            case TR::Entity::ENEMY_BARACUDA         : return new Barracuda(this, index);
             case TR::Entity::ENEMY_GUNMAN_1         : return new Gunman1(this, index);
             case TR::Entity::ENEMY_GUNMAN_2         :
             case TR::Entity::ENEMY_GOON_FLAME       : return new Gunman2(this, index);
             case TR::Entity::ENEMY_GOON_KNIFE       :
             case TR::Entity::ENEMY_DRAGON_FRONT     :
             case TR::Entity::ENEMY_DRAGON_BACK      :
-            case TR::Entity::ENEMY_SHARK            :
             case TR::Entity::ENEMY_MORAY_1          :
             case TR::Entity::ENEMY_MORAY_2          :
-            case TR::Entity::ENEMY_BARACUDA         :
             case TR::Entity::ENEMY_GOON_STICK_2     :
             case TR::Entity::UNUSED_23              :
             case TR::Entity::ENEMY_SPIDER_GIANT     :

@@ -1553,6 +1553,7 @@ namespace TR {
         HIT_LIGHTNING,
         HIT_MIDAS,
         HIT_GIANT_MUTANT,
+        HIT_SHARK,
     };
 
     struct Action {
