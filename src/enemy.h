@@ -945,6 +945,17 @@ struct Human : Enemy {
     bool doShot(float damage, const vec3 &muzzleOffset) {
         game->addMuzzleFlash(this, jointGun, muzzleOffset, -1);
 
+    // hit or miss, a TR2 shot breaks the window on its way, from the chest height of the shooter to past the target
+        if (level->version & TR::VER_TR2) {
+            vec3 from = pos - vec3(0.0f, 768.0f, 0.0f);
+            vec3 to   = target->pos - vec3(0.0f, 768.0f, 0.0f);
+            vec3 dir  = vec3(to.x - from.x, 0.0f, to.z - from.z).normal();
+            vec3 point;
+            BreakableWindow *window = getWindowHit(level, from, to + dir * 2048.0f, point);
+            if (window)
+                window->smash();
+        }
+
         bool hit;
         if (level->version & TR::VER_TR2)
             hit = shotHitTR2();

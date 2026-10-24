@@ -1359,6 +1359,32 @@ struct BreakableWindow : Controller {
     }
 };
 
+// the nearest unbroken window on the way from -> to
+inline BreakableWindow* getWindowHit(TR::Level *level, const vec3 &from, const vec3 &to, vec3 &point) {
+    BreakableWindow *window = NULL;
+    float nearT = 1.0f;
+    vec3  v = to - from;
+
+    for (int i = 0; i < level->entitiesCount; i++) {
+        const TR::Entity &e = level->entities[i];
+        if (e.type != TR::Entity::WINDOW_1 || !e.controller)
+            continue;
+        BreakableWindow *w = (BreakableWindow*)e.controller;
+        if (w->isSmashed())
+            continue;
+
+        float t;
+        if (w->getBoundingBoxLocal().intersect(w->getMatrix(), from, v, t) && t >= 0.0f && t < nearT) {
+            nearT  = t;
+            window = w;
+        }
+    }
+
+    if (window)
+        point = from + v * nearT;
+    return window;
+}
+
 
 #define HELICOPTER_SPEED 3000
 #define HELICOPTER_RANGE (1024 * 30)

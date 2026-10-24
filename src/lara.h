@@ -1298,7 +1298,7 @@ struct Lara : Character {
             vec3 hit = trace(getRoomIndex(), p, t, room, false);
 
         // a window in the way stops the bullet and breaks
-            BreakableWindow *window = getWindowHit(p, hit, hit);
+            BreakableWindow *window = getWindowHit(level, p, hit, hit);
             if (window) {
                 window->smash();
                 hits++;
@@ -2237,32 +2237,6 @@ struct Lara : Character {
         int room;
         vec3 d = trace(getRoomIndex(), from, to, room, false); // check occlusion
         return ((d - from).length() > (dist - 512.0f));
-    }
-
-    // the nearest unbroken window on the way from -> to
-    BreakableWindow* getWindowHit(const vec3 &from, const vec3 &to, vec3 &point) {
-        BreakableWindow *window = NULL;
-        float nearT = 1.0f;
-        vec3  v = to - from;
-
-        for (int i = 0; i < level->entitiesCount; i++) {
-            const TR::Entity &e = level->entities[i];
-            if (e.type != TR::Entity::WINDOW_1 || !e.controller)
-                continue;
-            BreakableWindow *w = (BreakableWindow*)e.controller;
-            if (w->isSmashed())
-                continue;
-
-            float t;
-            if (w->getBoundingBoxLocal().intersect(w->getMatrix(), from, v, t) && t >= 0.0f && t < nearT) {
-                nearT  = t;
-                window = w;
-            }
-        }
-
-        if (window)
-            point = from + v * nearT;
-        return window;
     }
 
     bool checkHit(Controller *target, const vec3 &from, const vec3 &to, vec3 &point) {
