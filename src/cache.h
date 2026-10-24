@@ -444,6 +444,7 @@ struct WaterCache {
         bool    flip;
         bool    visible;
         bool    blank;
+        bool    empty;  // no surface between the rooms (a flooded room seen through a wall)
         vec3    pos, size;
         Texture *mask;
         Texture *caustics;
@@ -453,7 +454,7 @@ struct WaterCache {
             mask = caustics = data[0] = data[1] = NULL;
         }
 
-        Item(int from, int to) : from(from), to(to), caust(to), timer(SIMULATE_TIMESTEP), visible(true), blank(true) {
+        Item(int from, int to) : from(from), to(to), caust(to), timer(SIMULATE_TIMESTEP), visible(true), blank(true), empty(false) {
             mask = caustics = data[0] = data[1] = NULL;
         }
 
@@ -489,6 +490,12 @@ struct WaterCache {
                         }
                     }
                 }
+            if (maxX < minX) { // nothing of the room is under the air, no surface to render
+                empty = true;
+                blank = false;
+                return;
+            }
+
             maxX++;
             maxZ++;
 
@@ -603,7 +610,7 @@ struct WaterCache {
     void setVisible(int roomIndex, int nextRoom = TR::NO_ROOM) {
         if (nextRoom == TR::NO_ROOM) { // setVisible(underwaterRoom) for caustics update
             for (int i = 0; i < count; i++)
-                if (items[i].caust == roomIndex) {
+                if (items[i].caust == roomIndex && !items[i].empty) {
                     nextRoom = items[i].from;
                     if (!items[i].visible) {
                         items[i].visible = true;
@@ -629,6 +636,8 @@ struct WaterCache {
         for (int i = 0; i < count; i++) {
             Item &item = items[i];
             if (item.from == from && item.to == to) {
+                if (item.empty)
+                    return;
                 if (!item.visible) {
                     visible++;
                     item.visible = true;
@@ -645,7 +654,7 @@ struct WaterCache {
     void bindCaustics(int roomIndex) {
         Item *item = NULL;
         for (int i = 0; i < count; i++)
-            if (items[i].caust == roomIndex) {
+            if (items[i].caust == roomIndex && !items[i].empty) {
                 item = &items[i];
                 break;
             }
@@ -873,9 +882,15 @@ struct WaterCache {
 
         for (int i = 0; i < count; i++) {
             Item &item = items[i];
-            if (item.visible && item.blank)
+            if (item.visible && item.blank) {
                 item.init(game);
+                if (item.empty) {
+                    item.visible = false;
+                    visible--;
+                }
+            }
         }
+        if (!visible) return;
 
     // render mirror reflection
         Core::setTarget(reflect, NULL, RT_CLEAR_COLOR | RT_CLEAR_DEPTH | RT_STORE_COLOR);
