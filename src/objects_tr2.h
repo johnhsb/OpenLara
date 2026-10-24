@@ -187,8 +187,14 @@ struct TrapPropeller : Controller {
         touchBits |= mask;
     }
 
-    virtual bool isCollider() { // turning it doesn't push Lara off, it cuts her (a trap collision in the original), a saw is solid
-        return !isActive() || getEntity().type == TR::Entity::SAW;
+    // turning it doesn't push Lara off, it cuts her (a trap collision in the original), a saw is solid; the original takes
+    // the collision off at the end of the stop, so the plane she may jump through then, the underwater fan pushes till then
+    virtual bool isCollider() {
+        if (getEntity().type == TR::Entity::SAW)
+            return true;
+        if (state == STATE_OFF)
+            return getEntity().type == TR::Entity::PROPELLER_WATER && animation.frameIndex < animation.framesCount - 1;
+        return !isActive();
     }
 
     virtual void update() {
