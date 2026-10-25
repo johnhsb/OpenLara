@@ -2,8 +2,10 @@
 
 `refactor/tr1-tr2-split` 브랜치에서 Tomb Raider 2 원본 데이터를 OpenLara로 돌리며 쌓인 시행착오를 정리하고, 남은 미구현 객체의 구현 계획을 그에 맞춰 보완한 문서입니다.
 
-- 기준: `master..refactor/tr1-tr2-split` 커밋 103개 (마지막 272f246), 2026-10-25
+- 처음 작성: 2026-10-25, `master..refactor/tr1-tr2-split` 커밋 103개 (272f246까지)
+- 최종 갱신: 2026-10-25, 1·2단계 완료 (009b2a9까지 푸시)
 - 미구현 조사: TR2 정규 레벨 19개(컷씬 제외)를 디버그 빌드로 불러, 객체마다 생성된 컨트롤러 클래스를 덤프해 집계
+- 다음 세션은 **6장 "다음 세션 인계"** 부터 읽으면 됩니다.
 
 ## 1. 현황
 
@@ -14,6 +16,17 @@ TR2 정규 레벨 19개에 등장하는 객체 중 **기본 `Enemy`로 만들어
 - 픽업, 열쇠·퍼즐 아이템, 시크릿, 카메라 타깃(`VIEW_TARGET`), `PUZZLE_DONE`은 기본 `Controller`로 충분하므로 미구현에서 제외했습니다.
 
 진행을 막는 것은 얼음 궁전의 스프링보드·종·징, 티베트 고원의 스노모빌, 드래곤 레어의 마르코/드래곤입니다.
+
+### 진행 상황
+
+| 단계 | 상태 | 커밋 |
+|---|---|---|
+| 1단계 진행 필수 장치 | **완료** | 110b721 막대 깡패 2, bd1ded9 HEAVY 트리거 카메라, ef913e7 초인종·도난 경보, cfcc96e 스프링보드, d99e5cf 종, 9ea9aed 징, d1c849f 디버그 옵션 |
+| 2단계 재사용 적과 함정 | **완료** | acf5a79 독수리, 6f91662 곰치, e0242a6 큰 거미, 5cb5c77 단검 깡패, 92dc289 가시 천장, 009b2a9 고드름 |
+| 3단계 티베트 구간 적 | 다음 차례 | - |
+| 4~6단계 | 대기 | - |
+
+남은 미구현: 적 11종(용병 3종, 무장 스노모빌 탑승자, 수도승 2종, 예티, 탈리온 수호자, 석상 전사 2종, 마르코/드래곤)과 장치 4종(스노모빌, 드래곤 폭발 이미터, 저택 엔딩 연출, BIG_BOWL).
 
 ## 2. 작업 원칙
 
@@ -51,6 +64,9 @@ TR2 정규 레벨 19개에 등장하는 객체 중 **기본 `Enemy`로 만들어
 | 사다리 옆으로 내려서지 못함 | 등반 플래그를 도착 칸에서 읽음 | 원작처럼 **출발 칸** 플래그 | 30cd184 |
 | 물 밖 턱으로 못 올라감 | 앞 지점이 물 방 밖일 수 있음 | 앞 지점의 방을 따로 구해 바닥 판정 | 00ad6f0 |
 | 다른 물 방이 보일 때 FBO 경고 매 프레임 | 공기 아래가 없는 잠긴 방의 수면 아이템이 음수 크기 텍스처 생성 | 수면이 없는 방(-32512)을 항상 고려 | 6aeb5f2 |
+| 곰치가 물어도 피해가 거의 없음 | 원점이 벽 속 구멍에 있어 `walledFrom`이 늘 막힘으로 판정, 라라가 몸통에 먼저 밀려나 머리가 닿는 순간이 없음 | 구멍 속 적은 `walledFrom`을 꺼 두고(가상 함수), 라라 충돌이 남긴 접촉 비트(`touchBits`)도 함께 판정 | 6f91662 |
+| 징을 치면 라라가 징 뒤로 밀려남 | 특수 애니메이션을 시작한 그 프레임에 라라 충돌이 돌아, 징 원점(징 범위 상자 안)에 선 라라를 밀어냄 | 특수 애니메이션 중에는 라라 충돌·이동을 건너뜀(원작과 같음) | 9ea9aed |
+| 징 채를 골라도 아무 일 없음 | 인벤토리를 열 때 위치 판정 함수(`checkInteraction`)가 라라를 미리 징 원점으로 옮겨, 선택 후에는 판정 범위 밖 | `checkInteraction`은 맞으면 라라를 옮기는 부작용이 있음 → 실제로 행동을 시작할 때만 옮기고 나머지 경로는 위치를 되돌림 | 9ea9aed |
 
 ### 3.3 상태·애니메이션·트리거
 
@@ -65,7 +81,10 @@ TR2 정규 레벨 19개에 등장하는 객체 중 **기본 `Enemy`로 만들어
 | 스위치 뒤 총잡이가 미리 보임 | TR2+는 트리거 전 적이 숨어 있음 | TR2+만 숨김, 기존 세이브도 로드 시 숨김 | 18d5da1 |
 | 죽은 적이 플립 후 공중에 뜸 | 사망 애니메이션 끝의 ANIM_CMD_KILL로 비활성화되어 더 이상 업데이트 안 됨 | 죽은 객체를 움직여야 하면 레벨 쪽에서 별도로 처리 (`updateBodies`) | 272f246 |
 | 죽은 잠수부가 하늘로 사라짐 | 잠긴 방은 수면이 없어 -32512까지 떠오름 | 수면이 없으면 천장까지 (물고기와 동일) | e943147, 37a7b64 |
-| TR2 효과 번호 | TR2 효과 5-10은 TR1과 의미가 다름 | 효과·사운드 번호는 버전별 표 확인 | 7d271ca |
+| TR2 효과 번호 | TR2 효과 5-10은 TR1과 의미가 다름 | 효과·사운드 번호는 버전별 표로 확인 | 7d271ca |
+| 막대 깡패 2가 뛰어내리다 사라짐 | 모델에 애니메이션이 27개뿐이라 기어오르기·낙하(27~30번)가 다음 모델의 KILL 애니메이션을 가리킴 | 비슷한 적은 레벨 데이터에서 모델별 애니메이션 표(개수·상태·다음)를 먼저 덤프해 비교. 원작처럼 없는 동작은 막대 깡패 1 모델에서 빌려 씀(음수 상대 인덱스도 동작) | 110b721 |
+| 스프링보드에 착지할 때마다 다시 발사 | 원작은 판의 목표 상태(goal)를 계속 ON으로 두는데 OpenLara `Animation`에는 지속되는 목표 상태가 없음 | 원작의 goal 의존 동작은 매 프레임 `setState`를 다시 걸어 흉내 냄. 스프링보드는 사용자 요청으로 "0.3초 뒤 한 번, 칸을 벗어나야 재무장"으로 원작과 다르게 확정 | cfcc96e |
+| HEAVY 트리거 카메라가 안 보임 | ① 라라가 매 프레임 카메라를 FOLLOW로 되돌림 ② 시선 대상 명령이 카메라 전환 명령보다 앞에 있어 버려짐 ③ 고정 카메라 위치를 STATIC 모드에서만 씀 | 트리거 명령은 순서에 의존하지 말고 모두 처리한 뒤 적용(원작과 같음) | bd1ded9 |
 
 ### 3.4 AI
 
@@ -95,6 +114,10 @@ TR2 정규 레벨 19개에 등장하는 객체 중 **기본 `Enemy`로 만들어
 | Linux 파일명 대소문자 | 데이터는 대소문자 무시 파일시스템 출신 → 폴더 단위로 찾음 | 7790916 |
 | 오디오 장치 없음 | 믹서가 안 돌아 채널이 쌓임 → 출력 없으면 버림 | 221a18c |
 | 보트 바닥에 물 비침 | OpenLara는 원작에 없는 수면을 그림 → 선체를 깊이 버퍼에 먼저 | dacec0e |
+| 시안 사원·저택이 명령행에서 로딩 화면에 멈춤 | 레벨 시작 전 FMV(시안 사원은 JEEP, 저택은 END)를 재생하던 것. 테스트 폴더에서는 `fmv` 링크를 빼면 바로 시작 | (조사) |
+| 효과음 번호 | TR2 효과음 번호는 TRX `data/trx/ship/games/tr2/catalog_samples.csv`와 같음. 표에 없는 소리(예: 고드름 SFX_ICICLE)는 TR2에 없으므로 넣지 않음 | 009b2a9 |
+| 원작 수신부의 열쇠 | 징과 기폭 장치는 둘 다 열쇠 2(KEY_ITEM_2)를 받음 (TRX `object_links.json5`) | 9ea9aed |
+| 얼음 아래 얇은 공기층 | 얼음 궁전 방 29 위의 방 18은 높이 256짜리 공기 방이라 라라가 떠올라 숨 쉴 수 있음. 원작 충돌 규칙으로도 가능해 원작대로 둠 | (조사) |
 
 ### 3.7 자막·문자열
 
@@ -117,12 +140,25 @@ TR2 정규 레벨 19개에 등장하는 객체 중 **기본 `Enemy`로 만들어
 - **강제 입력의 한계**: `networkInput`으로 넣은 입력은 `Input::state`를 직접 읽는 코드(스위치, 퍼즐 판정)에는 닿지 않습니다.
 - **대조군**: 수정 효과는 끄는 스위치(환경변수)를 임시로 두고 같은 세이브에서 켠/끈 결과를 비교합니다. 3.4의 난수 문제 때문에 반복 실행이 필요합니다.
 - **원인 확인 후 수정**: 로그로 원인을 확정한 다음에 고칩니다 (예: 조준 문제는 trace 경로를 칸 단위로 찍어 문 면 위치를 확인한 뒤 512 여유를 찾음).
+- **테스트 위치 함정**
+  - `--pos`의 방 번호가 실제와 다르면 라라가 벽 칸 안에 놓입니다(총구 trace가 바로 멈춤). 방 범위(`info.x/z`, `xSectors/zSectors`)를 덤프해 내부 칸을 고릅니다.
+  - 칸 경계(1024 배수)에 세우면 총구가 옆 칸(벽)에 들어갑니다. 경계에서 조금 안쪽으로 둡니다.
+  - 물속에서는 y를 바닥 높이로 주면 라라가 바닥에 묻힙니다. 물 가운데 높이로 줍니다.
+  - 적과 라라의 구역(zone)이 다르면 적이 다가오지 않습니다. 적이 실제로 걸어간 통로에 라라를 둡니다.
+- **인벤토리는 하네스로 조작할 수 없습니다.** 인벤토리가 열리면 게임이 멈추므로, "선택된 뒤"는 `usedItem`을 직접 넣어 흉내 내고, "열리는 순간"은 따로 확인합니다.
+- **디버그 빌드 옵션**: `--give=KEY_ITEM_2,...`(열쇠·퍼즐 또는 타입 번호를 인벤토리에), `--activate`는 레벨 시작 1초 뒤에 작동(d1c849f).
+- **유형별 커밋 나누기**: 한 파일에 여러 유형이 섞이면 `git diff -U0`의 블록을 골라 `git apply --cached --unidiff-zero`로 스테이징합니다(부록 B 스크립트).
+  - 순수 추가 블록은 git이 **새 파일 기준 줄 번호(+쪽)** 로 위치를 정합니다. 앞 블록을 빼고 고르면 +쪽 번호를 다시 계산해야 하며, 이를 빠뜨려 선언이 다른 함수에 들어간 커밋을 만든 적이 있습니다(푸시 전에 되돌려 다시 만듦).
+  - 스테이징한 diff는 `git diff --cached -U2`로 앞뒤 문맥을 확인하고, 푸시 전에 `git worktree`로 중간 커밋을 모두 빌드합니다.
+- **외부 입력 혼입**: 테스트 중 사용자가 같은 앱 창에 키를 누르면 하네스 로그에 이유 없는 이동이 섞일 수 있습니다. 한 번 이상한 결과는 다시 돌려 확인합니다.
 
 ## 4. 보완된 구현 계획
 
 각 단계는 대상 레벨의 세이브(또는 `--pos`)로 재현 → 원작 동작 확인 → 구현 → 켠/끈 비교 → 디버그 코드 제거 → Release·Debug 빌드와 배포 → 커밋 순서로 진행합니다.
 
-### 1단계: 진행 필수 장치와 간단한 연결
+### 1단계: 진행 필수 장치와 간단한 연결 — 완료
+
+결과: 막대 깡패 2는 기어오르기·낙하를 막대 깡패 1 모델에서 빌림. 스프링보드는 사용자 요청으로 원작과 다르게 "판 위 0.3초 뒤 한 번, 칸을 벗어나야 재무장". 징은 라라 특수 상태 5와 징 채(GONG_STICK) 객체로 구현하고 heavy 트리거 카메라 버그 3가지를 함께 고침. 도난 경보는 실제 재생을 확인하지 못함(저택은 타이틀 메뉴로 들어가 확인 필요).
 
 | 객체 | 레벨 | 구현 방향 | 유의사항 |
 |---|---|---|---|
@@ -132,7 +168,9 @@ TR2 정규 레벨 19개에 등장하는 객체 중 **기본 `Enemy`로 만들어
 | GONG | 얼음 궁전 1 | 징 채 애니메이션의 특정 프레임에서 heavy 트리거 작동, 끝나면 소진 | heavy 트리거 경로가 OpenLara에 있는지 확인, `flags.once` 처리 (18c3c89) |
 | BELL | 얼음 궁전 4 | 총에 맞으면 활성화되어 흔들리고, 자기 바닥의 트리거 작동 | 창문 피격 판정(`getWindowHit`, 242ecd9)을 "사격으로 반응하는 객체" 판정으로 일반화 |
 
-### 2단계: 기존 클래스 재사용 적과 함정
+### 2단계: 기존 클래스 재사용 적과 함정 — 완료
+
+결과: 독수리는 `Crow` 재사용(애니메이션 3/5/8, 부리 메시 6). 곰치는 새 `Moray` 클래스(작은 것 eel, 큰 것 big_eel). 큰 거미는 새 `SpiderGiant`(점프 없는 지상형, step 256/drop 512라 높은 선반에서는 따라 내려오지 않음 — 원작과 같음). 단검 깡패는 새 `KnifeGoon`, 단검은 `MISSILE_KNIFE`(이전 이름 UNUSED_37) `Bullet`. 가시 천장은 스파이크 벽처럼 트리거가 꺼지면 원위치. 가시 천장이 라라를 찌르는 것과 고드름 착지음(TR2에 없음)은 확인하지 않음.
 
 | 객체 | 레벨 | 구현 방향 | 유의사항 |
 |---|---|---|---|
@@ -184,3 +222,105 @@ TR2 정규 레벨 19개에 등장하는 객체 중 **기본 `Enemy`로 만들어
 - [ ] `DEBUG_TMP`를 지웠고 세이브 파일이 그대로다
 - [ ] Release·Debug 빌드 후 TR1·TR2에 배포했다
 - [ ] 커밋은 논리 단위, 메시지에 원인과 원작 근거
+
+## 6. 다음 세션 인계
+
+### 6.1 현재 상태 (2026-10-25)
+
+- 브랜치 `refactor/tr1-tr2-split`, 마지막 푸시 009b2a9, 작업 트리 깨끗함. 원격은 `origin`(johnhsb/OpenLara).
+- 배포된 빌드: `~/Downloads/TR1`, `~/Downloads/TR2`의 `OpenLara.app`(Release)과 `OpenLara-Debug.app`, 009b2a9 기준.
+- 세이브 백업: `~/Library/Application Support/OpenLara/tr2/savegame_20261025_190514.bak`, `savegame_20261025_211454.bak`(얼음 궁전 방 29). 사용자 동의 없이 `savegame.dat`를 바꾸지 않습니다.
+- 확인하지 못한 것: 도난 경보 실제 재생(저택), 가시 천장의 라라 타격(내려오는 데 약 55초).
+
+### 6.2 다음 할 일: 3단계 티베트 구간 적
+
+| 순서 | 객체 | 원작 참고(TRX, 동작 확인용으로만) | 메모 |
+|---|---|---|---|
+| 1 | MERCENARY_1/2/3 | `src/trx/game/objects/creatures/bandit_1.c`, `bandit_2.c` | 용병 1은 bandit_1, 2·3은 bandit_2 계열. `Gunman1`·`MaskedGoon` 패턴, 명중률(bf22dca), M16 루프 사운드 정지 |
+| 2 | YETI | `yeti.c` | 근접 공격·등반. 라라를 죽이는 특수 애니메이션(레벨 데이터의 상태 번호는 덤프로 확인 — 얼음 궁전은 상태 2) |
+| 3 | BIRD_MONSTER | `bird_guardian.c` | 탈리온 수호자 보스, 사망 후 트리거 |
+| 4 | MONK_1/2 | `monk.c` | 평소 아군, 용병과 교전, 라라가 쏘면 분노(세이브에 저장). AI 대상이 라라뿐이라 적끼리 대상 지정 확장이 먼저 필요 |
+
+각 객체는 ① TRX 파일과 TR2 카탈로그(`data/trx/ship/games/tr2/catalog_*.csv`)로 원작 동작 확인 → ② 레벨 데이터에서 엔티티 위치·애니메이션 표 덤프 → ③ 구현 → ④ `--pos`/`--activate`/`--give`로 재현하며 로그 확인 → ⑤ 디버그 코드 제거, Release·Debug 빌드, TR1·TR2 배포 → ⑥ 사용자 확인 뒤 유형별 커밋 순서로 진행합니다.
+
+### 6.3 테스트 하네스 다시 만들기
+
+스크래치 폴더는 세션마다 지워지므로 새 세션에서 다시 만듭니다. `S`는 그 세션의 스크래치 폴더입니다.
+
+```bash
+S=<세션 스크래치 폴더>
+mkdir -p $S/TR2run && cd $S/TR2run
+for d in audio data music; do ln -sf ~/Downloads/TR2/$d $d; done   # fmv는 일부러 뺌 (레벨 전 영상 건너뜀)
+cat > $S/unbuf.c <<'EOF'
+#include <stdio.h>
+__attribute__((constructor)) static void unbuf(void) { setvbuf(stdout, NULL, _IONBF, 0); setvbuf(stderr, NULL, _IONBF, 0); }
+EOF
+clang -dynamiclib -o $S/unbuf.dylib $S/unbuf.c
+```
+
+`$S/run.sh` (사용법: `FRESH=1 run.sh <로그 이름> <초> <레벨 파일> [게임 인자...]`, FRESH=1이면 디버그 빌드를 새로 복사):
+
+```bash
+#!/bin/bash
+S=<세션 스크래치 폴더>
+LOG=$S/$1.log; SECS=$2; LVL=$3; shift 3
+cd $S/TR2run
+if [ "$FRESH" = 1 ]; then rm -rf OpenLara.app; cp -R /Users/johnnyb/dvlp/OpenLara/src/platform/osx/build/Build/Products/Debug/OpenLara.app .; fi
+DYLD_INSERT_LIBRARIES=$S/unbuf.dylib ./OpenLara.app/Contents/MacOS/OpenLara data/$LVL "$@" > $LOG 2>&1 &
+P=$!
+sleep $SECS
+kill $P 2>/dev/null; sleep 0.3; kill -9 $P 2>/dev/null
+exit 0
+```
+
+자주 쓰는 임시 훅(모두 `// DEBUG_TMP` 줄로 넣고 끝나면 지움):
+
+- 최신 세이브 로드: `level.h`의 `if (loadSlot > -1 && nextLevel == TR::LVL_MAX) {` 앞에
+  `{ static bool once = false; if (!once && getenv("LOADCP")) { once = true; loadSlot = atoi(getenv("LOADCP")); if (loadSlot < 0) loadSlot = saveSlots.length - 1; } } // DEBUG_TMP`
+- 엔티티·애니메이션 덤프: `level.h`의 `initEntities()`에서 `initCarriedItems();` 뒤에 환경변수로 켜는 출력 후 `exit(0)`. TR2 타입 번호는 `TR2_TYPES_START`(1000) 오프셋을 반영해 이름을 붙임.
+- 상태 출력: `Lara::update()`의 `virtual void update() {` 바로 다음 줄(함수 머리를 중복하지 않게)에 PROBE 출력.
+- 화면 저장: `main.mm`의 `Game::render();` 다음 줄에서 `glReadPixels`로 PPM 저장 후 `sips -s format png`로 변환.
+
+### 부록 B. 블록 단위 스테이징 스크립트
+
+`python3 stage_hunks.py <파일> list`로 `-U0` 블록을 보고, `python3 stage_hunks.py <파일> 0 3 5:0-32`처럼 블록 번호(또는 순수 추가 블록의 줄 범위)를 골라 스테이징합니다. 커밋할 때마다 번호가 바뀌므로 다시 `list` 합니다.
+
+```python
+import subprocess, sys, re
+path = sys.argv[1]
+diff = subprocess.run(['git', 'diff', '-U0', '--', path], capture_output=True, text=True).stdout
+lines = diff.splitlines(keepends=True)
+i = 0; head = []
+while i < len(lines) and not lines[i].startswith('@@'):
+    head.append(lines[i]); i += 1
+hunks = []
+while i < len(lines):
+    h = [lines[i]]; i += 1
+    while i < len(lines) and not lines[i].startswith('@@'):
+        h.append(lines[i]); i += 1
+    hunks.append(h)
+if sys.argv[2] == 'list':
+    for n, h in enumerate(hunks):
+        print('== %d %s' % (n, h[0].strip()))
+        for k, l in enumerate(h[1:]):
+            print('   %3d %s' % (k, l.rstrip()[:110]))
+    sys.exit()
+out = []; delta = 0  # added minus removed lines of the hunks taken before, the new positions follow from it
+for n, spec in sorted((int(x.split(':')[0]), x) for x in sys.argv[2:]):
+    h = hunks[n]
+    m = re.match(r'@@ -(\d+)(?:,(\d+))? \+(\d+)', h[0])
+    old_start, old_count = int(m.group(1)), int(m.group(2) if m.group(2) is not None else 1)
+    body = h[1:]
+    if ':' in spec:
+        a, b = map(int, spec.split(':')[1].split('-'))
+        assert old_count == 0
+        body = body[a:b + 1]
+    removed = sum(1 for l in body if l.startswith('-'))
+    added = sum(1 for l in body if l.startswith('+'))
+    new_start = old_start + delta + (1 if old_count == 0 else 0) - (1 if added == 0 else 0)
+    out.append('@@ -%d,%d +%d,%d @@\n' % (old_start, old_count, new_start, added))
+    out += body
+    delta += added - removed
+r = subprocess.run(['git', 'apply', '--cached', '--unidiff-zero', '-'], input=''.join(head + out), text=True, capture_output=True)
+print(path, 'staged' if r.returncode == 0 else 'FAILED ' + r.stderr)
+```
