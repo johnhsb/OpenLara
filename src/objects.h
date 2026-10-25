@@ -1273,7 +1273,8 @@ struct Bullet : Controller {
             case TR::Entity::NATLA_BULLET   : speed = 220.0f; break;
             case TR::Entity::MUTANT_BULLET  : speed = 250.0f; break;
             case TR::Entity::CENTAUR_BULLET : speed = 220.0f; break;
-            case TR::Entity::HARPOON_WTF    : speed = 150.0f; break;
+            case TR::Entity::HARPOON_WTF    :
+            case TR::Entity::MISSILE_KNIFE  : speed = 150.0f; break;
             default : speed = 200.0f;
         }
         velocity = getDir() * (speed * 30.0f);
@@ -1290,6 +1291,9 @@ struct Bullet : Controller {
             } else if (randf() < 0.2f)
                 game->addEntity(TR::Entity::BUBBLE, getRoomIndex(), pos);
         }
+
+        if (getEntity().type == TR::Entity::MISSILE_KNIFE) // a thrown knife spins
+            angle.z += DEG2RAD * 30.0f * 30.0f * Core::deltaTime;
 
         //getRoom().removeDynLight(entity);
         pos = pos + velocity * Core::deltaTime;
@@ -1335,6 +1339,7 @@ struct Bullet : Controller {
                     game->getLara()->addRicochet(pos - getDir() * 64.0f, true);
                 break;
             case TR::Entity::HARPOON_WTF    :
+            case TR::Entity::MISSILE_KNIFE  :
                 if (directHit) {
                     lara->hit(HARPOON_WTF_DAMAGE);
                     game->addEntity(TR::Entity::BLOOD, getRoomIndex(), pos);

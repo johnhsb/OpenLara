@@ -1298,6 +1298,7 @@ struct Level : IGame {
             case TR::Entity::NATLA_BULLET          :
             case TR::Entity::MUTANT_BULLET         :
             case TR::Entity::HARPOON_WTF           :
+            case TR::Entity::MISSILE_KNIFE         :
             case TR::Entity::CENTAUR_BULLET        : return new Bullet(this, index);
             case TR::Entity::TRAP_LAVA             : return new TrapLava(this, index);
             case TR::Entity::BUBBLE                : return new Bubble(this, index);
@@ -1333,6 +1334,7 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GOON_STICK_1     :
             case TR::Entity::ENEMY_GOON_STICK_2     : return new ClubThug(this, index); // as in the original
             case TR::Entity::ENEMY_GOON_SHOTGUN     : return new ShotgunGoon(this, index);
+            case TR::Entity::ENEMY_GOON_KNIFE       : return new KnifeGoon(this, index);
             case TR::Entity::ENEMY_MORAY_1          :
             case TR::Entity::ENEMY_MORAY_2          : return new Moray(this, index);
             case TR::Entity::ENEMY_SPIDER_GIANT     : return new SpiderGiant(this, index);
@@ -1342,7 +1344,6 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GUNMAN_1         : return new Gunman1(this, index);
             case TR::Entity::ENEMY_GUNMAN_2         :
             case TR::Entity::ENEMY_GOON_FLAME       : return new Gunman2(this, index);
-            case TR::Entity::ENEMY_GOON_KNIFE       :
             case TR::Entity::ENEMY_DRAGON_FRONT     :
             case TR::Entity::ENEMY_DRAGON_BACK      :
             case TR::Entity::UNUSED_23              :

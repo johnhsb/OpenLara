@@ -460,7 +460,7 @@
     E( _WATERFALL            ) \
     E( HARPOON_WTF           ) \
     E( FLAME_STREAM          ) \
-    E( UNUSED_37             ) \
+    E( MISSILE_KNIFE         ) \
     E( GRENADE_BULLET        ) \
     E( HARPOON_BULLET        ) \
     E( _LAVA_PARTICLE        ) \

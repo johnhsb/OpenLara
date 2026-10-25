@@ -529,6 +529,152 @@ struct ClubThug : Enemy {
     }
 };
 
+// TR2 knife throwers ("cult_2" in the original), they throw a knife from either hand walking, or both standing
+#define KNIFE_GOON_WALK_TURN    (DEG2RAD * 3 * 30)
+#define KNIFE_GOON_RUN_TURN     (DEG2RAD * 6 * 30)
+#define KNIFE_GOON_DIST_WALK    (1024 * 4)
+#define KNIFE_GOON_DIST_KNIFE   (1024 * 6)
+#define KNIFE_GOON_DIST_STOP    (1024 * 5 / 2)
+#define KNIFE_GOON_DIST_THROW   (1024 * 8)
+
+struct KnifeGoon : Human {
+
+    enum {
+        ANIM_DEATH = 23,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_WALK,
+        STATE_RUN,
+        STATE_AIM_1_L,
+        STATE_THROW_1_L,
+        STATE_AIM_1_R,
+        STATE_THROW_1_R,
+        STATE_AIM_2,
+        STATE_THROW_2,
+        STATE_DEATH,
+    };
+
+    KnifeGoon(IGame *game, int entity) : Human(game, entity, 60) {
+        jointChest = 1;
+        jointHead  = 9;
+        animDeath  = ANIM_DEATH;
+    }
+
+    bool canThrow() {
+        return targetIsVisible(KNIFE_GOON_DIST_THROW);
+    }
+
+    void throwKnife(int joint) { // from the hand at Lara, a little off
+        vec3 from = getJoint(joint).pos;
+        Box  box  = target->getBoundingBox();
+        vec3 to   = vec3(target->pos.x, box.max.y + (box.min.y - box.max.y) * 0.75f, target->pos.z);
+
+        Bullet *knife = (Bullet*)game->addEntity(TR::Entity::MISSILE_KNIFE, getRoomIndex(), from);
+        if (knife) {
+            vec3 d = to - from;
+            vec3 a = vec3(-atan2f(d.y, sqrtf(d.x * d.x + d.z * d.z)), atan2f(d.x, d.z), 0.0f);
+            a.x += (randf() * 2.0f - 1.0f) * (1.4f * DEG2RAD);
+            a.y += (randf() * 2.0f - 1.0f) * (1.4f * DEG2RAD);
+            knife->setAngle(a);
+        }
+    }
+
+    virtual int getStateGround() {
+        if (!think(false))
+            return state;
+
+        bool bored = mood == MOOD_SLEEP;
+
+        switch (state) {
+            case STATE_STOP :
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (canThrow())
+                    return STATE_AIM_2;
+                if (bored) {
+                    if (!targetInView || targetDist > KNIFE_GOON_DIST_KNIFE)
+                        return STATE_WALK;
+                    break;
+                }
+                return (targetInView && targetDist < KNIFE_GOON_DIST_WALK) ? STATE_WALK : STATE_RUN;
+            case STATE_WALK :
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (canThrow()) {
+                    if (targetDist < KNIFE_GOON_DIST_STOP || zone != targetZone())
+                        return STATE_STOP;
+                    return randControl() < 0x4000 ? STATE_AIM_1_L : STATE_AIM_1_R;
+                }
+                if (bored) {
+                    if (targetInView && targetDist < KNIFE_GOON_DIST_KNIFE)
+                        return STATE_STOP;
+                    break;
+                }
+                if (!targetInView || targetDist > KNIFE_GOON_DIST_WALK)
+                    return STATE_RUN;
+                break;
+            case STATE_RUN :
+                if (mood == MOOD_ESCAPE)
+                    break;
+                if (canThrow())
+                    return STATE_WALK;
+                if (bored)
+                    return (targetInView && targetDist < KNIFE_GOON_DIST_KNIFE) ? STATE_STOP : STATE_WALK;
+                if (targetInView && targetDist < KNIFE_GOON_DIST_WALK)
+                    return STATE_WALK;
+                break;
+            case STATE_AIM_1_L :
+                flags.unused = 0;
+                return canThrow() ? STATE_THROW_1_L : STATE_WALK;
+            case STATE_AIM_1_R :
+                flags.unused = 0;
+                return canThrow() ? STATE_THROW_1_R : STATE_WALK;
+            case STATE_AIM_2 :
+                flags.unused = 0;
+                return canThrow() ? STATE_THROW_2 : STATE_STOP;
+            case STATE_THROW_1_L :
+            case STATE_THROW_1_R :
+            case STATE_THROW_2 :
+                if (flags.unused == 0) {
+                    if (state != STATE_THROW_1_R)
+                        throwKnife(5);
+                    if (state != STATE_THROW_1_L)
+                        throwKnife(8);
+                    flags.unused = 1;
+                }
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(animDeath);
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        float w = 0.0f;
+        if (state == STATE_RUN)
+            w = KNIFE_GOON_RUN_TURN;
+        else if (state == STATE_WALK)
+            w = KNIFE_GOON_WALK_TURN;
+        turn(state == STATE_RUN, w);
+
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
 // TR2 gunmen of the rig and the diving area ("worker_1" and "worker_2" in the original), the first one fires single
 // shots, the second one bursts of them
 #define GUNMAN_1_DAMAGE     150
