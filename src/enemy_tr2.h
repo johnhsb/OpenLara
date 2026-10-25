@@ -1360,7 +1360,7 @@ struct Dog : Enemy {
     }
 };
 
-// TR2 crow
+// TR2 crow, the eagles act as the crows (as in the original) with animations and a beak of their own
 #define CROW_DAMAGE          20
 #define CROW_DIST_ATTACK     512
 #define CROW_TURN            (DEG2RAD * 3 * 30)
@@ -1374,6 +1374,12 @@ struct Crow : Enemy {
         ANIM_STOP  = 14,
     };
 
+    enum { // the eagle
+        ANIM_EAGLE_FLY   = 3,
+        ANIM_EAGLE_STOP  = 5,
+        ANIM_EAGLE_DEATH = 8,
+    };
+
     enum {
         STATE_EMPTY,
         STATE_FLY,
@@ -1385,7 +1391,8 @@ struct Crow : Enemy {
         STATE_EAT,
     };
 
-    int requiredState;
+    int  requiredState;
+    bool eagle;
 
     Crow(IGame *game, int entity) : Enemy(game, entity, 15, 204, 0.0f, 1.0f), requiredState(STATE_EMPTY) {
         stand      = STAND_AIR;
@@ -1393,13 +1400,17 @@ struct Crow : Enemy {
         dropHeight = -20 * 1024;
         jointHead  = -1;
 
+        eagle = getEntity().type == TR::Entity::ENEMY_EAGLE;
+        if (eagle)
+            health = 20;
+
         TR::Level::FloorInfo info;
         getFloorInfo(getRoomIndex(), pos, info);
         if (info.boxIndex != TR::NO_BOX) { // sits on the floor
             pos.y = info.floor;
-            animation.setAnim(ANIM_STOP);
+            animation.setAnim(eagle ? ANIM_EAGLE_STOP : ANIM_STOP);
         } else
-            animation.setAnim(ANIM_FLY);
+            animation.setAnim(eagle ? ANIM_EAGLE_FLY : ANIM_FLY);
     }
 
     bool onFloor() {
@@ -1443,7 +1454,10 @@ struct Crow : Enemy {
                 break;
             case STATE_ATTACK :
                 if (flags.unused == 0 && touching()) {
-                    bite(14, vec3(2.0f, 10.0f, 60.0f), CROW_DAMAGE);
+                    if (eagle)
+                        bite(6, vec3(15.0f, 46.0f, 21.0f), CROW_DAMAGE);
+                    else
+                        bite(14, vec3(2.0f, 10.0f, 60.0f), CROW_DAMAGE);
                     flags.unused = 1;
                 }
                 break;
@@ -1467,7 +1481,7 @@ struct Crow : Enemy {
                 flying = false;
                 stand  = STAND_AIR;
                 updateZone();
-                return animation.setAnim(ANIM_DEATH);
+                return animation.setAnim(eagle ? ANIM_EAGLE_DEATH : ANIM_DEATH);
         }
     }
 
