@@ -1287,6 +1287,39 @@ struct ClockChimes : Controller {
     virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {}
 };
 
+#define SND_TR2_DOORBELL        334
+#define SND_TR2_BURGLAR_ALARM   335
+
+// the door bell of Lara's home: it rings once each time its trigger is complete, as in the original
+struct DoorBell : Controller {
+    DoorBell(IGame *game, int entity) : Controller(game, entity) {}
+
+    virtual void update() {
+        if (flags.active == TR::ACTIVE) {
+            game->playSound(SND_TR2_DOORBELL, pos, Sound::PAN);
+            flags.active = 0;
+        }
+        deactivate(true);
+    }
+
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {}
+};
+
+// the burglar alarm of Lara's home rings while its trigger is complete, as in the original
+struct BurglarAlarm : Controller {
+    BurglarAlarm(IGame *game, int entity) : Controller(game, entity) {}
+
+    virtual void update() {
+        if (flags.active != TR::ACTIVE) {
+            deactivate(true);
+            return;
+        }
+        game->playSound(SND_TR2_BURGLAR_ALARM, pos, Sound::PAN | Sound::UNIQUE);
+    }
+
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {}
+};
+
 #define DETONATOR_EXPLOSION_FRAME   80
 
 // the detonator box of Bartoli's Hideout: Lara pushes its plunger with the detonator key, the blast goes off midway

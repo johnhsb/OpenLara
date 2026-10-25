@@ -1385,6 +1385,8 @@ struct Level : IGame {
             case TR::Entity::SOUND_WATER            : return new SoundSource(this, index);
             case TR::Entity::SOUND_CLOCK            : return new ClockChimes(this, index);
             case TR::Entity::DETONATOR              : return new DetonatorBox(this, index);
+            case TR::Entity::SOUND_DOOR_BELL        : return new DoorBell(this, index);
+            case TR::Entity::SOUND_ALARM_BELL       : return new BurglarAlarm(this, index);
             case TR::Entity::TRAP_BLADE_STATUE      : return new TrapBladeStatue(this, index);
             case TR::Entity::TRAP_SWING_BAG         :
             case TR::Entity::TRAP_SWING_BOX         :
