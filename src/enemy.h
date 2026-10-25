@@ -966,7 +966,7 @@ struct Human : Enemy {
             vec3 to   = target->pos - vec3(0.0f, 768.0f, 0.0f);
             vec3 dir  = vec3(to.x - from.x, 0.0f, to.z - from.z).normal();
             vec3 point;
-            BreakableWindow *window = getWindowHit(level, from, to + dir * 2048.0f, point);
+            BreakableWindow *window = (BreakableWindow*)getShotHit(level, from, to + dir * 2048.0f, point, false);
             if (window)
                 window->smash();
         }

@@ -1359,6 +1359,32 @@ struct Springboard : Controller {
     }
 };
 
+// TR2 bells (the Ice Palace): a shot sets one swinging, it trips the heavy trigger under it while it swings
+struct Bell : Controller {
+    enum {
+        STATE_STOP,
+        STATE_SWING,
+    };
+
+    Bell(IGame *game, int entity) : Controller(game, entity) {}
+
+    virtual bool isCollider() {
+        return true;
+    }
+
+    void ring() {
+        activate();
+    }
+
+    virtual void update() {
+        animation.setState(STATE_SWING);
+        game->checkTrigger(this, true);
+        updateAnimation(true);
+        if (state == STATE_STOP)
+            deactivate(true);
+    }
+};
+
 #define DETONATOR_EXPLOSION_FRAME   80
 
 // the detonator box of Bartoli's Hideout: Lara pushes its plunger with the detonator key, the blast goes off midway
@@ -1437,30 +1463,33 @@ struct BreakableWindow : Controller {
     }
 };
 
-// the nearest unbroken window on the way from -> to
-inline BreakableWindow* getWindowHit(TR::Level *level, const vec3 &from, const vec3 &to, vec3 &point) {
-    BreakableWindow *window = NULL;
+// the nearest object on the way from -> to that stops a shot: an unbroken window, or a bell for the shots of Lara
+inline Controller* getShotHit(TR::Level *level, const vec3 &from, const vec3 &to, vec3 &point, bool bells) {
+    Controller *object = NULL;
     float nearT = 1.0f;
     vec3  v = to - from;
 
     for (int i = 0; i < level->entitiesCount; i++) {
         const TR::Entity &e = level->entities[i];
-        if (e.type != TR::Entity::WINDOW_1 || !e.controller)
+        if (!e.controller)
             continue;
-        BreakableWindow *w = (BreakableWindow*)e.controller;
-        if (w->isSmashed())
+        if (e.type == TR::Entity::WINDOW_1) {
+            if (((BreakableWindow*)e.controller)->isSmashed())
+                continue;
+        } else if (!(bells && e.type == TR::Entity::BELL))
             continue;
 
+        Controller *c = (Controller*)e.controller;
         float t;
-        if (w->getBoundingBoxLocal().intersect(w->getMatrix(), from, v, t) && t >= 0.0f && t < nearT) {
+        if (c->getBoundingBoxLocal().intersect(c->getMatrix(), from, v, t) && t >= 0.0f && t < nearT) {
             nearT  = t;
-            window = w;
+            object = c;
         }
     }
 
-    if (window)
+    if (object)
         point = from + v * nearT;
-    return window;
+    return object;
 }
 
 

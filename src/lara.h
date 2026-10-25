@@ -1298,12 +1298,16 @@ struct Lara : Character {
             int room;
             vec3 hit = trace(getRoomIndex(), p, t, room, false);
 
-        // a window in the way stops the bullet and breaks
-            BreakableWindow *window = getWindowHit(level, p, hit, hit);
-            if (window) {
-                window->smash();
+        // a window in the way stops the bullet and breaks, a bell rings and the bullet ricochets off it
+            Controller *object = getShotHit(level, p, hit, hit, true);
+            bool bell = object && object->getEntity().type == TR::Entity::BELL;
+            if (bell)
+                ((Bell*)object)->ring();
+
+            if (object && !bell) {
+                ((BreakableWindow*)object)->smash();
                 hits++;
-            } else if (arm->target && checkHit(arm->target, p, hit, hit)) {
+            } else if (!bell && arm->target && checkHit(arm->target, p, hit, hit)) {
                 hits++;
                 TR::Entity::Type type = arm->target->getEntity().type;
                 ((Character*)arm->target)->hit(wpnGetDamage(), this);
