@@ -1335,6 +1335,7 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GOON_SHOTGUN     : return new ShotgunGoon(this, index);
             case TR::Entity::ENEMY_MORAY_1          :
             case TR::Entity::ENEMY_MORAY_2          : return new Moray(this, index);
+            case TR::Entity::ENEMY_SPIDER_GIANT     : return new SpiderGiant(this, index);
             case TR::Entity::ENEMY_DIVER            : return new Diver(this, index);
             case TR::Entity::ENEMY_SHARK            : return new Shark(this, index);
             case TR::Entity::ENEMY_BARACUDA         : return new Barracuda(this, index);
@@ -1345,7 +1346,6 @@ struct Level : IGame {
             case TR::Entity::ENEMY_DRAGON_FRONT     :
             case TR::Entity::ENEMY_DRAGON_BACK      :
             case TR::Entity::UNUSED_23              :
-            case TR::Entity::ENEMY_SPIDER_GIANT     :
             case TR::Entity::ENEMY_MARCO            :
             case TR::Entity::ENEMY_GUARD_SPEAR        :
             case TR::Entity::ENEMY_GUARD_SPEAR_STATUE :

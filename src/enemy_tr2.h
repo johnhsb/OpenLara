@@ -1846,6 +1846,90 @@ struct Spider : Enemy {
     }
 };
 
+// TR2 giant spider ("big_spider" in the original), it walks to Lara and bites her, no leaps
+#define SPIDER_GIANT_DAMAGE  100
+#define SPIDER_GIANT_TURN    (DEG2RAD * 4 * 30)
+
+struct SpiderGiant : Enemy {
+
+    enum {
+        ANIM_DEATH = 2,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_WALK_1,
+        STATE_WALK_2,
+        STATE_ATTACK_1,
+        STATE_ATTACK_2,
+        STATE_ATTACK_3,
+        STATE_DEATH,
+    };
+
+    SpiderGiant(IGame *game, int entity) : Enemy(game, entity, 40, 341, 0.0f, 1.0f) {
+        stepHeight =  256;
+        dropHeight = -512;
+        jointChest = jointHead = -1;
+    }
+
+    virtual int getStateGround() {
+        if (!think(true))
+            return state;
+
+        bool touch = targetInView && touching() != 0;
+        bool hurry = mood == MOOD_ESCAPE || mood == MOOD_ATTACK;
+
+        switch (state) {
+            case STATE_STOP :
+                flags.unused = 0;
+                if (mood == MOOD_SLEEP)
+                    break;
+                if (touch)
+                    return STATE_ATTACK_1;
+                if (mood == MOOD_STALK)
+                    return STATE_WALK_1;
+                if (hurry)
+                    return STATE_WALK_2;
+                break;
+            case STATE_WALK_1 :
+                if (mood == MOOD_SLEEP)
+                    break;
+                if (touch)
+                    return STATE_STOP;
+                if (hurry)
+                    return STATE_WALK_2;
+                break;
+            case STATE_WALK_2 :
+                flags.unused = 0;
+                if (touch)
+                    return STATE_STOP;
+                if (mood == MOOD_SLEEP || mood == MOOD_STALK)
+                    return STATE_WALK_1;
+                break;
+            case STATE_ATTACK_1 :
+                if (flags.unused == 0 && touching()) {
+                    bite(1, vec3(0.0f, 0.0f, 41.0f), SPIDER_GIANT_DAMAGE);
+                    flags.unused = 1;
+                }
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(ANIM_DEATH);
+    }
+
+    virtual void updatePosition() {
+        if (health > 0.0f)
+            turn(false, SPIDER_GIANT_TURN);
+        Enemy::updatePosition();
+    }
+};
+
 #define TIGER_ROAR           96
 #define TIGER_DIST_ATTACK_1  341
 #define TIGER_DIST_ATTACK_2  1536
