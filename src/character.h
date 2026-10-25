@@ -222,6 +222,24 @@ struct Character : Controller {
         }
     }
 
+    // a dead body left above the floor (a flipped room took its floor away) falls onto the new one, true while it falls
+    bool fallDead() {
+        if (level->rooms[getRoomIndex()].flags.water) // a body under the water floats
+            return false;
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), pos, info);
+        if (pos.y >= info.floor) {
+            velocity.y = 0.0f;
+            return false;
+        }
+
+        applyGravity(velocity.y);
+        pos.y = min(info.floor, pos.y + velocity.y * (30.0f * Core::deltaTime));
+        updateRoom();
+        return true;
+    }
+
     virtual void cmdJump(const vec3 &vel) {
         velocity.x = sinf(angleExt) * vel.z;
         velocity.y = vel.y;

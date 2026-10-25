@@ -60,6 +60,7 @@ struct Level : IGame {
 
     bool lastTitle;
     bool isEnded;
+    bool bodiesFall; // a flip may have taken the floor away from under the dead
     bool needRedrawTitleBG;
     bool needRedrawReflections;
     bool needRenderGame;
@@ -502,6 +503,22 @@ struct Level : IGame {
         mesh->flipMap();
         level.flipMap();
         updateBlocks(true);
+        bodiesFall = true;
+    }
+
+    // the dead lie deactivated, those left above the floor fall onto it here
+    void updateBodies() {
+        if (!bodiesFall)
+            return;
+        bodiesFall = false;
+        for (int i = 0; i < level.entitiesCount; i++) {
+            TR::Entity &e = level.entities[i];
+            Character *c = (Character*)e.controller;
+            if (!c || !e.isEnemy() || c->health > 0.0f || c->flags.state == TR::Entity::asActive || c->flags.invisible)
+                continue;
+            if (c->fallDead())
+                bodiesFall = true;
+        }
     }
 
     virtual void setWaterParams(float height) {
@@ -953,7 +970,7 @@ struct Level : IGame {
     }
 //==============================
 
-    Level(Stream &stream) : level(stream), waitTrack(false), isEnded(false), cutsceneWaitTimer(0.0f), animTexTimer(0.0f), statsTimeDelta(0.0f) {
+    Level(Stream &stream) : level(stream), waitTrack(false), isEnded(false), bodiesFall(false), cutsceneWaitTimer(0.0f), animTexTimer(0.0f), statsTimeDelta(0.0f) {
         paused = false;
 
         level.simpleItems = Core::settings.detail.simple == 1;
@@ -2452,6 +2469,7 @@ struct Level : IGame {
                 }
 
                 updateEffect();
+                updateBodies();
 
                 Controller *c = Controller::first;
                 while (c) {
