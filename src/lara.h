@@ -2234,10 +2234,12 @@ struct Lara : Character {
         return checkOcclusion(from, point, (point - from).length());
     }
 
+    // the line of sight reaches the point (one trace step short at most), the original checks it exactly, so an enemy
+    // close behind a closed door is out of sight even if its body pokes through the door
     bool checkOcclusion(const vec3 &from, const vec3 &to, float dist) {
         int room;
         vec3 d = trace(getRoomIndex(), from, to, room, false); // check occlusion
-        return ((d - from).length() > (dist - 512.0f));
+        return ((d - from).length() > (dist - 32.0f));
     }
 
     bool checkHit(Controller *target, const vec3 &from, const vec3 &to, vec3 &point) {
