@@ -930,10 +930,13 @@ struct Diver : Enemy {
     virtual void updatePosition() {
         float surface = getSurface();
 
-        if (state == STATE_DEATH) {
+        if (state == STATE_DEATH) { // up to the surface, or to the ceiling of a flooded room
             animation.overrideMask = 0;
-            if (pos.y > surface)
-                pos.y = max(surface, pos.y - DIVER_FLOAT_SPEED * Core::deltaTime);
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), pos, info);
+            float top = max(surface, info.ceiling);
+            if (pos.y > top)
+                pos.y = max(top, pos.y - DIVER_FLOAT_SPEED * Core::deltaTime);
             updateRoom();
             return;
         }
