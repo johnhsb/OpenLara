@@ -1329,7 +1329,8 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GOON_MASK_1      :
             case TR::Entity::ENEMY_GOON_MASK_2      :
             case TR::Entity::ENEMY_GOON_MASK_3      : return new MaskedGoon(this, index);
-            case TR::Entity::ENEMY_GOON_STICK_1     : return new ClubThug(this, index);
+            case TR::Entity::ENEMY_GOON_STICK_1     :
+            case TR::Entity::ENEMY_GOON_STICK_2     : return new ClubThug(this, index); // as in the original
             case TR::Entity::ENEMY_GOON_SHOTGUN     : return new ShotgunGoon(this, index);
             case TR::Entity::ENEMY_DIVER            : return new Diver(this, index);
             case TR::Entity::ENEMY_SHARK            : return new Shark(this, index);
@@ -1342,7 +1343,6 @@ struct Level : IGame {
             case TR::Entity::ENEMY_DRAGON_BACK      :
             case TR::Entity::ENEMY_MORAY_1          :
             case TR::Entity::ENEMY_MORAY_2          :
-            case TR::Entity::ENEMY_GOON_STICK_2     :
             case TR::Entity::UNUSED_23              :
             case TR::Entity::ENEMY_SPIDER_GIANT     :
             case TR::Entity::ENEMY_MARCO            :

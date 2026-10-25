@@ -354,12 +354,18 @@ struct ClubThug : Enemy {
         STATE_FALL_3,
     };
 
-    ClubThug(IGame *game, int entity) : Enemy(game, entity, 27, 102, 0.0f, 1.0f) {
+    int climbShift; // the second thugs (worker_4) have no climbs of their own, they take the ones of the first
+
+    ClubThug(IGame *game, int entity) : Enemy(game, entity, 27, 102, 0.0f, 1.0f), climbShift(0) {
         stepHeight =  1024;
         dropHeight = -1024;
         jointChest = 1;
         jointHead  = 5;
         nextState  = STATE_EMPTY;
+
+        int index = level->getModelIndex(TR::Entity::ENEMY_GOON_STICK_1);
+        if (getEntity().type == TR::Entity::ENEMY_GOON_STICK_2 && index > 0)
+            climbShift = level->models[index - 1].animation - getModel()->animation;
     }
 
     void punch(float damage, int hitFlag, int sound) {
@@ -515,10 +521,10 @@ struct ClubThug : Enemy {
         pos.y = old.y;
 
         switch (clicks) {
-            case  2 : animation.setAnim(ANIM_CLIMB_1); break;
-            case  3 : animation.setAnim(ANIM_CLIMB_2); break;
-            case  4 : animation.setAnim(ANIM_CLIMB_3); break;
-            case -4 : animation.setAnim(ANIM_FALL_3);  break;
+            case  2 : animation.setAnim(ANIM_CLIMB_1 + climbShift); break;
+            case  3 : animation.setAnim(ANIM_CLIMB_2 + climbShift); break;
+            case  4 : animation.setAnim(ANIM_CLIMB_3 + climbShift); break;
+            case -4 : animation.setAnim(ANIM_FALL_3  + climbShift); break;
         }
     }
 };
