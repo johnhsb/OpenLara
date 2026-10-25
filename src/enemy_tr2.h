@@ -814,6 +814,111 @@ struct Gunman2 : Human {
     }
 };
 
+// TR2 morays ("eel" and "big_eel" in the original): out of their hole along the way they face they lunge at Lara near
+// ahead, the small one turns to her, they draw back after a bite and slide out dead. Lara can't target them
+#define MORAY_MOVE          102.0f              // per frame
+#define MORAY_ANGLE         (DEG2RAD * 10)
+#define MORAY_TURN          (DEG2RAD * 0.5f * 30)
+#define MORAY_HIT_MASK      0x180
+
+struct Moray : Enemy {
+
+    enum {
+        STATE_EMPTY,
+        STATE_ATTACK,
+        STATE_STOP,
+        STATE_DEATH,
+    };
+
+    bool  big;
+    float slide;    // how far out of its hole
+    float range, length, damage;
+    int   animDeath;
+
+    Moray(IGame *game, int entity) : Enemy(game, entity, 5, 102, 0.0f, 1.0f), slide(0.0f) {
+        big = getEntity().type == TR::Entity::ENEMY_MORAY_2;
+        if (big) {
+            health = 20;
+            range  = 6144.0f;
+            length = 2560.0f;
+            damage = 500.0f;
+            animDeath = 2;
+        } else {
+            range  = 2048.0f;
+            length = 512.0f;
+            damage = 50.0f;
+            animDeath = 3;
+        }
+        jointChest = jointHead = -1;
+    }
+
+    virtual bool isActiveTarget() {
+        return false;
+    }
+
+    virtual bool walledFrom(Controller *c) { // it lives in a hole in a wall, it reaches out of it
+        return false;
+    }
+
+    virtual void setSaveData(const SaveEntity &data) { // back in its hole, as the original saves no position
+        Enemy::setSaveData(data);
+        const TR::Entity &e = getEntity();
+        pos   = vec3(float(e.x), float(e.y), float(e.z));
+        slide = 0.0f;
+    }
+
+    virtual void update() {
+        vec3  dir  = getDir();
+        float step = MORAY_MOVE * 30.0f * Core::deltaTime;
+        pos -= dir * slide;
+
+        if (health <= 0.0f) {
+            slide = min(range - length, slide + step);
+            if (state != STATE_DEATH)
+                animation.setAnim(animDeath);
+        } else {
+            target = (Character*)game->getLara(pos);
+            vec3  d    = target->pos - pos;
+            float dist = sqrtf(d.x * d.x + d.z * d.z);
+            float a    = atan2f(d.x, d.z);
+            int   goal = state;
+
+            switch (state) {
+                case STATE_STOP : {
+                    flags.unused = 0;
+                    slide = max(0.0f, slide - step);
+                    // the small one looks the way of the nearest quarter of its turn
+                    float ahead = big ? angle.y : angleQuadrant(angle.y, 0.25f) * (PI * 0.5f);
+                    goal = (dist <= range && fabsf(shortAngle(ahead, a)) < MORAY_ANGLE) ? STATE_ATTACK : STATE_STOP;
+                    break;
+                }
+                case STATE_ATTACK :
+                    if (slide < dist - length)
+                        slide = min(dist - length, slide + step);
+                    if (!big) {
+                        float w = shortAngle(angle.y, a);
+                        angle.y += clamp(w, -MORAY_TURN * Core::deltaTime, MORAY_TURN * Core::deltaTime);
+                    }
+                    // the meshes touching her now or when she was pushed off them (the touch bits of the original)
+                    if (flags.unused == 0 && ((touchBits | collide(target)) & MORAY_HIT_MASK)) {
+                        target->hit(damage, this);
+                        game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(7) * vec3(7.0f, 157.0f, 333.0f));
+                        flags.unused = 1;
+                    }
+                    goal = flags.unused ? STATE_STOP : STATE_ATTACK;
+                    break;
+            }
+            animation.setState(goal);
+            dir = getDir();
+        }
+        touchBits = 0;
+
+        pos += dir * slide;
+        updateAnimation(true);
+        updateRoom();
+    }
+};
+
 // TR2 divers, they swim after Lara and fire harpoons at her, up to the surface when she is out of the water
 #define DIVER_SWIM_TURN     (DEG2RAD * 3 * 30)
 #define DIVER_FRONT_ARC     (DEG2RAD * 45)

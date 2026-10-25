@@ -937,7 +937,7 @@ struct Controller {
 
     // a wall stands between the bodies (the sectors of a closed door are walls), they don't touch through it, the line
     // goes from origin to origin (always in open sectors) at the heights of the bodies
-    bool walledFrom(Controller *c) {
+    virtual bool walledFrom(Controller *c) {
         vec3 from = pos;
         vec3 to   = c->pos;
         from.y = getBoundingBox().center().y;

@@ -75,7 +75,7 @@ struct Character : Controller {
         updateZone();
     }
 
-    bool isActiveTarget() {
+    virtual bool isActiveTarget() {
         return flags.state == TR::Entity::asActive && !flags.invisible && health > 0.0f;
     }
 
