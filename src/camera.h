@@ -466,7 +466,9 @@ struct Camera : ICamera {
 
             Controller *lookAt = NULL;
 
-            if (mode != MODE_STATIC) {
+            bool isFixed = mode == MODE_STATIC || (mode == MODE_HEAVY && viewIndex > -1); // a heavy camera is fixed too
+
+            if (!isFixed) {
                 if (!owner->viewTarget) {
                     if (viewTarget && !viewTarget->flags.invisible) {
                         vec3 targetVec = (viewTarget->pos - owner->pos).normal();
@@ -494,7 +496,7 @@ struct Camera : ICamera {
                 TR::Location to;
 
                 target.box  = TR::NO_BOX;
-                if (mode == MODE_STATIC && viewIndex > -1) {
+                if (isFixed && viewIndex > -1) {
                     TR::Camera &cam = level->cameras[viewIndex];
                     to.room = cam.room;
                     to.pos  = vec3(float(cam.x), float(cam.y), float(cam.z));

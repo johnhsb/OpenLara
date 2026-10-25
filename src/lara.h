@@ -2936,6 +2936,7 @@ struct Lara : Character {
 
         bool needFlip = false;
         TR::Effect::Type effect = TR::Effect::NONE;
+        Controller *cameraTarget = NULL;
 
         while (cmdIndex < info.trigCmdCount) {
             TR::FloorData::TriggerCommand &cmd = info.trigCmd[cmdIndex++];
@@ -3020,9 +3021,7 @@ struct Lara : Character {
                         needFlip = true;
                     break;
                 case TR::Action::CAMERA_TARGET :
-                    if (camera->mode == Camera::MODE_STATIC || camera->mode == Camera::MODE_HEAVY) {
-                        camera->viewTarget = (Controller*)level->entities[cmd.args].controller;
-                    }
+                    cameraTarget = (Controller*)level->entities[cmd.args].controller;
                     break;
                 case TR::Action::END :
                     game->loadNextLevel();
@@ -3073,6 +3072,11 @@ struct Lara : Character {
                     break;
             }
         }
+
+        // the target goes to a static or heavy camera of the trigger, after all the commands (as in the original), so a
+        // target ahead of the camera switch counts too
+        if (cameraTarget && (camera->mode == Camera::MODE_STATIC || camera->mode == Camera::MODE_HEAVY))
+            camera->viewTarget = cameraTarget;
 
         if (needFlip) {
             game->flipMap();
@@ -4976,7 +4980,8 @@ struct Lara : Character {
 
         usedItem = TR::Entity::NONE;
 
-        if (camera->mode != Camera::MODE_CUTSCENE && camera->mode != Camera::MODE_STATIC) {
+        // a static or heavy trigger camera goes back to her when its time is up (by the camera itself)
+        if (camera->mode != Camera::MODE_CUTSCENE && camera->mode != Camera::MODE_STATIC && camera->mode != Camera::MODE_HEAVY) {
             camera->mode = (emptyHands() || health <= 0.0f) ? Camera::MODE_FOLLOW : Camera::MODE_COMBAT;
             if (input & LOOK)
                 camera->mode = Camera::MODE_LOOK;
