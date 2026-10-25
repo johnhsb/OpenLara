@@ -427,6 +427,46 @@ struct TrapSpikeWall : Controller {
     }
 };
 
+#define SPIKE_CEILING_DAMAGE    20
+#define SPIKE_CEILING_SPEED     5.0f
+
+// a ceiling of spikes coming down while triggered, till it is a block above the floor, it goes back up when the trigger
+// is off (as the spike walls do)
+struct TrapSpikeCeiling : Controller {
+    bool finished;
+
+    TrapSpikeCeiling(IGame *game, int entity) : Controller(game, entity), finished(false) {}
+
+    virtual void update() {
+        if (!isActive()) {
+            const TR::Entity &e = getEntity();
+            roomIndex = e.room;
+            pos       = vec3(float(e.x), float(e.y), float(e.z));
+            finished  = false;
+            Sound::stop(SND_TR2_SPIKE_WALL);
+        } else if (!finished) {
+            int16 roomIdx = getRoomIndex();
+            vec3 p = pos + vec3(0.0f, SPIKE_CEILING_SPEED * 30.0f * Core::deltaTime, 0.0f);
+            TR::Room::Sector *sector = level->getSector(roomIdx, p);
+            if (level->getFloor(sector, p) < p.y + 1024.0f) {
+                finished = true;
+                Sound::stop(SND_TR2_SPIKE_WALL);
+            } else {
+                pos = p;
+                roomIndex = roomIdx;
+                game->playSound(SND_TR2_SPIKE_WALL, pos, Sound::PAN | Sound::UNIQUE);
+            }
+        }
+
+        Character *lara = (Character*)game->getLara(pos);
+        if (lara->health > 0.0f && touchLara(this, lara)) {
+            lara->hit(SPIKE_CEILING_DAMAGE * 30.0f * Core::deltaTime, this, TR::HIT_SPIKES);
+            game->addEntity(TR::Entity::BLOOD, lara->getRoomIndex(), vec3(lara->pos.x, pos.y + 762.0f, lara->pos.z)); // her height under the spikes
+            game->playSound(SND_TR2_FLESH_WOUND, lara->pos, Sound::PAN | Sound::UNIQUE);
+        }
+    }
+};
+
 #define ZIPLINE_ACCEL           5.0f
 #define ZIPLINE_MAX_SPEED       100.0f
 
