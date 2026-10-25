@@ -1632,6 +1632,10 @@ namespace TR {
             640, -202, 30,  ::Box(vec3(-256, 540, -350), vec3(256, 740, -200)), false, false
         };
 
+        Limit GONG = { // the gong ahead of Lara, whichever way she faces, she strikes it from its origin
+            0, 0, 180,      ::Box(vec3(-512, -100, -812), vec3(1024, 100, -412)), false, true
+        };
+
         Limit DETONATOR = { // Lara stands on the box, whichever way she faces
             0, 0, 180,      ::Box(vec3(-256, -100, -256), vec3(256, 100, 256)), false, true
         };
@@ -2590,7 +2594,8 @@ namespace TR {
                 case KEY_HOLE_3    : return KEY_ITEM_3;
                 case KEY_HOLE_4    : return KEY_ITEM_4;
                 case MIDAS_HAND    : return LEADBAR;
-                case DETONATOR     : return KEY_ITEM_2;
+                case DETONATOR     :
+                case GONG          : return KEY_ITEM_2;
                 default            : return LARA;
             }
         }

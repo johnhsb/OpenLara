@@ -1385,6 +1385,50 @@ struct Bell : Controller {
     }
 };
 
+#define GONG_STRIKE_FRAME   41
+#define GONG_END_FRAME      79
+#define TRACK_TR2_REVEAL    57
+
+// the hammer of the gong of the Ice Palace, it swings along with Lara (made where she stands as she strikes the gong):
+// the stroke shakes the view with the reveal music, at its end the heavy trigger under it goes off and it's gone
+struct GongBonger : Controller {
+    GongBonger(IGame *game, int entity) : Controller(game, entity) {
+        activate();
+    }
+
+    virtual void update() {
+        int frame = animation.frameIndex;
+        updateAnimation(true);
+
+        if (frame < GONG_STRIKE_FRAME && animation.frameIndex >= GONG_STRIKE_FRAME) {
+            game->playTrack(TRACK_TR2_REVEAL, true);
+            game->shakeCamera(0.5f);
+        }
+
+        if (frame < GONG_END_FRAME && (animation.frameIndex >= GONG_END_FRAME || animation.isEnded)) {
+            game->checkTrigger(this, true);
+            game->removeEntity(this);
+        }
+    }
+};
+
+// the gong takes the second key (the gong hammer), a struck gong is spent
+struct Gong : Controller {
+    Gong(IGame *game, int entity) : Controller(game, entity) {}
+
+    virtual bool isCollider() {
+        return true;
+    }
+
+    bool isSpent() const {
+        return flags.active == TR::ACTIVE;
+    }
+
+    void strike() {
+        flags.active = TR::ACTIVE;
+    }
+};
+
 #define DETONATOR_EXPLOSION_FRAME   80
 
 // the detonator box of Bartoli's Hideout: Lara pushes its plunger with the detonator key, the blast goes off midway

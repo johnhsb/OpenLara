@@ -522,6 +522,8 @@ struct Camera : ICamera {
                         offset = CAM_OFFSET_LOOK;
                     else 
                         offset = (mode == MODE_COMBAT ? CAM_OFFSET_COMBAT : CAM_OFFSET_FOLLOW);
+                    if (distance > 0.0f)
+                        offset = distance;
 
                     vec3 dir = vec3(targetAngle.x, targetAngle.y) * offset;
                     to.pos  = target.pos - dir;
@@ -539,7 +541,8 @@ struct Camera : ICamera {
 
         level->getSector(eye.room, eye.pos);
 
-        smooth = true;
+        smooth   = true;
+        distance = 0.0f;
 
         viewIndexLast = viewIndex;
 

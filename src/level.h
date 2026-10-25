@@ -1389,6 +1389,8 @@ struct Level : IGame {
             case TR::Entity::SOUND_ALARM_BELL       : return new BurglarAlarm(this, index);
             case TR::Entity::JUMPPAD                : return new Springboard(this, index);
             case TR::Entity::BELL                   : return new Bell(this, index);
+            case TR::Entity::GONG                   : return new Gong(this, index);
+            case TR::Entity::GONG_STICK             : return new GongBonger(this, index);
             case TR::Entity::TRAP_BLADE_STATUE      : return new TrapBladeStatue(this, index);
             case TR::Entity::TRAP_SWING_BAG         :
             case TR::Entity::TRAP_SWING_BOX         :

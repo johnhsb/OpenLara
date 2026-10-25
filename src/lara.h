@@ -65,6 +65,7 @@ static struct LaraStartPos {
 #define LARA_EXTRA_PLUNGER  1
 #define LARA_EXTRA_SHARK    3       // a shark bites her to death
 #define LARA_EXTRA_AIRLOCK  4
+#define LARA_EXTRA_GONG     5       // she strikes the gong of the Ice Palace
 #define LARA_EXTRA_START    8       // she gets up in the cell of the rig
 
 // frames of the TR2+ flare arm animations (hold, throw, draw, ignite and hold again)
@@ -3397,6 +3398,42 @@ struct Lara : Character {
         box->use(angle.y);
     }
 
+    // the gong ahead of her takes the gong hammer (the second key), she strikes it standing at its origin turned to it
+    // and the hammer swings along (as in the original), the trigger under it goes off at the end of the stroke
+    void checkGong() {
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            TR::Entity &e = level->entities[i];
+            if (e.type != TR::Entity::GONG || !e.controller)
+                continue;
+            Gong *gong = (Gong*)e.controller;
+            if (!gong->isSpent() && (gong->pos - pos).length2() < 2048.0f * 2048.0f)
+                useGong(gong);
+        }
+    }
+
+    void useGong(Gong *gong) {
+        vec3 oldPos = pos, oldAngle = angle;
+        if (!checkInteraction(gong, &TR::Limits::GONG, isPressed(ACTION) || usedItem != TR::Entity::NONE))
+            return;
+
+        // she stays where she is till she strikes (the hammer chosen), she's in range then too
+        bool strike = usedItem != TR::Entity::NONE && TR::Level::convToInv(TR::Entity::getItemForHole(gong->getEntity().type)) == usedItem;
+        float a = gong->angle.y + PI;
+        if (!strike || !extraStart(LARA_EXTRA_GONG)) {
+            pos   = oldPos;
+            angle = oldAngle;
+            if (usedItem != TR::Entity::NONE || (isPressed(ACTION) && !game->invChooseKey(camera->cameraIndex, gong->getEntity().type)))
+                game->playSound(TR::SND_NO, pos, Sound::PAN);
+            return;
+        }
+
+        game->invUse(camera->cameraIndex, usedItem);
+        usedItem = TR::Entity::NONE;
+        angle.y  = a;
+        gong->strike();
+        game->addEntity(TR::Entity::GONG_STICK, getRoomIndex(), pos, angle.y);
+    }
+
     // a springboard throws her up as from a fall start, on she goes with the speed she had (as in the original)
     virtual bool spring() {
         if (boat)
@@ -3454,6 +3491,11 @@ struct Lara : Character {
         }
 
         Controller::updateAnimation(true);
+
+        if (animation.state == LARA_EXTRA_GONG) { // the view of the stroke, as in the original
+            camera->setAngle(-20, -25);
+            camera->distance = 3072.0f;
+        }
 
         if (airlock && airlock->state == Switch::STATE_UP)
             checkTrigger(this, false); // the wheel turns
@@ -5070,8 +5112,10 @@ struct Lara : Character {
             return;
         }
 
-        if (!(input & DEATH) && !level->isCutsceneLevel())
+        if (!(input & DEATH) && !level->isCutsceneLevel()) {
             checkTrigger(this, false);
+            checkGong();
+        }
 
     // get turning angle
         float w = ((input & WALK) && state != STATE_WALK) ? 0.0f : ((input & LEFT) ? -1.0f : ((input & RIGHT) ? 1.0f : 0.0f));
@@ -5202,6 +5246,9 @@ struct Lara : Character {
             }
             return;
         }
+
+        if (extraAnim) // she plays a special animation in place, without collisions (as in the original)
+            return;
 
         // tilt control
         vec2 vTilt(LARA_TILT_SPEED * Core::deltaTime, LARA_TILT_MAX);

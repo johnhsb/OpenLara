@@ -29,11 +29,12 @@ struct ICamera {
     vec4         *reflectPlane;
     vec3         angle;
     float        shake;
+    float        distance;      // a view distance of its own for this frame (0 - the default one)
     bool         firstPerson;
     bool         centerView;
     TR::Location eye, target;
 
-    ICamera() : cameraIndex(0), reflectPlane(NULL), angle(0.0f), shake(0.0f), centerView(false) {}
+    ICamera() : cameraIndex(0), reflectPlane(NULL), angle(0.0f), shake(0.0f), distance(0.0f), centerView(false) {}
 
     virtual void setup(bool calcMatrices) {}
     virtual int  getRoomIndex() const { return TR::NO_ROOM; }
