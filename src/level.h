@@ -1379,6 +1379,7 @@ struct Level : IGame {
             case TR::Entity::TRAP_BLADE_WALL        : return new TrapBladeWall(this, index);
             case TR::Entity::TRAP_SPIKES_WALL       : return new TrapSpikeWall(this, index);
             case TR::Entity::TRAP_SPIKES_CEILING    : return new TrapSpikeCeiling(this, index);
+            case TR::Entity::TRAP_ICICLES           : return new TrapIcicle(this, index);
             case TR::Entity::ZIPLINE_HANDLE         : return new Zipline(this, index);
             case TR::Entity::VEHICLE_BOAT           : return new SpeedBoat(this, index);
             case TR::Entity::GONDOLA                : return new Gondola(this, index);

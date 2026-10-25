@@ -467,6 +467,61 @@ struct TrapSpikeCeiling : Controller {
     }
 };
 
+#define ICICLE_DAMAGE           200
+#define ICICLE_FALL_SPEED       50.0f
+#define ICICLE_SHARDS           0x2B    // the meshes left on the floor
+
+// TR2 icicles: triggered one breaks off and falls, Lara it falls on is hurt badly, it shatters on the floor
+struct TrapIcicle : Controller {
+    enum {
+        STATE_EMPTY,
+        STATE_BREAK,
+        STATE_FALL,
+        STATE_LAND,
+    };
+
+    float speedY;
+
+    TrapIcicle(IGame *game, int entity) : Controller(game, entity), speedY(0.0f) {
+        initMeshOverrides();
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Controller::setSaveData(data);
+        layers[0].mask = (state == STATE_LAND) ? ICICLE_SHARDS : 0xFFFFFFFF;
+    }
+
+    virtual void update() {
+        if (state == STATE_BREAK)
+            animation.setState(STATE_FALL);
+
+        if (state == STATE_FALL) {
+            if (speedY == 0.0f)
+                speedY = ICICLE_FALL_SPEED;
+            Character *lara = (Character*)game->getLara(pos);
+            if (lara->health > 0.0f && touchLara(this, lara))
+                lara->hit(ICICLE_DAMAGE * 30.0f * Core::deltaTime, this);
+        }
+
+        updateAnimation(true);
+
+        if (state == STATE_FALL) {
+            applyGravity(speedY);
+            pos.y += speedY * 30.0f * Core::deltaTime;
+            updateRoom();
+
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), pos, info);
+            if (pos.y >= info.floor) {
+                pos.y  = info.floor;
+                speedY = 0.0f;
+                animation.setState(STATE_LAND);
+                layers[0].mask = ICICLE_SHARDS;
+            }
+        }
+    }
+};
+
 #define ZIPLINE_ACCEL           5.0f
 #define ZIPLINE_MAX_SPEED       100.0f
 
