@@ -137,6 +137,13 @@ struct Enemy : Character {
         if (a.contains(x, z))
             return true;
 
+    // a closed door takes the box off its sector (the box itself may stay open), the body keeps out of it as the
+    // centre does (as in the original, which tests the sectors at the radius of the creature)
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), vec3(float(x), pos.y, float(z)), info);
+        if (info.boxIndex == TR::NO_BOX)
+            return false;
+
         bool big = getEntity().isBigEnemy();
         TR::Overlap *o = &level->overlaps[a.overlap.index];
         do {
