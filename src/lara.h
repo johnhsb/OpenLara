@@ -5294,6 +5294,9 @@ struct Lara : Character {
             if (!collide(controller, false))
                 continue;
 
+            if (e.isEnemy() && controller->walledFrom(this))
+                continue; // an enemy behind a closed door neither touches nor pushes her
+
             controller->touchedBy(controller->collide(this, false));
 
             if (e.type == TR::Entity::VEHICLE_BOAT && !boat) {

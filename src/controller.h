@@ -934,6 +934,18 @@ struct Controller {
         return getBoundingBoxLocal().intersect(Sphere(getMatrix().inverseOrtho() * sphere.center, sphere.radius));
     }
 
+    // a wall stands between the bodies (the sectors of a closed door are walls), they don't touch through it, the line
+    // goes from origin to origin (always in open sectors) at the heights of the bodies
+    bool walledFrom(Controller *c) {
+        vec3 from = pos;
+        vec3 to   = c->pos;
+        from.y = getBoundingBox().center().y;
+        to.y   = c->getBoundingBox().center().y;
+        int room;
+        vec3 d = trace(getRoomIndex(), from, to, room, false);
+        return (d - from).length() < (to - from).length() - 32.0f;
+    }
+
     vec3 trace(int fromRoom, const vec3 &from, const vec3 &to, int &room, bool isCamera) { // TODO: use Bresenham
         room = fromRoom;
 

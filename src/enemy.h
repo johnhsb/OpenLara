@@ -358,6 +358,14 @@ struct Enemy : Character {
         carriedCount = 0;
     }
 
+    // the bodies never touch through a closed door, so no attack hits through it
+    using Controller::collide;
+    int collide(Controller *controller, bool checkBoxes = true) {
+        if (walledFrom(controller))
+            return 0;
+        return Controller::collide(controller, checkBoxes);
+    }
+
     virtual void touchedBy(int mask) {
         touchBits |= mask;
     }
