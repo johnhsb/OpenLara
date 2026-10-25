@@ -130,6 +130,9 @@ struct Character : Controller {
         health = max(0.0f, health - damage);
     }
 
+    // a springboard under her feet throws her up, false if she can't be (as on the boat)
+    virtual bool spring() { return false; }
+
     virtual void  updateVelocity()      {}
     virtual void  updatePosition()      {}
     virtual Stand getStand()            { return stand; }

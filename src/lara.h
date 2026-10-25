@@ -3393,6 +3393,16 @@ struct Lara : Character {
         box->use(angle.y);
     }
 
+    // a springboard throws her up as from a fall start, on she goes with the speed she had (as in the original)
+    virtual bool spring() {
+        if (boat)
+            return false;
+        velocity.y = -240.0f;
+        stand = STAND_AIR;
+        animation.setAnim(ANIM_FALL_FORTH);
+        return true;
+    }
+
     // Lara turns the wheel of an airlock, it turns once
     void useAirlock(Switch *wheel) {
         if (wheel->state != Switch::STATE_DOWN || wheel->flags.state != TR::Entity::asNone)

@@ -1320,6 +1320,45 @@ struct BurglarAlarm : Controller {
     virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {}
 };
 
+#define SPRINGBOARD_DELAY   0.3f    // seconds Lara stands on the board before it throws her up
+
+// TR2 springboards: once triggered, Lara standing on the board (in its sector at its height) is thrown up as in the
+// original, but only after a moment on it, and once only till she leaves its sector (the original goes on throwing her
+// up while she stands there, so walking onto a board she bounced on it for good)
+struct Springboard : Controller {
+    enum {
+        STATE_OFF,
+        STATE_ON,
+    };
+
+    enum { FLAG_SPENT = 1 }; // it threw her up, she hasn't left its sector since
+
+    float delay;
+
+    Springboard(IGame *game, int entity) : Controller(game, entity), delay(0.0f) {}
+
+    virtual void update() {
+        Character *lara = (Character*)game->getLara(pos);
+        bool inSector = lara && int(lara->pos.x) / 1024 == int(pos.x) / 1024 && int(lara->pos.z) / 1024 == int(pos.z) / 1024;
+        bool onBoard  = inSector && fabsf(lara->pos.y - pos.y) < 1.0f && lara->health > 0.0f;
+
+        if (!inSector)
+            flags.unused &= ~FLAG_SPENT;
+
+        if (onBoard && state == STATE_OFF && !(flags.unused & FLAG_SPENT)) {
+            delay += Core::deltaTime;
+            if (delay >= SPRINGBOARD_DELAY && lara->spring()) {
+                flags.unused |= FLAG_SPENT;
+                animation.setState(STATE_ON);
+                delay = 0.0f;
+            }
+        } else
+            delay = 0.0f;
+
+        updateAnimation(true);
+    }
+};
+
 #define DETONATOR_EXPLOSION_FRAME   80
 
 // the detonator box of Bartoli's Hideout: Lara pushes its plunger with the detonator key, the blast goes off midway
