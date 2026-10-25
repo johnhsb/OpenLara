@@ -577,6 +577,14 @@ int main() {
                     laraStartPos.activate[count++] = [item intValue];
             laraStartPos.activate[count] = -1;
         }
+    // optional items to put into the inventory at the start, --give=item[,item...] (KEY_ITEM_2, PUZZLE_1...)
+        if ([arg hasPrefix:@"--give="]) {
+            int count = 0;
+            for (NSString *item in [[arg substringFromIndex:7] componentsSeparatedByString:@","])
+                if (count < COUNT(laraStartPos.give) - 1)
+                    laraStartPos.give[count++] = laraStartItem([item UTF8String]);
+            laraStartPos.give[count] = TR::Entity::NONE;
+        }
     #endif
     }
     Game::init(levelName[0] ? levelName : NULL);
