@@ -3062,4 +3062,239 @@ struct Winston : Enemy {
     }
 };
 
+// TR2 mercenaries on the black snowmobiles of the Tibetan Foothills ("skidoo_driver" and "skidoo_armed" in the
+// original): the snowmobile is the creature, it chases Lara and fires its two guns, the driver only rides along.
+// Shot down, he falls off, it rolls to a stop and Lara can ride it with its guns (as in the original)
+#define SKIDOO_DRIVER_TURN          (DEG2RAD * 3 * 30)   // half the turn of a snowmobile a frame
+#define SKIDOO_DRIVER_MIN_TURN      (DEG2RAD * 2)        // a third of it
+#define SKIDOO_DRIVER_TARGET_ANGLE  (DEG2RAD * 15)
+#define SKIDOO_DRIVER_WAIT_RANGE    (1024 * 4)
+#define SKIDOO_DRIVER_DAMAGE        50                   // Lara on foot
+#define SKIDOO_DRIVER_DAMAGE_RIDING 10                   // Lara on a snowmobile
+#define SKIDOO_DRIVER_RUN_OVER      100
+#define SKIDOO_DRIVER_RADIUS        341
+#define SKIDOO_DRIVER_BURST         5
+
+struct SkidooDriver : Human {
+    enum {
+        STATE_EMPTY,
+        STATE_WAIT,
+        STATE_MOVING,
+        STATE_START_LEFT,
+        STATE_START_RIGHT,
+        STATE_LEFT,
+        STATE_RIGHT,
+        STATE_DEATH,
+    };
+
+    enum { ANIM_DEATH = 10 };       // of the driver
+    enum { FLAG_LEFT = 4 };         // flags.unused: the snowmobile was left to Lara, he's only a body now
+
+    Animation rider;                // the driver on it
+    mat4      riderMatrix;          // where he fell off
+    bool      riderDead;
+    int       burst;                // the frames the guns keep firing
+    Basis     riderBasis[MAX_JOINTS]; // kept, the renderer holds on to the joints it is given
+
+    SkidooDriver(IGame *game, int entity) : Human(game, entity, 100), riderDead(false), burst(0) {
+        radius     = SKIDOO_DRIVER_RADIUS;
+        stepHeight = 512;
+        dropHeight = -1024;
+        jointChest = jointHead = -1;
+        jointGun   = 0;
+        rider      = Animation(level, Controller::getModel());
+        rider.setAnim(0);
+        animation.setModel(getModel());
+        animation.setAnim(0);
+    }
+
+    bool isLeft() const {
+        return (flags.unused & FLAG_LEFT) != 0;
+    }
+
+    // his snowmobile till it's left to Lara, his body then
+    virtual const TR::Model* getModel() {
+        int index = level->getModelIndex(TR::Entity::VEHICLE_SNOWMOBILE_BLACK);
+        if (isLeft() || index <= 0)
+            return Controller::getModel();
+        return &level->models[index - 1];
+    }
+
+    virtual int getInput() {
+        return 0; // no death state of its own, it rolls on with him dead
+    }
+
+    virtual void updateVelocity() {
+        if (stand == STAND_AIR)
+            applyGravity(velocity.y);
+        else
+            velocity = getDir() * animation.getSpeed();
+    }
+
+    // Lara riding a snowmobile takes less from its guns
+    bool isRiding(Controller *c) {
+        for (int i = 0; i < level->entitiesCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if ((e.type == TR::Entity::VEHICLE_SNOWMOBILE_RED || e.type == TR::Entity::VEHICLE_SNOWMOBILE_BLACK) && e.controller && ((Snowmobile*)e.controller)->driver == c)
+                return true;
+        }
+        return false;
+    }
+
+    int getStateDead() {
+        if (!riderDead) { // he falls off where he is
+            riderDead   = true;
+            riderMatrix = getMatrix();
+            rider.setAnim(ANIM_DEATH);
+        }
+        return (state == STATE_MOVING || state == STATE_WAIT) ? STATE_WAIT : STATE_MOVING;
+    }
+
+    virtual int getStateGround() {
+        if (!think(true))
+            return state;
+
+        if (health <= 0.0f)
+            return getStateDead();
+
+        vec3  d = waypoint - pos;
+        float a = clamp(clampAngle(normalizeAngle(PIH - d.angleY() - angle.y)), -SKIDOO_DRIVER_TURN / 30.0f, SKIDOO_DRIVER_TURN / 30.0f);
+
+        bool near = fabsf(targetAngle) < SKIDOO_DRIVER_TARGET_ANGLE && targetDist < SKIDOO_DRIVER_WAIT_RANGE;
+        int  next = state;
+
+        switch (state) {
+            case STATE_WAIT :
+                if (mood != MOOD_SLEEP && !near)
+                    next = STATE_MOVING;
+                break;
+            case STATE_MOVING :
+                if (mood == MOOD_SLEEP || near)
+                    next = STATE_WAIT;
+                else if (a < -SKIDOO_DRIVER_MIN_TURN)
+                    next = STATE_START_LEFT;
+                else if (a > SKIDOO_DRIVER_MIN_TURN)
+                    next = STATE_START_RIGHT;
+                break;
+            case STATE_START_LEFT :
+            case STATE_LEFT :
+            case STATE_START_RIGHT :
+            case STATE_RIGHT : // the right turn falls back as the left one does (as in the original)
+                next = (a >= -SKIDOO_DRIVER_MIN_TURN) ? STATE_MOVING : STATE_LEFT;
+                break;
+        }
+
+        // both guns at once when Lara is ahead and in sight, a short burst
+        if (!burst && fabsf(targetAngle) < SKIDOO_DRIVER_TARGET_ANGLE && target->health > 0.0f && targetIsVisible(8 * 1024)) {
+            float damage = isRiding(target) ? SKIDOO_DRIVER_DAMAGE_RIDING : SKIDOO_DRIVER_DAMAGE;
+            doShot(damage, vec3(-235.0f, -71.0f, 550.0f - 180.0f), true);
+            doShot(damage, vec3( 219.0f, -71.0f, 550.0f - 180.0f), true);
+            burst = SKIDOO_DRIVER_BURST;
+        }
+        if (burst) {
+            game->playSound(SND_TR2_UZI_FIRE, pos, Sound::PAN);
+            burst--;
+        }
+
+        return next;
+    }
+
+    virtual void updatePosition() {
+        turn(false, (health > 0.0f && state != STATE_WAIT) ? SKIDOO_DRIVER_TURN : 0.0f);
+        Enemy::updatePosition();
+    }
+
+    // run over by it, Lara on foot dies
+    void runOver() {
+        Character *lara = (Character*)game->getLara(pos);
+        if (!lara || lara->health <= 0.0f || animation.getSpeed() <= 0.0f || isRiding(lara))
+            return;
+        Box box = getBoundingBoxLocal();
+        box.expand(vec3(100.0f, 0.0f, 100.0f)); // Lara's radius
+        vec3 p = (lara->pos - pos).rotateY(angle.y);
+        if (box.contains(p))
+            lara->hit(SKIDOO_DRIVER_RUN_OVER, this);
+    }
+
+    void engine() {
+        int x = int(pos.x), y = int(pos.y), z = int(pos.z);
+        int rotY = int(angle.y * (32768.0f / PI)), rotX = int(angle.x * (32768.0f / PI));
+        int speed = int(animation.getSpeed());
+        if (state == STATE_WAIT) {
+            game->playSound(SND_TR2_SKIDOO_IDLE, pos, Sound::PAN);
+        } else {
+            Snowmobile::throwSnow(this, x, y, z, rotY, rotX, speed);
+            Sound::Sample *s = game->playSound(SND_TR2_SKIDOO_MOVING, pos, Sound::PAN);
+            if (s) s->pitch = max(0.1f, 1.0f - (SKIDOO_MAX_SPEED - speed) * 100 / 65536.0f);
+        }
+    }
+
+    // his body stays where he fell, Lara can take the snowmobile
+    void leave() {
+        vec3 p = pos;
+        float a = angle.y;
+        int16 room = getRoomIndex();
+
+        flags.unused |= FLAG_LEFT;
+        animation.setModel(getModel());
+        animation.setAnim(ANIM_DEATH);
+        animation.goEnd(false);
+        if (riderDead) {
+            pos     = riderMatrix.getPos();
+            angle.y = atan2f(riderMatrix.dir().x, riderMatrix.dir().z);
+        }
+
+        Controller *skidoo = game->addEntity(TR::Entity::VEHICLE_SNOWMOBILE_BLACK, room, p, a);
+        if (skidoo)
+            skidoo->angle.x = skidoo->angle.z = 0.0f;
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Human::setSaveData(data);
+        rider.setAnim(0);
+        riderDead = false;
+        animation.setModel(getModel());
+        animation.setAnim(data.animIndex, -data.animFrame);
+        if (health <= 0.0f && !isLeft()) // saved rolling on with him dead, it's left where it was
+            leave();
+    }
+
+    virtual void update() {
+        if (isLeft())
+            return;
+
+        Human::update();
+
+        if (riderDead) {
+            rider.update();
+            if (rider.isEnded && animation.getSpeed() == 0.0f && stand == STAND_GROUND)
+                leave();
+            return;
+        }
+
+        if (rider.index != animation.index)
+            rider.setAnim(animation.index);
+        rider.time = animation.time;
+        rider.updateInfo();
+
+        if (flags.active && thinkTime < Core::deltaTime) { // once a step
+            runOver();
+            engine();
+        }
+    }
+
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {
+        Human::render(frustum, mesh, type, caustics);
+        if (isLeft())
+            return;
+
+        const TR::Model *model = Controller::getModel();
+        mat4 m = riderDead ? riderMatrix : getMatrix();
+        rider.getJoints(m, -1, true, riderBasis);
+        Core::mModel = m;
+        Core::setBasis(riderBasis, model->mCount);
+        mesh->renderModel(model->index, caustics);
+    }
+};
+
 #endif
