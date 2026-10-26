@@ -2446,7 +2446,7 @@ namespace TR {
         bool isEnemy() const {
             return (type >= ENEMY_DOPPELGANGER && type <= ENEMY_GIANT_MUTANT) || type == SCION_TARGET ||
                    (type >= ENEMY_DOG && type <= ENEMY_DRAGON_BACK) ||
-                   (type >= ENEMY_SHARK && type <= ENEMY_MONK_2);
+                   (type >= ENEMY_SHARK && type <= ENEMY_MONK_2 && type != VEHICLE_SNOWMOBILE_BLACK);
         }
 
         bool isBigEnemy() const {
