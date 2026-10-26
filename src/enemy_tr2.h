@@ -1326,6 +1326,18 @@ struct Mercenary : Human {
         return targetIsVisible(MERC_DIST_SHOT);
     }
 
+    // the first and second ones go for the nearest of Lara and the monks (the third ones for Lara only)
+    virtual Character* chooseTarget() {
+        Character *lara = (Character*)game->getLara(pos);
+        if (getEntity().type == TR::Entity::ENEMY_MERCENARY_3)
+            return lara;
+        static const TR::Entity::Type monks[] = { TR::Entity::ENEMY_MONK_1, TR::Entity::ENEMY_MONK_2 };
+        Character *monk = nearestOf(monks, COUNT(monks));
+        if (!monk || (lara->health > 0.0f && (lara->pos - pos).length2() < (monk->pos - pos).length2()))
+            return lara;
+        return monk;
+    }
+
     // the muzzle (-2, 150, 19) or (-1, 230, 9) of the gun mesh in the flash space
     bool fire(float damage) {
         return doShot(damage, rifle ? vec3(-1.0f, -9.0f, 50.0f) : vec3(-2.0f, -19.0f, -30.0f));

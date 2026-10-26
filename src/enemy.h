@@ -401,6 +401,39 @@ struct Enemy : Character {
         touchBits |= mask;
     }
 
+    // the one it goes for: Lara, or for the monks of Tibet and their foes the nearest of the other side (as in the original)
+    virtual Character* chooseTarget() {
+        return (Character*)game->getLara(pos);
+    }
+
+    // false for an ally at peace with Lara and with no enemy around (it wanders off then)
+    virtual bool hasEnemy() {
+        return true;
+    }
+
+    // the nearest active creature of the given types, NULL for none
+    Character* nearestOf(const TR::Entity::Type *types, int count) {
+        Character *best = NULL;
+        float bestDist = 0.0f;
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            bool match = false;
+            for (int j = 0; j < count; j++)
+                match |= e.type == types[j];
+            if (!match || !e.controller || e.controller == this)
+                continue;
+            Character *c = (Character*)e.controller;
+            if (!c->isActiveTarget())
+                continue;
+            float d = (c->pos - pos).length2();
+            if (!best || d < bestDist) {
+                best     = c;
+                bestDist = d;
+            }
+        }
+        return best;
+    }
+
     // the meshes touching Lara, also when she was pushed off them since (an attack tests these, as in the original)
     int touching() {
         return touchNow | collide(target);
@@ -465,7 +498,7 @@ struct Enemy : Character {
         int zoneOld = zone;
         updateZone();
 
-        target = (Character*)game->getLara(pos);
+        target = chooseTarget();
 
         bool tr2 = (level->version & TR::VER_TR2) != 0;
 
@@ -492,6 +525,12 @@ struct Enemy : Character {
         }
 
         mood = target->health <= 0 ? MOOD_SLEEP : (ai == AI_FIXED ? getMoodFixed() : getMoodRandom());
+
+        if (!hasEnemy()) { // an ally at peace with Lara and with no enemy around wanders off
+            mood         = MOOD_SLEEP;
+            targetInView = targetCanAttack = false;
+            targetDist   = 0x7FFFFFFF;
+        }
 
     // set behavior and target
         int box;
@@ -1009,7 +1048,7 @@ struct Human : Enemy {
             hit = targetDist < HUMAN_DIST_SHOT && randf() < ((HUMAN_DIST_SHOT - targetDist) / HUMAN_DIST_SHOT - 0.25f);
 
         if (hit) {
-            bite(-1, vec3(0.0f), damage);
+            bite(-1, vec3(0.0f), target->getEntity().isLara() ? damage : damage / 10.0f); // a creature takes a tenth
             game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), target->getJoint(rand() % target->getModel()->mCount).pos);
             game->playSound(target->stand == STAND_UNDERWATER ? TR::SND_HIT_UNDERWATER : TR::SND_HIT, target->pos, Sound::PAN);
             return true;
