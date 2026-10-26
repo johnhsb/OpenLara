@@ -960,6 +960,245 @@ struct Gunman2 : Human {
     }
 };
 
+// TR2 mercenaries of Tibet ("bandit_1", "bandit_2" and "bandit_2b" in the original): the first ones fire bursts
+// from their machine guns, the others single shots of their rifles, the third ones with the animations of the second
+#define MERC_1_DAMAGE       8               // a frame of a burst
+#define MERC_2_DAMAGE       50
+#define MERC_WALK_TURN      (DEG2RAD * 4 * 30)
+#define MERC_RUN_TURN       (DEG2RAD * 6 * 30)
+#define MERC_DIST_WALK      (1024 * 2)
+#define MERC_DIST_SHOT      (1024 * 8)
+
+struct Mercenary : Human {
+
+    enum { // the first ones
+        M1_STATE_EMPTY,
+        M1_STATE_WAIT,
+        M1_STATE_WALK,
+        M1_STATE_RUN,
+        M1_STATE_AIM_1,
+        M1_STATE_SHOOT_1,
+        M1_STATE_AIM_2,
+        M1_STATE_SHOOT_2,
+        M1_STATE_SHOOT_3A,
+        M1_STATE_SHOOT_3B,
+        M1_STATE_SHOOT_4A,
+        M1_STATE_AIM_3,
+        M1_STATE_AIM_4,
+        M1_STATE_DEATH,
+        M1_STATE_SHOOT_4B,
+    };
+
+    enum { // the second and third ones
+        M2_STATE_EMPTY,
+        M2_STATE_AIM_4,
+        M2_STATE_WAIT,
+        M2_STATE_WALK,
+        M2_STATE_RUN,
+        M2_STATE_AIM_1,
+        M2_STATE_AIM_2,
+        M2_STATE_SHOOT_1,
+        M2_STATE_SHOOT_2,
+        M2_STATE_SHOOT_4A,
+        M2_STATE_SHOOT_4B,
+        M2_STATE_DEATH,
+        M2_STATE_AIM_5,
+        M2_STATE_SHOOT_5,
+    };
+
+    bool rifle;     // the second and third ones
+    int  goal;      // a goal set at a shot, kept till the state changes
+
+    Mercenary(IGame *game, int entity) : Human(game, entity, 45), goal(-1) {
+        rifle      = getEntity().type != TR::Entity::ENEMY_MERCENARY_1;
+        jointChest = 7;
+        jointHead  = 9;
+        jointGun   = 17;
+        animDeath  = rifle ? 9 : 14;
+        if (rifle)
+            health = 50;
+
+        // the third ones have no animations of their own, they play the ones of the second (as in the original)
+        int index = level->getModelIndex(TR::Entity::ENEMY_MERCENARY_2);
+        if (getEntity().type == TR::Entity::ENEMY_MERCENARY_3 && index > 0) {
+            animation.setModel(&level->models[index - 1]);
+            animation.setAnim(0);
+        }
+    }
+
+    bool canShoot() {
+        return targetIsVisible(MERC_DIST_SHOT);
+    }
+
+    // the muzzle (-2, 150, 19) or (-1, 230, 9) of the gun mesh in the flash space
+    bool fire(float damage) {
+        return doShot(damage, rifle ? vec3(-1.0f, -9.0f, 50.0f) : vec3(-2.0f, -19.0f, -30.0f));
+    }
+
+    int getStateMachineGun() {
+        bool shoot = canShoot();
+
+        switch (state) {
+            case M1_STATE_WAIT :
+                if (mood == MOOD_ESCAPE)
+                    return M1_STATE_RUN;
+                if (shoot) {
+                    if (targetDist > MERC_DIST_WALK)
+                        return M1_STATE_WALK;
+                    int r = randControl();
+                    return r < 0x2000 ? M1_STATE_SHOOT_1 : (r < 0x4000 ? M1_STATE_SHOOT_2 : M1_STATE_AIM_3);
+                }
+                if (mood == MOOD_SLEEP)
+                    return targetInView ? M1_STATE_WAIT : M1_STATE_WALK;
+                return M1_STATE_RUN;
+            case M1_STATE_WALK :
+                if (mood == MOOD_ESCAPE)
+                    return M1_STATE_RUN;
+                if (shoot)
+                    return (targetDist > MERC_DIST_WALK && zone == targetZone()) ? M1_STATE_AIM_4 : M1_STATE_WAIT;
+                if (mood == MOOD_SLEEP)
+                    return targetInView ? M1_STATE_WALK : M1_STATE_WAIT;
+                return M1_STATE_RUN;
+            case M1_STATE_RUN :
+                if (mood == MOOD_ESCAPE)
+                    break;
+                if (shoot)
+                    return M1_STATE_WAIT;
+                if (mood == MOOD_SLEEP)
+                    return M1_STATE_WALK;
+                break;
+            case M1_STATE_SHOOT_1  :
+            case M1_STATE_SHOOT_2  :
+            case M1_STATE_SHOOT_3A :
+            case M1_STATE_SHOOT_3B : // a burst, a shot every frame
+                if (!shoot)
+                    return M1_STATE_WAIT;
+                fire(MERC_1_DAMAGE);
+                break;
+            case M1_STATE_SHOOT_4A :
+            case M1_STATE_SHOOT_4B :
+                if (shoot)
+                    fire(MERC_1_DAMAGE);
+                if (!shoot || targetDist < MERC_DIST_WALK)
+                    return M1_STATE_WALK;
+                break;
+        }
+        return state;
+    }
+
+    bool shooting() {
+        return state == M2_STATE_SHOOT_1 || state == M2_STATE_SHOOT_2 || state == M2_STATE_SHOOT_5 ||
+               state == M2_STATE_SHOOT_4A || state == M2_STATE_SHOOT_4B;
+    }
+
+    int getStateRifle() {
+        bool shoot = canShoot();
+
+        if (!shooting())
+            goal = -1;
+
+        switch (state) {
+            case M2_STATE_WAIT :
+                if (mood == MOOD_ESCAPE)
+                    return M2_STATE_RUN;
+                if (shoot) {
+                    if (targetDist > MERC_DIST_WALK && randControl() < 0x4000)
+                        return M2_STATE_WALK;
+                    int r = randControl();
+                    return r < 0x2000 ? M2_STATE_SHOOT_1 : (r < 0x5000 ? M2_STATE_SHOOT_2 : M2_STATE_AIM_5);
+                }
+                if (mood == MOOD_SLEEP)
+                    return (!targetInView || randControl() < 0x100) ? M2_STATE_WALK : state;
+                return M2_STATE_RUN;
+            case M2_STATE_WALK :
+                if (mood == MOOD_ESCAPE)
+                    return M2_STATE_RUN;
+                if (shoot)
+                    return (targetDist < MERC_DIST_WALK || zone == targetZone() || randControl() < 0x400) ? M2_STATE_WAIT : M2_STATE_AIM_4;
+                if (mood != MOOD_SLEEP)
+                    return M2_STATE_RUN;
+                if (targetInView && randControl() < 0x400)
+                    return M2_STATE_WAIT;
+                break;
+            case M2_STATE_RUN :
+                if (mood == MOOD_ESCAPE)
+                    break;
+                if (mood == MOOD_SLEEP || shoot)
+                    return M2_STATE_WAIT;
+                break;
+            case M2_STATE_AIM_1 :
+            case M2_STATE_AIM_2 :
+            case M2_STATE_AIM_4 :
+                flags.unused = 0;
+                break;
+            case M2_STATE_AIM_5 :
+                flags.unused = 0;
+                return shoot ? M2_STATE_SHOOT_5 : M2_STATE_WAIT;
+            case M2_STATE_SHOOT_1 :
+            case M2_STATE_SHOOT_2 :
+            case M2_STATE_SHOOT_5 : // a single shot
+                if (flags.unused == 0) {
+                    if (shoot)
+                        fire(MERC_2_DAMAGE);
+                    if (!shoot || randControl() < 0x2000)
+                        goal = M2_STATE_WAIT;
+                    flags.unused = 1;
+                }
+                break;
+            case M2_STATE_SHOOT_4A :
+            case M2_STATE_SHOOT_4B : { // walking, a shot each step
+                int step = state == M2_STATE_SHOOT_4A ? 1 : 2;
+                if (flags.unused != step) {
+                    if (shoot)
+                        fire(MERC_2_DAMAGE);
+                    else
+                        goal = M2_STATE_WALK;
+                    flags.unused = step;
+                }
+                if (targetDist < MERC_DIST_WALK)
+                    return M2_STATE_WALK;
+                break;
+            }
+        }
+        return goal != -1 ? goal : state;
+    }
+
+    virtual int getStateGround() {
+        if (!think(rifle))
+            return state;
+
+        return rifle ? getStateRifle() : getStateMachineGun();
+    }
+
+    virtual int getStateDeath() {
+        int death = rifle ? M2_STATE_DEATH : M1_STATE_DEATH;
+        if (state == death)
+            return state;
+        return animation.setAnim(animDeath);
+    }
+
+    virtual void updatePosition() {
+        if (health <= 0.0f) {
+            animation.overrideMask = 0;
+            return;
+        }
+
+        float w = 0.0f;
+        int walk = rifle ? M2_STATE_WALK : M1_STATE_WALK;
+        int run  = rifle ? M2_STATE_RUN  : M1_STATE_RUN;
+        if (state == run)
+            w = MERC_RUN_TURN;
+        else if (state == walk || (rifle ? (state == M2_STATE_AIM_4 || state == M2_STATE_SHOOT_4A || state == M2_STATE_SHOOT_4B)
+                                         : (state == M1_STATE_AIM_4 || state == M1_STATE_SHOOT_4A || state == M1_STATE_SHOOT_4B)))
+            w = MERC_WALK_TURN;
+        turn(state == run, w);
+
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
 // TR2 morays ("eel" and "big_eel" in the original): out of their hole along the way they face they lunge at Lara near
 // ahead, the small one turns to her, they draw back after a bite and slide out dead. Lara can't target them
 #define MORAY_MOVE          102.0f              // per frame
