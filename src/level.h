@@ -1383,6 +1383,8 @@ struct Level : IGame {
             case TR::Entity::TRAP_ICICLES           : return new TrapIcicle(this, index);
             case TR::Entity::ZIPLINE_HANDLE         : return new Zipline(this, index);
             case TR::Entity::VEHICLE_BOAT           : return new SpeedBoat(this, index);
+            case TR::Entity::VEHICLE_SNOWMOBILE_RED : return new Snowmobile(this, index);
+            case TR::Entity::VEHICLE_SNOWMOBILE_BLACK : return new Snowmobile(this, index);
             case TR::Entity::GONDOLA                : return new Gondola(this, index);
             case TR::Entity::TRAP_MINE              : return new TrapMine(this, index);
             case TR::Entity::SOUND_BIRD             :
@@ -1410,6 +1412,7 @@ struct Level : IGame {
             case TR::Entity::ELEVATOR               : return new Elevator(this, index);
             case TR::Entity::MINISUB                : return new GeneralObject(this, index);
             case TR::Entity::WAKE_BOAT              : return new BoatWake(this, index);
+            case TR::Entity::WAKE_SNOWMOBILE        : return new SnowSprite(this, index);
 
             default                                 : return new Controller(this, index);
         }

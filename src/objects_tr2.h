@@ -1331,6 +1331,616 @@ struct TrapMine : Controller {
     }
 };
 
+// the snow thrown up behind a snowmobile, it plays its frames once
+struct SnowSprite : Sprite {
+    int   speed, fallSpeed;
+    float stepTime;
+
+    SnowSprite(IGame *game, int entity) : Sprite(game, entity, true, 0), speed(0), fallSpeed(0), stepTime(0.0f) {}
+
+    virtual void update() {
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+
+            if (++frame >= getSequence().sCount) {
+                game->removeEntity(this);
+                return;
+            }
+
+            pos += vec3(sinf(angle.y), 0.0f, cosf(angle.y)) * float(speed);
+            if (fallSpeed) {
+                pos.y += fallSpeed;
+                fallSpeed += 6; // gravity
+            }
+        }
+    }
+};
+
+// TR2 snowmobile, Lara rides the red one, a mercenary drives the black one with the guns (Lara gets it once he's dead)
+
+#define SKIDOO_RADIUS           500
+#define SKIDOO_SIDE             260
+#define SKIDOO_FRONT            550
+#define SKIDOO_SNOW             500
+#define SKIDOO_GET_OFF_DIST     330
+#define SKIDOO_TARGET_DIST      2048
+#define SKIDOO_MIN_SPEED        15
+#define SKIDOO_MAX_SPEED        100
+#define SKIDOO_SLOW_SPEED       50
+#define SKIDOO_FAST_SPEED       150
+#define SKIDOO_ACCEL            10
+#define SKIDOO_SLOWDOWN         2
+#define SKIDOO_SLIP             100
+#define SKIDOO_SLIP_SIDE        50
+#define SKIDOO_MAX_BACK         (-30)
+#define SKIDOO_BRAKE            5
+#define SKIDOO_REVERSE          (-5)
+#define SKIDOO_UNDO_TURN        (182 * 2)
+#define SKIDOO_TURN             (182 / 2 + SKIDOO_UNDO_TURN)
+#define SKIDOO_MAX_TURN         (182 * 6)
+#define SKIDOO_MOMENTUM_TURN    (182 * 3)
+#define SKIDOO_MAX_MOMENTUM     (182 * 150)
+#define SKIDOO_MIN_BOUNCE       50
+#define SKIDOO_MAX_KICK         (-80)
+#define SKIDOO_GRAVITY          6
+#define SKIDOO_FATAL_FALL       (140 + 14) // the fall speed Lara can't survive (DAMAGE_START + DAMAGE_LENGTH)
+
+#define SND_TR2_SKIDOO_IDLE     153
+#define SND_TR2_SKIDOO_MOVING   155
+#define SND_TR2_CLATTER_1       201
+#define SND_TR2_CLATTER_2       202
+#define SND_TR2_CLATTER_3       203
+#define SND_TR2_UZI_FIRE        43
+
+struct Snowmobile : Vehicle {
+    // the states of Lara on it (LARA_SNOWMOBILE model)
+    enum {
+        STATE_SIT,
+        STATE_GET_ON,
+        STATE_LEFT,
+        STATE_RIGHT,
+        STATE_FALL,
+        STATE_HIT,
+        STATE_GET_ON_L,
+        STATE_GET_OFF_L,
+        STATE_STILL,
+        STATE_GET_OFF_R,
+        STATE_LET_GO,
+        STATE_DEATH,
+        STATE_FALLOFF,
+    };
+
+    // her animations, the snowmobile plays the same ones
+    enum {
+        ANIM_GET_ON_L = 1,
+        ANIM_FALL     = 8,
+        ANIM_DEAD     = 15,
+        ANIM_GET_ON_R = 18,
+        ANIM_COUNT    = 22, // Lara has one more (falling off dead)
+    };
+
+    enum { TRACK_1 = 1, TRACK_2 = 2, TRACK_GUN = 4 };
+    enum { FLAG_SPENT = 1, FLAG_DESTROYED = 2 };
+
+    int turn, leftFall, rightFall, momentum, extraRot, pitch;
+    int track;  // the moving track mesh shown (TRACK_1 or TRACK_2), TRACK_GUN for the armed one
+    int floor;  // the floor under it
+    int drive;  // the last step: 1 the engine pulls, 0 it idles, -1 Lara gets on or off
+    int goal;   // the state Lara goes to on it
+    Basis beltBasis[MAX_JOINTS]; // kept, the renderer holds on to the joints it is given
+
+    Snowmobile(IGame *game, int entity) : Vehicle(game, entity), track(0), goal(STATE_STILL) {
+        reset();
+        // the black one left by a mercenary has his guns, it plays the animations of the red one (as in the original)
+        if (getEntity().type == TR::Entity::VEHICLE_SNOWMOBILE_BLACK) {
+            track = TRACK_GUN;
+            initMeshOverrides();
+            animation.setModel(getModel());
+            animation.setAnim(0);
+        }
+    }
+
+    // the animations of the red one for both, the black one shows its own meshes (layer 0)
+    virtual const TR::Model* getModel() {
+        int index = level->getModelIndex(TR::Entity::VEHICLE_SNOWMOBILE_RED);
+        return index > 0 ? &level->models[index - 1] : Controller::getModel();
+    }
+
+    void reset() {
+        resetPos();
+        speed = fallSpeed = turn = leftFall = rightFall = extraRot = pitch = drive = 0;
+        momentum = rotY;
+        floor    = y;
+    }
+
+    bool isSpent() const {
+        return (flags.unused & FLAG_SPENT) != 0;
+    }
+
+    bool isDestroyed() const {
+        return (flags.unused & FLAG_DESTROYED) != 0;
+    }
+
+    bool isArmed() const {
+        return (track & TRACK_GUN) != 0;
+    }
+
+    virtual bool isCollider() {
+        return !isSpent() && !isDestroyed();
+    }
+
+    // the floor under a point of it, the point follows its pitch and roll
+    int testHeight(int zOff, int xOff, Pos &p) {
+        int s = tsin(rotY), c = tcos(rotY);
+        p.x = x + ((c * xOff + s * zOff) >> 14);
+        p.z = z + ((c * zOff - s * xOff) >> 14);
+        p.y = y + ((xOff * tsin(rotZ) - zOff * tsin(rotX)) >> 14);
+        int16 room = getRoomIndex();
+        return getHeight(room, p);
+    }
+
+    static int doDynamics(int height, int fall, int &py) {
+        if (height > py) {
+            py += fall;
+            if (py > height - SKIDOO_MIN_BOUNCE) {
+                py = height;
+                return 0;
+            }
+            return fall + SKIDOO_GRAVITY;
+        }
+        int kick = max(4 * (height - py), SKIDOO_MAX_KICK);
+        if (py > height) py = height;
+        return fall + ((kick - fall) >> 3);
+    }
+
+    // the enemies it runs over die, the avalanche hurts Lara
+    void runOver() {
+        for (int i = 0; i < level->entitiesCount; i++) {
+            TR::Entity &e = level->entities[i];
+            Controller *c = (Controller*)e.controller;
+            if (!c || c == this || c == driver || c->flags.invisible)
+                continue;
+
+            bool avalanche = e.type == TR::Entity::TRAP_BOULDERS;
+            if (!e.isEnemy() && !avalanche)
+                continue;
+
+            if (e.type == TR::Entity::ENEMY_MERCENARY_SNOWMOBILE) {
+                if (c->getModel()->type == TR::Entity::VEHICLE_SNOWMOBILE_BLACK) // still his snowmobile
+                    pushOff(c);
+                continue;
+            }
+
+            vec3 d = vec3(float(x), float(y), float(z)) - c->pos;
+            if (fabsf(d.x) > SKIDOO_TARGET_DIST || fabsf(d.y) > SKIDOO_TARGET_DIST || fabsf(d.z) > SKIDOO_TARGET_DIST)
+                continue;
+
+            Box box = c->getBoundingBoxLocal();
+            box.expand(vec3(SKIDOO_RADIUS, 0.0f, SKIDOO_RADIUS));
+            vec3 p = d.rotateY(c->angle.y);
+            if (p.x < box.min.x || p.x > box.max.x || p.z < box.min.z || p.z > box.max.z || p.y < box.min.y || p.y > box.max.y)
+                continue;
+
+            if (avalanche) {
+                if (driver && c->flags.active)
+                    driver->hit(100.0f, c);
+                continue;
+            }
+
+            Character *enemy = (Character*)c;
+            if (enemy->health <= 0.0f)
+                continue;
+            vec3 dir = vec3(tsin(rotY) / 16384.0f, 0.0f, tcos(rotY) / 16384.0f);
+            for (int j = 0; j < 3; j++)
+                enemy->addBlood(vec3(enemy->pos.x + randf() * 128.0f - 64.0f, float(y - 256) - randf() * 128.0f, enemy->pos.z + randf() * 128.0f - 64.0f), dir * float(speed));
+            enemy->hit(enemy->health + 1.0f, driver ? (Controller*)driver : (Controller*)this);
+        }
+    }
+
+    int dynamics() {
+        Pos flOld, frOld, blOld, brOld;
+        int hflOld = testHeight( SKIDOO_FRONT, -SKIDOO_SIDE, flOld);
+        int hfrOld = testHeight( SKIDOO_FRONT,  SKIDOO_SIDE, frOld);
+        int hblOld = testHeight(-SKIDOO_FRONT, -SKIDOO_SIDE, blOld);
+        int hbrOld = testHeight(-SKIDOO_FRONT,  SKIDOO_SIDE, brOld);
+        Pos old = { x, y, z };
+        blOld.y = min(blOld.y, hblOld);
+        brOld.y = min(brOld.y, hbrOld);
+        flOld.y = min(flOld.y, hflOld);
+        frOld.y = min(frOld.y, hfrOld);
+
+        if (y <= floor - 256) { // in the air it keeps going where it went
+            rotY += extraRot + turn;
+        } else {
+            if (turn < -SKIDOO_UNDO_TURN)
+                turn += SKIDOO_UNDO_TURN;
+            else if (turn > SKIDOO_UNDO_TURN)
+                turn -= SKIDOO_UNDO_TURN;
+            else
+                turn = 0;
+            rotY += turn + extraRot;
+
+            // it slides on, the way it goes comes round to where it faces
+            int16 rot = int16(rotY - momentum);
+            if (rot < -SKIDOO_MOMENTUM_TURN) {
+                if (rot < -SKIDOO_MAX_MOMENTUM)
+                    momentum = rotY + SKIDOO_MAX_MOMENTUM;
+                else
+                    momentum -= SKIDOO_MOMENTUM_TURN;
+            } else if (rot > SKIDOO_MOMENTUM_TURN) {
+                if (rot > SKIDOO_MAX_MOMENTUM)
+                    momentum = rotY - SKIDOO_MAX_MOMENTUM;
+                else
+                    momentum += SKIDOO_MOMENTUM_TURN;
+            } else
+                momentum = rotY;
+        }
+
+        x += (speed * tsin(momentum)) >> 14;
+        z += (speed * tcos(momentum)) >> 14;
+
+        int slip = (SKIDOO_SLIP * tsin(rotX)) >> 14;
+        if (abs(slip) > SKIDOO_SLIP / 2) {
+            x -= (slip * tsin(rotY)) >> 14;
+            z -= (slip * tcos(rotY)) >> 14;
+        }
+
+        slip = (SKIDOO_SLIP_SIDE * tsin(rotZ)) >> 14;
+        if (abs(slip) > SKIDOO_SLIP_SIDE / 2) {
+            x += (slip * tcos(rotY)) >> 14;
+            z -= (slip * tsin(rotY)) >> 14;
+        }
+
+        int movedX = x, movedZ = z;
+        if (!isSpent())
+            runOver();
+
+        int rot = 0;
+        Pos p;
+        if (testHeight(-SKIDOO_FRONT, -SKIDOO_SIDE, p) < blOld.y - 256) rot  = doShift(p, blOld);
+        if (testHeight(-SKIDOO_FRONT,  SKIDOO_SIDE, p) < brOld.y - 256) rot += doShift(p, brOld);
+        if (testHeight( SKIDOO_FRONT, -SKIDOO_SIDE, p) < flOld.y - 256) rot += doShift(p, flOld);
+        if (testHeight( SKIDOO_FRONT,  SKIDOO_SIDE, p) < frOld.y - 256) rot += doShift(p, frOld);
+
+        int16 room = getRoomIndex();
+        Pos cur = { x, y, z };
+        if (getHeight(room, cur) < y - 256)
+            doShift(cur, old);
+
+        extraRot = rot;
+
+        int hit = getCollisionAnim(movedX, movedZ);
+        if (hit) {
+            int dx = x - old.x, dz = z - old.z;
+            int newSpeed = (dx * tsin(momentum) + dz * tcos(momentum)) >> 14;
+
+            if (driver && speed > SKIDOO_MAX_SPEED + SKIDOO_ACCEL && newSpeed < speed - SKIDOO_ACCEL)
+                driver->hit(float((speed - newSpeed) / 2));
+
+            if (speed > 0 && newSpeed < speed)
+                speed = max(newSpeed, 0);
+            else if (speed < 0 && newSpeed > speed)
+                speed = min(newSpeed, 0);
+
+            if (speed < SKIDOO_MAX_BACK)
+                speed = SKIDOO_MAX_BACK;
+        }
+        return hit;
+    }
+
+    // returns true if the engine pulls
+    bool userControl(int input, int height, int &newPitch) {
+        if (y < height - 256) { // in the air the engine roars with the throttle
+            if (input & (Character::FORTH | Character::BACK)) {
+                newPitch = pitch + 50;
+                return true;
+            }
+            return false;
+        }
+
+        bool pull = false;
+        newPitch = speed + (height - y);
+
+        bool left  = (input & Character::LEFT)  != 0;
+        bool right = (input & Character::RIGHT) != 0;
+        bool back  = (input & Character::BACK)  != 0;
+
+        if ((left && !back) || (right && back))
+            turn = max(turn - SKIDOO_TURN, -SKIDOO_MAX_TURN);
+        if ((right && !back) || (left && back))
+            turn = min(turn + SKIDOO_TURN, SKIDOO_MAX_TURN);
+
+        if (back) {
+            if (speed > 0)
+                speed -= SKIDOO_BRAKE;
+            else {
+                if (speed > SKIDOO_MAX_BACK)
+                    speed += SKIDOO_REVERSE;
+                pull = true;
+            }
+        } else if (input & Character::FORTH) {
+            int maxSpeed;
+            if ((input & Character::ACTION) && !isArmed())
+                maxSpeed = SKIDOO_FAST_SPEED;
+            else if (input & Character::WALK)
+                maxSpeed = SKIDOO_SLOW_SPEED;
+            else
+                maxSpeed = SKIDOO_MAX_SPEED;
+
+            if (speed < maxSpeed)
+                speed += SKIDOO_ACCEL * speed / (2 * maxSpeed) + SKIDOO_ACCEL / 2;
+            else if (speed > maxSpeed + SKIDOO_SLOWDOWN)
+                speed -= SKIDOO_SLOWDOWN;
+            pull = true;
+        } else if (speed >= 0 && speed < SKIDOO_MIN_SPEED && (left || right)) {
+            speed = SKIDOO_MIN_SPEED;
+            pull = true;
+        } else if (speed > SKIDOO_SLOWDOWN) {
+            speed -= SKIDOO_SLOWDOWN;
+            if ((rand() & 0x7F) < speed)
+                pull = true;
+        } else
+            speed = 0;
+
+        return pull;
+    }
+
+    // Lara can get off to that side: a flat floor near hers with the room to stand
+    bool canGetOff(bool left) {
+        int rot = rotY + (left ? 0x4000 : -0x4000);
+        vec3 p = vec3(float(x - ((SKIDOO_GET_OFF_DIST * tsin(rot)) >> 14)), float(y), float(z - ((SKIDOO_GET_OFF_DIST * tcos(rot)) >> 14)));
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), p, info);
+        if (info.floor == TR::NO_FLOOR * 256.0f || abs(info.slantX) > 2 || abs(info.slantZ) > 2 || (info.slantX && info.slantZ))
+            return false;
+        if (fabsf(info.floor - y) > 512.0f)
+            return false;
+        if (info.ceiling - y > -762.0f || info.floor - info.ceiling < 762.0f)
+            return false;
+        return true;
+    }
+
+    void playEngine(bool pulling) {
+        if (pulling) {
+            Sound::stop(SND_TR2_SKIDOO_IDLE);
+            Sound::Sample *s = game->playSound(SND_TR2_SKIDOO_MOVING, pos, Sound::PAN | Sound::UNIQUE);
+            if (s) s->pitch = max(0.1f, 1.0f - (SKIDOO_MAX_SPEED - pitch) * 100 / 65536.0f);
+        } else {
+            Sound::stop(SND_TR2_SKIDOO_MOVING);
+            game->playSound(SND_TR2_SKIDOO_IDLE, pos, Sound::PAN | Sound::UNIQUE);
+        }
+    }
+
+    void stopSounds() {
+        Sound::stop(SND_TR2_SKIDOO_IDLE);
+        Sound::stop(SND_TR2_SKIDOO_MOVING);
+    }
+
+    // a puff of snow behind a snowmobile (the mercenaries' ones too)
+    static void throwSnow(Controller *owner, int x, int y, int z, int rotY, int rotX, int speed) {
+        if (owner->level->getModelIndex(TR::Entity::WAKE_SNOWMOBILE) >= 0)
+            return;
+        int side = (SKIDOO_SIDE * ((rand() & 0x7FFF) - 0x4000)) >> 14;
+        int s = tsin(rotY), c = tcos(rotY);
+        vec3 p = vec3(float(x + ((c * side - s * SKIDOO_SNOW) >> 14)),
+                      float(y + ((tsin(rotX) * SKIDOO_SNOW) >> 14)),
+                      float(z + ((-c * SKIDOO_SNOW - s * side) >> 14)));
+        SnowSprite *snow = (SnowSprite*)owner->game->addEntity(TR::Entity::WAKE_SNOWMOBILE, owner->getRoomIndex(), p, 0.0f);
+        if (!snow)
+            return;
+        snow->frame = 0;
+        snow->fallSpeed = speed < 64 ? (((rand() & 0x7FFF) * (abs(speed) - 64)) >> 15) : 0;
+    }
+
+    void doSnow() {
+        throwSnow(this, x, y, z, rotY, rotX, speed);
+    }
+
+    // a mercenary's snowmobile isn't run over, it shoves this one off its side
+    void pushOff(Controller *c) {
+        Box box = c->getBoundingBoxLocal();
+        float r = float(SKIDOO_RADIUS);
+        vec3 p = (vec3(float(x), float(y), float(z)) - c->pos).rotateY(c->angle.y);
+        float minX = box.min.x - r, maxX = box.max.x + r, minZ = box.min.z - r, maxZ = box.max.z + r;
+        if (p.x < minX || p.x > maxX || p.z < minZ || p.z > maxZ)
+            return;
+
+        float left = p.x - minX, right = maxX - p.x, front = maxZ - p.z, back = p.z - minZ;
+        if (left <= right && left <= front && left <= back)
+            p.x -= left;
+        else if (right <= left && right <= front && right <= back)
+            p.x += right;
+        else if (front <= left && front <= right && front <= back)
+            p.z += front;
+        else
+            p.z -= back;
+
+        p = c->pos + p.rotateY(-c->angle.y);
+        x = int(p.x);
+        z = int(p.z);
+    }
+
+    virtual void step() {
+        int hit = dynamics();
+
+        Pos fl, fr;
+        int hfl = testHeight(SKIDOO_FRONT, -SKIDOO_SIDE, fl);
+        int hfr = testHeight(SKIDOO_FRONT,  SKIDOO_SIDE, fr);
+        int16 room = getRoomIndex();
+        Pos cur = { x, y, z };
+        int height = getHeight(room, cur);
+
+        int s = driver ? driver->animation.state : STATE_STILL;
+        bool dead = driver && (driver->health <= 0.0f || s == STATE_LET_GO);
+        if (driver && s == STATE_LET_GO)
+            hit = 0;
+
+        int newPitch = 0;
+        int oldTrack = track;
+        if (isSpent() || !driver) {
+            drive = 0;
+            hit   = 0;
+        } else if (!control) {
+            drive = -1;
+            hit   = 0;
+        } else
+            drive = userControl(driver->health > 0.0f ? driver->input : 0, height, newPitch) ? 1 : 0;
+
+        if (drive > 0) {
+            track = (track & 3) == TRACK_1 ? TRACK_2 : TRACK_1;
+            pitch += (newPitch - pitch) >> 2;
+        } else {
+            track = 0;
+            pitch = 0;
+        }
+        track |= oldTrack & TRACK_GUN;
+
+        if (driver && !isSpent()) {
+            if (drive >= 0)
+                playEngine(drive > 0);
+        } else
+            stopSounds();
+
+        floor = height;
+        leftFall  = doDynamics(hfl, leftFall,  fl.y);
+        rightFall = doDynamics(hfr, rightFall, fr.y);
+        fallSpeed = doDynamics(height, fallSpeed, y);
+
+        height = (fr.y + fl.y) / 2;
+        int xr = tatan(SKIDOO_FRONT, y - height);
+        int zr = tatan(SKIDOO_SIDE, height - fl.y);
+        rotX += (int16(xr - rotX)) >> 1;
+        rotZ += (int16(zr - rotZ)) >> 1;
+
+        room = getRoomIndex();
+        level->getSector(room, vec3(float(x), float(y - 16), float(z)));
+        roomIndex = room;
+
+        collide = dead ? 0 : hit;
+
+        if (isSpent()) { // left alone in the air it crashes where it lands
+            game->checkTrigger(this, true);
+            if (y == floor)
+                destroy();
+            return;
+        }
+
+        if (speed && y == floor) {
+            doSnow();
+            if (speed < SKIDOO_SLOW_SPEED)
+                doSnow();
+        }
+    }
+
+    // Lara gets on, it runs from now on
+    void mount(Character *lara) {
+        driver  = lara;
+        control = false;
+        goal    = STATE_STILL;
+        activate();
+    }
+
+    void dismount() {
+        driver  = NULL;
+        control = false;
+        speed   = 0;
+        stopSounds();
+        animation.setAnim(0);
+        drive = 0;
+        track &= TRACK_GUN;
+    }
+
+    // Lara let go of it in the air, it falls on by itself
+    void letGo() {
+        driver  = NULL;
+        control = false;
+        flags.unused |= FLAG_SPENT;
+        stopSounds();
+        activate();
+    }
+
+    // it blows up (it landed after Lara let go of it, or with her on it)
+    void destroy() {
+        if (isDestroyed())
+            return;
+        flags.unused |= FLAG_DESTROYED;
+        stopSounds();
+        speed = 0;
+        game->addEntity(TR::Entity::EXPLOSION, getRoomIndex(), pos);
+        game->playSound(SND_TR2_EXPLOSION_1, pos, Sound::PAN);
+        explode(~3, 0.0f); // all but the body and the track fly off, the rest is gone
+        layers[0].mask = 0;
+        activate();
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Controller::setSaveData(data);
+        driver  = NULL;
+        control = false;
+        reset();
+        animation.setAnim(0);
+        if (isDestroyed())
+            flags.invisible = true;
+    }
+
+    // plays the animation Lara has on it
+    void syncAnim(int index, int frame) {
+        if (index >= 0 && index < ANIM_COUNT)
+            animation.setAnim(index, -frame);
+    }
+
+    virtual bool explodeFx() {
+        return false;
+    }
+
+    virtual void update() {
+        if (isDestroyed()) {
+            updateExplosion();
+            if (!explodeMask) {
+                flags.invisible = true;
+                deactivate(true);
+            }
+            return;
+        }
+
+        if (!driver && !isSpent()) {
+            deactivate();
+            return;
+        }
+
+        updateSteps();
+        updateLights();
+    }
+
+    // the moving track is a mesh of SNOWMOBILE_BELT put in place of the still one (joint 1)
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {
+        int beltIndex = level->getModelIndex(TR::Entity::SNOWMOBILE_BELT);
+        int part = (track & 3) == TRACK_1 ? 1 : ((track & 3) == TRACK_2 ? 7 : 0);
+        if (!part || beltIndex <= 0 || explodeMask || isDestroyed()) {
+            Controller::render(frustum, mesh, type, caustics);
+            return;
+        }
+
+        uint32 mask = visibleMask;
+        visibleMask &= ~2;
+        flags.rendered = false;
+        Controller::render(frustum, mesh, type, caustics);
+        visibleMask = mask;
+        if (!flags.rendered)
+            return;
+
+        const TR::Model &belt = level->models[beltIndex - 1];
+        for (int i = 0; i < belt.mCount; i++) {
+            beltBasis[i]   = joints[1];
+            beltBasis[i].w = (i == part) ? 1.0f : 0.0f;
+        }
+        Core::setBasis(beltBasis, belt.mCount);
+        mesh->renderModel(beltIndex - 1, caustics);
+    }
+};
+
 #define SND_TR2_DOOR_CHIME      208
 #define SND_TR2_BIRDS_CHIRP     316
 #define SND_TR2_DRIPS_REVERB    329

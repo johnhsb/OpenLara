@@ -403,6 +403,8 @@ struct Lara : Character {
     KeyHole           *keyHole;
     Zipline           *zipline;
     SpeedBoat         *boat;
+    Snowmobile        *skidoo;
+    float             skidooGunTime;
     DetonatorBox      *detonator;
     Switch            *airlock;     // the wheel Lara turns
     bool              startAnim;    // the level starts with the special animation
@@ -610,6 +612,8 @@ struct Lara : Character {
 
         zipline      = NULL;
         boat         = NULL;
+        skidoo       = NULL;
+        skidooGunTime = 0.0f;
         itemHolster  = TR::Entity::NONE;
         hitTimer     = 0.0f;
 
@@ -812,7 +816,7 @@ struct Lara : Character {
             return false;
 
         Character::getSaveData(data);
-        if (boat || extraAnim) { // the boat ride and the special animations aren't saved
+        if (boat || skidoo || extraAnim) { // the vehicle rides and the special animations aren't saved
             data.animIndex = ANIM_STAND;
             data.animFrame = 0;
         }
@@ -860,6 +864,14 @@ struct Lara : Character {
         if (boat) {
             boat->dismount();
             boat = NULL;
+            animation.setModel(getModel());
+            animation.setAnim(data.animIndex, -data.animFrame);
+        }
+
+        // nor the snowmobile ride
+        if (skidoo) {
+            skidoo->dismount();
+            skidoo = NULL;
             animation.setModel(getModel());
             animation.setAnim(data.animIndex, -data.animFrame);
         }
@@ -926,6 +938,7 @@ struct Lara : Character {
         keyItem = NULL;
         zipline = NULL;
         boat    = NULL;
+        skidoo  = NULL;
         detonator = NULL;
         airlock   = NULL;
         if (extraAnim) {
@@ -3455,7 +3468,7 @@ struct Lara : Character {
 
     // a springboard throws her up as from a fall start, on she goes with the speed she had (as in the original)
     virtual bool spring() {
-        if (boat)
+        if (boat || skidoo)
             return false;
         velocity.y = -240.0f;
         stand = STAND_AIR;
@@ -3684,6 +3697,268 @@ struct Lara : Character {
 
         if (jumpEnd)
             dismountBoat();
+    }
+
+// TR2 snowmobile
+    #define ANIM_FREE_FALL      23
+    #define SKIDOO_GUN_DIST     (8.0f * 1024.0f)
+    #define SKIDOO_GUN_ANGLE    (30.0f * DEG2RAD)
+    #define SKIDOO_GUN_HEIGHT   400
+    #define SKIDOO_GUN_DAMAGE   3.0f
+
+    // which side Lara gets on the snowmobile from (0 - she doesn't), as in the original
+    int skidooGetOn(Snowmobile *s) {
+        if (!(input & ACTION) || !emptyHands() || health <= 0.0f || s->driver || !s->isCollider())
+            return 0;
+        if (stand != STAND_GROUND && stand != STAND_WADE)
+            return 0;
+
+        TR::Level::FloorInfo info;
+        getFloorInfo(s->getRoomIndex(), s->pos, info);
+        if (info.floor == TR::NO_FLOOR * 256.0f)
+            return 0;
+
+        float rot = shortAngle(angle.y, s->angle.y); // snowmobile - Lara
+        if (rot > PI * 0.25f && rot < PI * 0.75f)
+            return Snowmobile::ANIM_GET_ON_L;
+        if (rot < -PI * 0.25f && rot > -PI * 0.75f)
+            return Snowmobile::ANIM_GET_ON_R;
+        return 0;
+    }
+
+    void mountSkidoo(Snowmobile *s, int anim) {
+        const TR::Model *model = getLaraModel(TR::Entity::LARA_SNOWMOBILE);
+        if (!model) return;
+
+        skidoo = s;
+        skidoo->mount(this);
+
+        animation.setModel(model);
+        animation.setAnim(anim);
+
+        pos       = skidoo->pos;
+        angle     = vec3(0.0f, skidoo->angle.y, 0.0f);
+        roomIndex = skidoo->getRoomIndex();
+        velocity  = vec3(0.0f);
+        speed     = 0.0f;
+        stand     = STAND_GROUND;
+        hitDir    = -1;
+    }
+
+    // she's back on her feet beside it
+    void dismountSkidoo() {
+        int s = animation.state;
+        angle.y += (s == Snowmobile::STATE_GET_OFF_L) ? PI * 0.5f : -PI * 0.5f;
+        angle.x = angle.z = 0.0f;
+        pos -= vec3(sinf(angle.y), 0.0f, cosf(angle.y)) * float(SKIDOO_GET_OFF_DIST);
+
+        skidoo->dismount();
+        skidoo = NULL;
+
+        animation.setModel(getModel());
+        animation.setAnim(ANIM_STAND);
+        stand    = STAND_GROUND;
+        velocity = vec3(0.0f);
+        speed    = 0.0f;
+        updateRoom();
+    }
+
+    // she let go of it falling too fast: down she goes on her own, it crashes where it lands
+    void letGoSkidoo() {
+        Snowmobile *s = skidoo;
+        skidoo = NULL;
+
+        animation.setModel(getModel());
+        animation.setAnim(ANIM_FREE_FALL);
+        stand    = STAND_AIR;
+        angle.x  = angle.z = 0.0f;
+        angleExt = s->angle.y;
+
+        if (s->y == s->floor) { // it's down already, so is she, and that's her end
+            velocity = vec3(0.0f, float(SKIDOO_FATAL_FALL), 0.0f);
+            s->driver = NULL;
+            s->destroy();
+        } else {
+            pos.y   -= 200.0f;
+            velocity = vec3(sinf(s->angle.y), 0.0f, cosf(s->angle.y)) * float(s->speed);
+            velocity.y = float(s->fallSpeed);
+            s->letGo();
+        }
+    }
+
+    // the nearest enemy alive within 30 degrees ahead of the snowmobile and in sight
+    Controller* skidooTarget() {
+        Controller *best = NULL;
+        float bestDist = SKIDOO_GUN_DIST;
+        for (Controller *c = Controller::first; c; c = c->next) {
+            if (!c->getEntity().isEnemy() || ((Character*)c)->health <= 0.0f)
+                continue;
+            vec3  d    = c->pos - pos;
+            float dist = sqrtf(SQR(d.x) + SQR(d.z));
+            if (dist >= bestDist || fabsf(clampAngle(atan2f(d.x, d.z) - skidoo->angle.y)) > SKIDOO_GUN_ANGLE)
+                continue;
+            TR::Location from, to;
+            from.room = getRoomIndex();
+            from.pos  = pos - vec3(0.0f, float(SKIDOO_GUN_HEIGHT), 0.0f);
+            to.pos    = c->getBoundingBox().center();
+            if (!trace(from, to))
+                continue;
+            best     = c;
+            bestDist = dist;
+        }
+        return best;
+    }
+
+    // both guns of the black snowmobile at once
+    void skidooFire() {
+        static const vec3 guns[2] = { vec3(219.0f, -71.0f, 550.0f), vec3(-235.0f, -71.0f, 550.0f) };
+        Controller *target = skidooTarget();
+
+        for (int i = 0; i < 2; i++) {
+            vec3 p = skidoo->getJoint(0) * guns[i];
+            vec3 d = target ? (target->getBoundingBox().center() - p).normal() : skidoo->getDir();
+            vec3 t = p + d * (24.0f * 1024.0f) + ((vec3(randf(), randf(), randf()) * 2.0f) - vec3(1.0f)) * 1024.0f;
+
+            game->addMuzzleFlash(skidoo, 0, guns[i] - vec3(0.0f, 0.0f, 180.0f), 1 + camera->cameraIndex, true);
+
+            int room;
+            vec3 hit = trace(getRoomIndex(), p, t, room, false);
+            if (target && checkHit(target, p, hit, hit)) {
+                ((Character*)target)->hit(SKIDOO_GUN_DAMAGE, this);
+                game->addEntity(TR::Entity::BLOOD, room, hit - d * 64.0f);
+            } else
+                game->addEntity(TR::Entity::RICOCHET, room, hit - d * 64.0f);
+        }
+        game->playSound(SND_TR2_UZI_FIRE, pos, Sound::PAN);
+    }
+
+    // they fire every step with action held (as in the original)
+    void skidooGuns() {
+        skidooGunTime += Core::deltaTime;
+        while (skidooGunTime >= 1.0f / 30.0f) {
+            skidooGunTime -= 1.0f / 30.0f;
+            if (input & ACTION)
+                skidooFire();
+        }
+    }
+
+    // Lara on the snowmobile: it moves, she plays her animations on it
+    void updateSkidoo() {
+        lastInput = input;
+        input = getInput();
+
+        Snowmobile *sk = skidoo;
+        int s = animation.state;
+        bool mounting = animation.index == Snowmobile::ANIM_GET_ON_L || animation.index == Snowmobile::ANIM_GET_ON_R;
+        bool dead = health <= 0.0f || s == Snowmobile::STATE_LET_GO;
+
+        sk->control = !mounting && s != Snowmobile::STATE_GET_OFF_L && s != Snowmobile::STATE_GET_OFF_R && s != Snowmobile::STATE_LET_GO;
+
+        if (sk->y != sk->floor && sk->fallSpeed > 0 && s != Snowmobile::STATE_FALL && !dead) {
+            animation.setAnim(Snowmobile::ANIM_FALL);
+            sk->goal = Snowmobile::STATE_FALL;
+        } else if (sk->collide && !dead && s != Snowmobile::STATE_FALL) {
+            if (s != Snowmobile::STATE_HIT) {
+                game->playSound(sk->collide == Vehicle::ANIM_HIT_FRONT ? SND_TR2_CLATTER_2 : SND_TR2_CLATTER_1, sk->pos, Sound::PAN);
+                animation.setAnim(sk->collide);
+                sk->goal = Snowmobile::STATE_HIT;
+            }
+            sk->collide = 0;
+        } else {
+            int &goal = sk->goal;
+            switch (s) {
+                case Snowmobile::STATE_SIT :
+                    if (sk->speed == 0)
+                        goal = Snowmobile::STATE_STILL;
+                    if (dead)
+                        goal = Snowmobile::STATE_FALLOFF;
+                    else if (input & LEFT)
+                        goal = Snowmobile::STATE_LEFT;
+                    else if (input & RIGHT)
+                        goal = Snowmobile::STATE_RIGHT;
+                    break;
+                case Snowmobile::STATE_LEFT :
+                    if (!(input & LEFT))
+                        goal = Snowmobile::STATE_SIT;
+                    break;
+                case Snowmobile::STATE_RIGHT :
+                    if (!(input & RIGHT))
+                        goal = Snowmobile::STATE_SIT;
+                    break;
+                case Snowmobile::STATE_FALL :
+                    if (sk->fallSpeed <= 0 || sk->leftFall <= 0 || sk->rightFall <= 0) {
+                        if (goal != Snowmobile::STATE_SIT)
+                            game->playSound(SND_TR2_CLATTER_3, sk->pos, Sound::PAN);
+                        goal = Snowmobile::STATE_SIT;
+                    } else if (sk->fallSpeed > SKIDOO_FATAL_FALL)
+                        goal = Snowmobile::STATE_LET_GO;
+                    break;
+                case Snowmobile::STATE_STILL :
+                    if (dead) {
+                        goal = Snowmobile::STATE_DEATH;
+                        break;
+                    }
+                    goal = Snowmobile::STATE_STILL;
+                    if (input & JUMP) {
+                        if ((input & RIGHT) && sk->canGetOff(false)) {
+                            goal = Snowmobile::STATE_GET_OFF_R;
+                            sk->speed = 0;
+                            sk->control = false; // no more steering this step
+                        } else if ((input & LEFT) && sk->canGetOff(true)) {
+                            goal = Snowmobile::STATE_GET_OFF_L;
+                            sk->speed = 0;
+                            sk->control = false; // no more steering this step
+                        }
+                    } else if (input & LEFT)
+                        goal = Snowmobile::STATE_LEFT;
+                    else if (input & RIGHT)
+                        goal = Snowmobile::STATE_RIGHT;
+                    else if (input & (BACK | FORTH))
+                        goal = Snowmobile::STATE_SIT;
+                    break;
+                default : ;
+            }
+            animation.setState(goal);
+        }
+
+        s = animation.state;
+        bool lastFrame = animation.frameIndex >= animation.framesCount - 1;
+        bool getOff = (s == Snowmobile::STATE_GET_OFF_L || s == Snowmobile::STATE_GET_OFF_R) && lastFrame;
+        bool letGo  = s == Snowmobile::STATE_LET_GO && (sk->y == sk->floor || lastFrame);
+
+        Controller::updateAnimation(true);
+
+        if (animation.state == Snowmobile::STATE_FALLOFF) {
+            angle.x = angle.z = 0.0f;
+        } else {
+            pos       = sk->pos;
+            roomIndex = sk->getRoomIndex();
+            if (sk->drive >= 0)
+                angle = sk->angle;
+            else
+                angle = vec3(0.0f, sk->angle.y, 0.0f);
+        }
+        velocity = vec3(0.0f);
+
+        if (!dead && sk->drive >= 0 && sk->isArmed())
+            skidooGuns();
+
+        if (dead)
+            sk->animation.setAnim(Snowmobile::ANIM_DEAD);
+        else
+            sk->syncAnim(animation.index, animation.frameIndex);
+
+        checkTrigger(this, false);
+        game->checkTrigger(sk, true);
+        updateLights();
+
+        if (camera->mode == ICamera::MODE_FOLLOW)
+            camera->setAngle(-20, 0);
+
+        if (getOff)
+            dismountSkidoo();
+        else if (letGo)
+            letGoSkidoo();
     }
 
     Zipline* getZipline() {
@@ -5025,6 +5300,8 @@ struct Lara : Character {
 
             if (boat)
                 updateBoat();
+            else if (skidoo)
+                updateSkidoo();
             else if (extraAnim)
                 updateExtra();
             else
@@ -5391,6 +5668,14 @@ struct Lara : Character {
                 continue; // an enemy behind a closed door neither touches nor pushes her
 
             controller->touchedBy(controller->collide(this, false));
+
+            if ((e.type == TR::Entity::VEHICLE_SNOWMOBILE_RED || e.type == TR::Entity::VEHICLE_SNOWMOBILE_BLACK) && !skidoo && !boat) {
+                int anim = skidooGetOn((Snowmobile*)controller);
+                if (anim) {
+                    mountSkidoo((Snowmobile*)controller, anim);
+                    return false;
+                }
+            }
 
             if (e.type == TR::Entity::VEHICLE_BOAT && !boat) {
                 int getOn = boatGetOn((SpeedBoat*)controller);

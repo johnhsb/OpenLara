@@ -2567,7 +2567,7 @@ namespace TR {
             return type == EXPLOSION || type == WATER_SPLASH || type == BUBBLE || 
                    type == BLOOD || type == SMOKE || type == FLAME || 
                    type == RICOCHET || type == SPARKLES || type == LAVA_PARTICLE ||
-                   type == WAKE_BOAT || type == FLAME_STREAM;
+                   type == WAKE_BOAT || type == WAKE_SNOWMOBILE || type == FLAME_STREAM;
         }
 
         bool castShadow() const {
