@@ -84,7 +84,7 @@ struct SaveState {
     ByteFlags tracks[MAX_TRACKS_COUNT];
 
     union {
-        struct { uint32 track:8, flipped:1; };
+        struct { uint32 track:8, flipped:1, alliesHostile:1; }; // the monks of Tibet turned on Lara
         uint32 value;
     } flags;
 };

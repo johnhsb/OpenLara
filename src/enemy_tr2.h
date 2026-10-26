@@ -1507,6 +1507,185 @@ struct Mercenary : Human {
     }
 };
 
+// TR2 monks of the Barkhang Monastery ("monk_1" and "monk_2" in the original): allies of Lara, they fight the
+// mercenaries with their staffs and leave her alone as long as she aims at none of them, they all turn on her once she
+// hurts one of them badly (more than 10 in all), kills one or hurts one with no foe around (as in the original)
+#define MONK_DAMAGE         150
+#define MONK_ENEMY_DAMAGE   5               // a blow at a mercenary
+#define MONK_HIT_MASK       0x4000
+#define MONK_WALK_TURN      (DEG2RAD * 3 * 30)
+#define MONK_RUN_TURN       (DEG2RAD * 4 * 30)
+#define MONK_RUN_TURN_FAST  (DEG2RAD * 5 * 30)
+#define MONK_DIST_CLOSE     512
+#define MONK_DIST_LONG      1024
+#define MONK_DIST_ATTACK_5  (1024 * 3)
+#define MONK_DIST_WALK      (1024 * 2)
+#define MONK_DIST_HIT       512
+#define MONK_FRIENDLY_FIRE  10.0f
+#define SND_TR2_MONK_CRUNCH 245
+
+struct Monk : Enemy {
+
+    enum {
+        ANIM_DEATH = 20,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_WAIT_1,
+        STATE_WALK,
+        STATE_RUN,
+        STATE_ATTACK_1,
+        STATE_ATTACK_2,
+        STATE_ATTACK_3,
+        STATE_ATTACK_4,
+        STATE_AIM_3,
+        STATE_DEATH,
+        STATE_ATTACK_5,
+        STATE_WAIT_2,
+    };
+
+    float maxTurn;
+    float laraDamage; // the damage Lara did it while the monks were at peace with her
+
+    Monk(IGame *game, int entity) : Enemy(game, entity, 30, 102, 0.0f, 1.0f), maxTurn(0.0f), laraDamage(0.0f) {
+        jointChest = -1;
+        jointHead  = 7;
+    }
+
+    bool isHostile() {
+        return level->state.flags.alliesHostile != 0;
+    }
+
+    // the nearest mercenary of the first or second kind, or Lara once the monks turned on her if she is nearer
+    virtual Character* chooseTarget() {
+        static const TR::Entity::Type foes[] = { TR::Entity::ENEMY_MERCENARY_1, TR::Entity::ENEMY_MERCENARY_2 };
+        Character *lara = (Character*)game->getLara(pos);
+        Character *foe  = nearestOf(foes, COUNT(foes));
+        if (!foe || (isHostile() && lara->health > 0.0f && (lara->pos - pos).length2() < (foe->pos - pos).length2()))
+            return lara;
+        return foe;
+    }
+
+    virtual bool hasEnemy() {
+        return !target->getEntity().isLara() || isHostile();
+    }
+
+    virtual void hit(float damage, Controller *enemy = NULL, TR::HitType hitType = TR::HIT_DEFAULT) {
+        if (enemy && enemy->getEntity().isLara() && !isHostile() && damage > 0.0f) {
+            laraDamage += damage;
+            if (health <= damage || laraDamage > MONK_FRIENDLY_FIRE || mood == MOOD_SLEEP)
+                level->state.flags.alliesHostile = 1;
+        }
+        Enemy::hit(damage, enemy, hitType);
+    }
+
+    // a blow of the staff: at Lara as the other creatures bite her, at a mercenary when it is near
+    void blow() {
+        if (flags.unused)
+            return;
+        if (target->getEntity().isLara()) {
+            if (!isHostile() || !(touching() & MONK_HIT_MASK))
+                return;
+            target->hit(MONK_DAMAGE, this);
+            game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(14) * vec3(-23.0f, 16.0f, 265.0f));
+        } else {
+            vec3 d = target->pos - pos;
+            if (fabsf(d.x) >= MONK_DIST_HIT || fabsf(d.y) >= MONK_DIST_HIT || fabsf(d.z) >= MONK_DIST_HIT)
+                return;
+            target->hit(MONK_ENEMY_DAMAGE, this);
+        }
+        game->playSound(SND_TR2_MONK_CRUNCH, pos, Sound::PAN);
+        flags.unused = 1;
+    }
+
+    virtual int getStateGround() {
+        if (!think(true))
+            return state;
+
+        bool ahead = targetInView;
+        bool bored = mood == MOOD_SLEEP;
+        // a monk Lara aims at while at peace with her stands still
+        Character *lara = (Character*)game->getLara(pos);
+        bool aimedAt = !isHostile() && lara->viewTarget == this;
+
+        switch (state) {
+            case STATE_WAIT_1 :
+                flags.unused = 0;
+                if (aimedAt && ahead) break;
+                if (bored)                 return STATE_WALK;
+                if (mood == MOOD_ESCAPE)   return STATE_RUN;
+                if (ahead && targetDist < MONK_DIST_CLOSE)
+                    return randControl() < 0x7000 ? STATE_ATTACK_1 : STATE_WAIT_2;
+                if (!ahead)                return STATE_RUN;
+                if (targetDist < MONK_DIST_LONG) return STATE_ATTACK_4;
+                if (targetDist < MONK_DIST_WALK) return STATE_WALK;
+                return STATE_RUN;
+            case STATE_WAIT_2 :
+                flags.unused = 0;
+                if (aimedAt && ahead) break;
+                if (bored)                 return STATE_WALK;
+                if (mood == MOOD_ESCAPE)   return STATE_RUN;
+                if (ahead && targetDist < MONK_DIST_CLOSE) {
+                    int r = randControl();
+                    return r < 0x3000 ? STATE_ATTACK_2 : (r < 0x6000 ? STATE_AIM_3 : STATE_WAIT_1);
+                }
+                if (ahead && targetDist < MONK_DIST_WALK) return STATE_WALK;
+                return STATE_RUN;
+            case STATE_WALK :
+                maxTurn = MONK_WALK_TURN;
+                if (bored) {
+                    if (aimedAt && ahead)
+                        return randControl() < 0x4000 ? STATE_WAIT_1 : STATE_WAIT_2;
+                    break;
+                }
+                if (mood == MOOD_ESCAPE)   return STATE_RUN;
+                if (ahead && targetDist < MONK_DIST_CLOSE)
+                    return randControl() < 0x4000 ? STATE_WAIT_1 : STATE_WAIT_2;
+                if (!ahead || targetDist > MONK_DIST_WALK) return STATE_RUN;
+                break;
+            case STATE_RUN :
+                flags.unused = 0;
+                maxTurn = isHostile() ? MONK_RUN_TURN_FAST : MONK_RUN_TURN;
+                if (bored)                 return STATE_WAIT_1;
+                if (mood == MOOD_ESCAPE)   break;
+                if (ahead && targetDist < MONK_DIST_CLOSE)
+                    return randControl() < 0x4000 ? STATE_WAIT_1 : STATE_WAIT_2;
+                if (ahead && targetDist < MONK_DIST_ATTACK_5) return STATE_ATTACK_5;
+                break;
+            case STATE_AIM_3 :
+                return (!ahead || targetDist > MONK_DIST_CLOSE) ? STATE_WAIT_2 : STATE_ATTACK_3;
+            case STATE_ATTACK_1 :
+            case STATE_ATTACK_2 :
+            case STATE_ATTACK_3 :
+            case STATE_ATTACK_4 :
+            case STATE_ATTACK_5 :
+                blow();
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(ANIM_DEATH + randControl() / 0x4000); // either of the two deaths
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+        if (state == STATE_WAIT_1 || state == STATE_WAIT_2)
+            maxTurn = 0.0f;
+        turn(state == STATE_RUN, maxTurn);
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
 // TR2 morays ("eel" and "big_eel" in the original): out of their hole along the way they face they lunge at Lara near
 // ahead, the small one turns to her, they draw back after a bite and slide out dead. Lara can't target them
 #define MORAY_MOVE          102.0f              // per frame
