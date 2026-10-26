@@ -1342,6 +1342,7 @@ struct Level : IGame {
             case TR::Entity::ENEMY_MERCENARY_2      :
             case TR::Entity::ENEMY_MERCENARY_3      : return new Mercenary(this, index);
             case TR::Entity::ENEMY_YETI             : return new Yeti(this, index);
+            case TR::Entity::ENEMY_BIRD_MONSTER     : return new BirdGuardian(this, index);
             case TR::Entity::ENEMY_DIVER            : return new Diver(this, index);
             case TR::Entity::ENEMY_SHARK            : return new Shark(this, index);
             case TR::Entity::ENEMY_BARACUDA         : return new Barracuda(this, index);
@@ -1356,7 +1357,6 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GUARD_SPEAR_STATUE :
             case TR::Entity::ENEMY_GUARD_SWORD        :
             case TR::Entity::ENEMY_GUARD_SWORD_STATUE :
-            case TR::Entity::ENEMY_BIRD_MONSTER     :
             case TR::Entity::ENEMY_MERCENARY_SNOWMOBILE :
             case TR::Entity::ENEMY_MONK_1           :
             case TR::Entity::ENEMY_MONK_2           : return new Enemy(this, index, 100, 10, 0.0f, 0.0f);

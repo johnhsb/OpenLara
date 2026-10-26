@@ -715,6 +715,116 @@ struct Yeti : Enemy {
     }
 };
 
+// the guardian of the Talion in the Ice Palace ("bird_guardian" in the original): it walks to Lara and punches her with
+// either fist, 200 a fist
+#define GUARDIAN_DAMAGE         200
+#define GUARDIAN_HIT_L          0x0C0000
+#define GUARDIAN_HIT_R          0x600000
+#define GUARDIAN_WALK_TURN      (DEG2RAD * 4 * 30)
+#define GUARDIAN_DIST_ATTACK_1  1024
+#define GUARDIAN_DIST_ATTACK_2  2048
+
+struct BirdGuardian : Enemy {
+
+    enum {
+        ANIM_DEATH = 20,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_WAIT,
+        STATE_WALK,
+        STATE_AIM_1,
+        STATE_PUNCH_1,
+        STATE_AIM_2,
+        STATE_PUNCH_2,
+        STATE_PUNCH_R,
+        STATE_WAIT_2,
+        STATE_DEATH,
+        STATE_AIM_3,
+        STATE_PUNCH_3,
+    };
+
+    BirdGuardian(IGame *game, int entity) : Enemy(game, entity, 200, 341, 0.0f, 1.0f) {
+        jointChest = -1;
+        jointHead  = 15;
+    }
+
+    // either fist touching her hurts her once a punch
+    void punch() {
+        int touch = touching();
+        if (!(flags.unused & 1) && (touch & GUARDIAN_HIT_R)) {
+            target->hit(GUARDIAN_DAMAGE, this);
+            game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(22) * vec3(0.0f, 224.0f, 0.0f));
+            flags.unused |= 1;
+        }
+        if (!(flags.unused & 2) && (touch & GUARDIAN_HIT_L)) {
+            target->hit(GUARDIAN_DAMAGE, this);
+            game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(19) * vec3(0.0f, 224.0f, 0.0f));
+            flags.unused |= 2;
+        }
+    }
+
+    virtual int getStateGround() {
+        if (!think(true))
+            return state;
+
+        bool ahead = targetInView;
+
+        switch (state) {
+            case STATE_WAIT :
+                if (ahead && targetDist < GUARDIAN_DIST_ATTACK_1)
+                    return randControl() < 0x4000 ? STATE_AIM_1 : STATE_AIM_3;
+                if (ahead && (mood == MOOD_SLEEP || mood == MOOD_STALK))
+                    return STATE_WAIT_2;
+                return STATE_WALK;
+            case STATE_WAIT_2 :
+                if (mood != MOOD_SLEEP || !ahead)
+                    return STATE_WAIT;
+                break;
+            case STATE_WALK :
+                if (ahead && targetDist < GUARDIAN_DIST_ATTACK_2)
+                    return STATE_AIM_2;
+                if (ahead && (mood == MOOD_SLEEP || mood == MOOD_STALK))
+                    return STATE_WAIT;
+                break;
+            case STATE_AIM_1 :
+                flags.unused = 0;
+                return (ahead && targetDist < GUARDIAN_DIST_ATTACK_1) ? STATE_PUNCH_1 : STATE_WAIT;
+            case STATE_AIM_2 :
+                flags.unused = 0;
+                return (ahead && targetDist < GUARDIAN_DIST_ATTACK_2) ? STATE_PUNCH_2 : STATE_WALK;
+            case STATE_AIM_3 :
+                flags.unused = 0;
+                return (ahead && targetDist < GUARDIAN_DIST_ATTACK_1) ? STATE_PUNCH_3 : STATE_WAIT;
+            case STATE_PUNCH_1 :
+            case STATE_PUNCH_2 :
+            case STATE_PUNCH_R :
+            case STATE_PUNCH_3 :
+                punch();
+                break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(ANIM_DEATH);
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH) {
+            animation.overrideMask = 0;
+            return;
+        }
+        turn(false, state == STATE_WALK ? GUARDIAN_WALK_TURN : 0.0f);
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+};
+
 // TR2 knife throwers ("cult_2" in the original), they throw a knife from either hand walking, or both standing
 #define KNIFE_GOON_WALK_TURN    (DEG2RAD * 3 * 30)
 #define KNIFE_GOON_RUN_TURN     (DEG2RAD * 6 * 30)
