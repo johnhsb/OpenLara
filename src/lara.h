@@ -80,6 +80,7 @@ static TR::Entity::Type laraStartItem(const char *name) {
 
 // TR2 special animations of LARA_SPEC (their states, the levels have different sets of them)
 #define LARA_EXTRA_PLUNGER  1
+#define LARA_EXTRA_YETI     2       // a yeti beats her to death
 #define LARA_EXTRA_SHARK    3       // a shark bites her to death
 #define LARA_EXTRA_AIRLOCK  4
 #define LARA_EXTRA_GONG     5       // she strikes the gong of the Ice Palace
@@ -2437,11 +2438,12 @@ struct Lara : Character {
                 animation.setAnim(level->models[TR::MODEL_LARA_SPEC].animation);
                 break;
             }
-            case TR::HIT_SHARK : { // in the jaws of the shark, as it shakes her
+            case TR::HIT_SHARK : // in the jaws of the shark, as it shakes her
+            case TR::HIT_YETI  : { // in the hands of the yeti, as it beats her
                 pos   = enemy->pos;
                 angle = enemy->angle;
                 roomIndex = enemy->getRoomIndex();
-                extraStart(LARA_EXTRA_SHARK);
+                extraStart(hitType == TR::HIT_SHARK ? LARA_EXTRA_SHARK : LARA_EXTRA_YETI);
                 break;
             }
 

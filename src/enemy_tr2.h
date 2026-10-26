@@ -493,32 +493,8 @@ struct ClubThug : Enemy {
 
 // climb up 2..4 clicks or jump down a block at the edge of the sector
     void vault(const vec3 &old, int clicks) {
-        int ox = int(old.x) / 1024;
-        int oz = int(old.z) / 1024;
-        int cx = int(pos.x) / 1024;
-        int cz = int(pos.z) / 1024;
-
-        if ((ox == cx) == (oz == cz))
-            return; // not exactly one sector away
-
-        if (oz == cz) {
-            if (ox < cx) {
-                pos.x   = float(cx * 1024 - THUG_VAULT_SHIFT);
-                angle.y = PI * 0.5f;
-            } else {
-                pos.x   = float(ox * 1024 + THUG_VAULT_SHIFT);
-                angle.y = -PI * 0.5f;
-            }
-        } else {
-            if (oz < cz) {
-                pos.z   = float(cz * 1024 - THUG_VAULT_SHIFT);
-                angle.y = 0.0f;
-            } else {
-                pos.z   = float(oz * 1024 + THUG_VAULT_SHIFT);
-                angle.y = -PI;
-            }
-        }
-        pos.y = old.y;
+        if (!vaultTo(old, THUG_VAULT_SHIFT))
+            return;
 
         switch (clicks) {
             case  2 : animation.setAnim(ANIM_CLIMB_1 + climbShift); break;
@@ -526,6 +502,216 @@ struct ClubThug : Enemy {
             case  4 : animation.setAnim(ANIM_CLIMB_3 + climbShift); break;
             case -4 : animation.setAnim(ANIM_FALL_3  + climbShift); break;
         }
+    }
+};
+
+// TR2 yetis of Tibet: they punch, thump or charge Lara and climb up to a block or jump down from one like the club
+// thugs, a yeti killing her beats her to death in its hands (the yeti kill of the special animations)
+#define YETI_PUNCH_DAMAGE   100
+#define YETI_THUMP_DAMAGE   150
+#define YETI_CHARGE_DAMAGE  200
+#define YETI_HIT_R          0x0700
+#define YETI_HIT_L          0x3800
+#define YETI_WALK_TURN      (DEG2RAD * 4 * 30)
+#define YETI_RUN_TURN       (DEG2RAD * 6 * 30)
+#define YETI_VAULT_SHIFT    300
+#define YETI_DIST_ATTACK_1  512
+#define YETI_DIST_ATTACK_2  682
+#define YETI_DIST_ATTACK_3  2048
+#define YETI_DIST_RUN       2048
+#define YETI_WAIT_1_CHANCE  0x100
+#define YETI_WAIT_2_CHANCE  0x200
+#define YETI_WALK_CHANCE    0x300
+#define YETI_ROAR_CHANCE    0x200
+
+struct Yeti : Enemy {
+
+    enum {
+        ANIM_DEATH   = 31,
+        ANIM_CLIMB_3 = 32,
+        ANIM_CLIMB_2 = 33,
+        ANIM_CLIMB_1 = 34,
+        ANIM_FALL    = 35,
+        ANIM_KILL    = 36,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_RUN,
+        STATE_STOP,
+        STATE_WALK,
+        STATE_ATTACK_1,
+        STATE_ATTACK_2,
+        STATE_ATTACK_3,
+        STATE_WAIT_1,
+        STATE_DEATH,
+        STATE_WAIT_2,
+        STATE_CLIMB_1,
+        STATE_CLIMB_2,
+        STATE_CLIMB_3,
+        STATE_FALL,
+        STATE_KILL,
+    };
+
+    float maxTurn; // kept by the attacks from the state they come from, as in the original
+
+    Yeti(IGame *game, int entity) : Enemy(game, entity, 30, 128, 0.0f, 1.0f), maxTurn(0.0f) {
+        stepHeight =  1024;
+        dropHeight = -1024;
+        jointChest = 7;
+        jointHead  = 15;
+        nextState  = STATE_EMPTY;
+    }
+
+    // a blow of the hands touching her, a killing one plays the yeti kill
+    void blow(int mask, float damage) {
+        int touch = touching();
+        if (flags.unused || !(touch & mask))
+            return;
+        if (touch & YETI_HIT_L)
+            game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(13) * vec3(12.0f, 101.0f, 19.0f));
+        if (touch & YETI_HIT_R)
+            game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(10) * vec3(12.0f, 101.0f, 19.0f));
+        bool alive = target->health > 0.0f;
+        target->hit(damage, this, target->health <= damage ? TR::HIT_YETI : TR::HIT_DEFAULT);
+        if (alive && target->health <= 0.0f)
+            animation.setAnim(ANIM_KILL);
+        flags.unused = 1;
+    }
+
+    virtual int getStateGround() {
+        if (!think(true) || state == STATE_KILL)
+            return state;
+
+        if (nextState == state)
+            nextState = STATE_EMPTY;
+
+        bool alive  = target->health > 0.0f;
+        bool bored  = mood == MOOD_SLEEP;
+        bool ahead  = targetInView;
+        int  r;
+
+        switch (state) {
+            case STATE_STOP :
+                flags.unused = 0;
+                maxTurn = 0.0f;
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (nextState != STATE_EMPTY)
+                    return nextState;
+                if (bored) {
+                    r = randControl();
+                    if (r < YETI_WAIT_1_CHANCE || !alive) return STATE_WAIT_1;
+                    if (r < YETI_WAIT_2_CHANCE)           return STATE_WAIT_2;
+                    if (r < YETI_WALK_CHANCE)             return STATE_WALK;
+                    break;
+                }
+                if (ahead && targetDist < YETI_DIST_ATTACK_1 && randControl() < 0x4000)
+                    return STATE_ATTACK_1;
+                if (ahead && targetDist < YETI_DIST_ATTACK_2)
+                    return STATE_ATTACK_2;
+                return mood == MOOD_STALK ? STATE_WALK : STATE_RUN;
+            case STATE_WAIT_1 :
+            case STATE_WAIT_2 :
+                if (mood == MOOD_ESCAPE || wound)
+                    return STATE_STOP;
+                if (bored) {
+                    r = randControl();
+                    if (state == STATE_WAIT_1) {
+                        if (!alive) break;
+                        if (r < YETI_WAIT_1_CHANCE) return STATE_STOP;
+                        if (r < YETI_WAIT_2_CHANCE) return STATE_WAIT_2;
+                    } else {
+                        if (r < YETI_WAIT_1_CHANCE || !alive) return STATE_WAIT_1;
+                        if (r < YETI_WAIT_2_CHANCE)           return STATE_STOP;
+                    }
+                    if (r < YETI_WALK_CHANCE) {
+                        nextState = STATE_WALK;
+                        return STATE_STOP;
+                    }
+                    break;
+                }
+                if (randControl() < YETI_ROAR_CHANCE)
+                    return STATE_STOP;
+                break;
+            case STATE_WALK :
+                maxTurn = YETI_WALK_TURN;
+                if (mood == MOOD_ESCAPE)
+                    return STATE_RUN;
+                if (bored) {
+                    r = randControl();
+                    if (r < YETI_WAIT_1_CHANCE || !alive) { nextState = STATE_WAIT_1; return STATE_STOP; }
+                    if (r < YETI_WAIT_2_CHANCE)           { nextState = STATE_WAIT_2; return STATE_STOP; }
+                    if (r < YETI_WALK_CHANCE)             return STATE_STOP;
+                    break;
+                }
+                if (mood == MOOD_ATTACK) {
+                    if (ahead && targetDist < YETI_DIST_ATTACK_2)
+                        return STATE_STOP;
+                    if (targetDist > YETI_DIST_RUN)
+                        return STATE_RUN;
+                }
+                break;
+            case STATE_RUN :
+                flags.unused = 0;
+                maxTurn = YETI_RUN_TURN;
+                if (mood == MOOD_ESCAPE)
+                    break;
+                if (bored)
+                    return STATE_WALK;
+                if (ahead && targetDist < YETI_DIST_ATTACK_2)
+                    return STATE_STOP;
+                if (ahead && targetDist < YETI_DIST_ATTACK_3)
+                    return STATE_ATTACK_3;
+                if (mood == MOOD_STALK)
+                    return STATE_WALK;
+                break;
+            case STATE_ATTACK_1 : blow(YETI_HIT_R, YETI_PUNCH_DAMAGE); break;
+            case STATE_ATTACK_2 : maxTurn = YETI_WALK_TURN; blow(YETI_HIT_R | YETI_HIT_L, YETI_THUMP_DAMAGE); break;
+            case STATE_ATTACK_3 : blow(YETI_HIT_R | YETI_HIT_L, YETI_CHARGE_DAMAGE); break;
+        }
+        return state;
+    }
+
+    virtual int getStateDeath() {
+        if (state == STATE_DEATH)
+            return state;
+        return animation.setAnim(ANIM_DEATH);
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_DEATH || state == STATE_KILL) { // Lara is in its hands
+            animation.overrideMask = 0;
+            return;
+        }
+
+        bool vaulting = state >= STATE_CLIMB_1;
+
+        if (!vaulting)
+            turn(state == STATE_RUN, maxTurn);
+
+        vec3 old = pos;
+        TR::Level::FloorInfo infoA, infoB;
+        getFloorInfo(getRoomIndex(), old, infoA);
+        old.y = infoA.floor;
+
+        Enemy::updatePosition();
+
+        if (!vaulting) {
+            getFloorInfo(getRoomIndex(), pos, infoB);
+            int clicks = int(floorf((old.y - infoB.floor) / 256.0f + 0.5f));
+            if (((clicks >= 2 && clicks <= 4) || (clicks <= -4 && clicks >= -5)) && vaultTo(old, YETI_VAULT_SHIFT)) {
+                switch (clicks) {
+                    case  2 : animation.setAnim(ANIM_CLIMB_1); break;
+                    case  3 : animation.setAnim(ANIM_CLIMB_2); break;
+                    case  4 : animation.setAnim(ANIM_CLIMB_3); break;
+                    default : animation.setAnim(ANIM_FALL);
+                }
+            }
+        }
+
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
     }
 };
 

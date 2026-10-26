@@ -251,6 +251,37 @@ struct Enemy : Character {
         updateRoom();
     }
 
+    // to the edge of the sector it is about to climb onto or drop from, facing it, false if not exactly a sector away
+    bool vaultTo(const vec3 &old, int shift) {
+        int ox = int(old.x) / 1024;
+        int oz = int(old.z) / 1024;
+        int cx = int(pos.x) / 1024;
+        int cz = int(pos.z) / 1024;
+
+        if ((ox == cx) == (oz == cz))
+            return false; // not exactly one sector away
+
+        if (oz == cz) {
+            if (ox < cx) {
+                pos.x   = float(cx * 1024 - shift);
+                angle.y = PI * 0.5f;
+            } else {
+                pos.x   = float(ox * 1024 + shift);
+                angle.y = -PI * 0.5f;
+            }
+        } else {
+            if (oz < cz) {
+                pos.z   = float(cz * 1024 - shift);
+                angle.y = 0.0f;
+            } else {
+                pos.z   = float(oz * 1024 + shift);
+                angle.y = -PI;
+            }
+        }
+        pos.y = old.y;
+        return true;
+    }
+
     bool canEnter(const TR::Level::FloorInfo &info) {
         return info.boxIndex != 0xFFFF && zone == getZones()[info.boxIndex] && !level->boxes[info.boxIndex].overlap.block;
     }

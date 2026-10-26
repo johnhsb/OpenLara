@@ -1554,6 +1554,7 @@ namespace TR {
         HIT_MIDAS,
         HIT_GIANT_MUTANT,
         HIT_SHARK,
+        HIT_YETI,
     };
 
     struct Action {
