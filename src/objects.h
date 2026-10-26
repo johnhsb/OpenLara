@@ -237,8 +237,9 @@ struct MuzzleFlash : Controller {
     Controller *owner;
     int        joint;
     int        lightIndex;
+    bool       forward;     // along the joint's z (the guns of a vehicle), not its y (a gun in a hand)
 
-    MuzzleFlash(IGame *game, int entity) : Controller(game, entity), owner(NULL), joint(0), lightIndex(-1) {
+    MuzzleFlash(IGame *game, int entity) : Controller(game, entity), owner(NULL), joint(0), lightIndex(-1), forward(false) {
         pos.z += (level->version & (TR::VER_TR2 | TR::VER_TR3)) ? 180.0f : 150.0f;
         activate();
         timer = 0.0f;
@@ -291,7 +292,8 @@ struct MuzzleFlash : Controller {
         float lum   = 3.0f;
         Basis b = owner->getJoint(joint);
         b.w = 1.0f;
-        b.rotate(quat(vec3(1, 0, 0), -PI * 0.5f));
+        if (!forward)
+            b.rotate(quat(vec3(1, 0, 0), -PI * 0.5f));
         b.translate(pos);
         if (level->version & (TR::VER_TR2 | TR::VER_TR3))
             lum = alpha;

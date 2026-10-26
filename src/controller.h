@@ -92,7 +92,7 @@ struct IGame {
     virtual Controller* addEntity(TR::Entity::Type type, int room, const vec3 &pos, float angle = 0.0f) { return NULL; }
     virtual void removeEntity(Controller *controller) {}
 
-    virtual void addMuzzleFlash(Controller *owner, int joint, const vec3 &offset, int lightIndex) {}
+    virtual void addMuzzleFlash(Controller *owner, int joint, const vec3 &offset, int lightIndex, bool forward = false) {}
 
     virtual void invShow(int playerIndex, int page, int itemIndex = -1) {}
     virtual bool invUse(int playerIndex, TR::Entity::Type type) { return false; }

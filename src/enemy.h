@@ -1027,8 +1027,8 @@ struct Human : Enemy {
         return randControl() < chance;
     }
 
-    bool doShot(float damage, const vec3 &muzzleOffset) {
-        game->addMuzzleFlash(this, jointGun, muzzleOffset, -1);
+    bool doShot(float damage, const vec3 &muzzleOffset, bool forward = false) {
+        game->addMuzzleFlash(this, jointGun, muzzleOffset, -1, forward);
 
     // hit or miss, a TR2 shot breaks the window on its way, from the chest height of the shooter to past the target
         if (level->version & TR::VER_TR2) {

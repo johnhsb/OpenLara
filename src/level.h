@@ -828,12 +828,13 @@ struct Level : IGame {
         delete controller;
     }
 
-    virtual void addMuzzleFlash(Controller *owner, int joint, const vec3 &offset, int lightIndex) {
+    virtual void addMuzzleFlash(Controller *owner, int joint, const vec3 &offset, int lightIndex, bool forward = false) {
         MuzzleFlash *mf = (MuzzleFlash*)addEntity(TR::Entity::MUZZLE_FLASH, owner->getRoomIndex(), offset, 0);
         if (mf) {
             mf->owner      = owner;
             mf->joint      = joint;
             mf->lightIndex = lightIndex;
+            mf->forward    = forward;
         }
     }
 
