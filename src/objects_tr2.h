@@ -681,72 +681,31 @@ struct BoatWake : Sprite {
     }
 };
 
-// TR2 speedboat, the physics run at 30 fps in the original units (angles: 65536 = 360 degrees)
-
-#define BOAT_RADIUS         500
-#define BOAT_SIDE           300
-#define BOAT_FRONT          750
-#define BOAT_TIP            (BOAT_FRONT + 250)
-#define BOAT_MIN_SPEED      20
-#define BOAT_MAX_SPEED      90
-#define BOAT_SLOW_SPEED     (BOAT_MAX_SPEED / 3)
-#define BOAT_FAST_SPEED     (BOAT_MAX_SPEED + 50)
-#define BOAT_MAX_BACK       (-20)
-#define BOAT_ACCEL          5
-#define BOAT_BRAKE          5
-#define BOAT_REVERSE        (-5)
-#define BOAT_SLOWDOWN       1
-#define BOAT_UNDO_TURN      (182 / 4)
-#define BOAT_TURN           (182 / 8)
-#define BOAT_MAX_TURN       (182 * 4)
-#define BOAT_SHIFT_Y        (-5)
-#define BOAT_GRAVITY        6
-#define BOAT_NO_HEIGHT      (TR::NO_FLOOR * 256)
-
-#define SND_TR2_BOAT_IDLE   195
-#define SND_TR2_BOAT_MOVING 197
-#define SND_TR2_BOAT_ENGINE 336
-
-struct SpeedBoat : Controller {
+// TR2 vehicles, the physics run at 30 fps in the original units (angles: 65536 = 360 degrees)
+struct Vehicle : Controller {
+    // the hit animations of Lara on a vehicle, the same for all of them
     enum {
-        STATE_MOUNT,
-        STATE_STILL,
-        STATE_MOVING,
-        STATE_JUMP_R,
-        STATE_JUMP_L,
-        STATE_HIT,
-        STATE_FALL,
-        STATE_DEATH = 8,
-    };
-
-    // animations of Lara on the boat (LARA_BOAT model), the boat plays the same ones
-    enum {
-        ANIM_MOUNT_LEFT  = 0,
-        ANIM_MOUNT_START = 1,
-        ANIM_MOUNT_JUMP  = 6,
-        ANIM_MOUNT_RIGHT = 8,
         ANIM_HIT_LEFT    = 11,
         ANIM_HIT_RIGHT   = 12,
         ANIM_HIT_FRONT   = 13,
         ANIM_HIT_BACK    = 14,
-        ANIM_FALL        = 15,
-        ANIM_DEATH       = 18,
     };
 
     struct Pos { int x, y, z; };
 
-    enum { FLAG_DESTROYED = 1 };
-
-    Character *driver;   // Lara while she's on the boat
-    bool  control;       // the driver may steer (not mounting or jumping off)
+    Character *driver;   // Lara while she rides it
+    bool  control;       // the driver may steer (not getting on or off)
     int   x, y, z;
     int   rotX, rotY, rotZ;
-    int   speed, fallSpeed, turnSpeed, leftFall, rightFall, water, tilt, extraRot;
+    int   speed, fallSpeed;
     int   collide;       // hit animation of the last step
     float stepTime;
 
-    SpeedBoat(IGame *game, int entity) : Controller(game, entity), driver(NULL), control(false),
-        speed(0), fallSpeed(0), turnSpeed(0), leftFall(0), rightFall(0), water(0), tilt(0), extraRot(0), collide(0), stepTime(0.0f) {
+    Vehicle(IGame *game, int entity) : Controller(game, entity), driver(NULL), control(false), speed(0), fallSpeed(0), collide(0), stepTime(0.0f) {
+        resetPos();
+    }
+
+    void resetPos() {
         x = int(pos.x);
         y = int(pos.y);
         z = int(pos.z);
@@ -758,36 +717,12 @@ struct SpeedBoat : Controller {
     static int tcos(int a) { return int(cosf(a * (PI / 32768.0f)) * 16384.0f); }
     static int tatan(int x, int y) { return int(atan2f(float(y), float(x)) * (32768.0f / PI)); }
 
-    int getWaterHeight(int16 &room, const vec3 &p) {
-        int16 r = room;
-        TR::Room::Sector *sector = level->getWaterLevelSector(r, p);
-        return sector ? sector->ceiling * 256 : BOAT_NO_HEIGHT;
-    }
-
     int getHeight(int16 &room, const Pos &p) {
         TR::Room::Sector *sector = level->getSector(room, vec3(float(p.x), float(p.y), float(p.z)));
         return int(level->getFloor(sector, vec3(float(p.x), float(p.y), float(p.z))));
     }
 
-    // the water (or floor) height under a point of the hull
-    int testWaterHeight(int zOff, int xOff, Pos &p) {
-        int s = tsin(rotY), c = tcos(rotY);
-        p.x = x + ((c * xOff + s * zOff) >> 14);
-        p.z = z + ((c * zOff - s * xOff) >> 14);
-        p.y = y + ((xOff * tsin(rotZ)) >> 14) - ((zOff * tsin(rotX)) >> 14);
-
-        int16 room = getRoomIndex();
-        vec3 v = vec3(float(p.x), float(p.y), float(p.z));
-        TR::Room::Sector *sector = level->getSector(room, v);
-        int h = getWaterHeight(room, v);
-        if (h == BOAT_NO_HEIGHT) {
-            h = int(level->getFloor(sector, v));
-            return h;
-        }
-        return h + BOAT_SHIFT_Y;
-    }
-
-    // pushes the boat back out of a wall, returns the extra rotation
+    // pushes the vehicle back out of a wall, returns the extra rotation
     int doShift(const Pos &p, const Pos &old) {
         int px = p.x >> 10, pz = p.z >> 10;
         int ox = old.x >> 10, oz = old.z >> 10;
@@ -841,6 +776,7 @@ struct SpeedBoat : Controller {
         return 0;
     }
 
+    // the hit animation for the push a wall gave the vehicle
     int getCollisionAnim(int mx, int mz) {
         mx = x - mx;
         mz = z - mz;
@@ -852,6 +788,104 @@ struct SpeedBoat : Controller {
         if (abs(front) > abs(side))
             return front > 0 ? ANIM_HIT_BACK : ANIM_HIT_FRONT;
         return side > 0 ? ANIM_HIT_LEFT : ANIM_HIT_RIGHT;
+    }
+
+    virtual void step() {}
+
+    // runs the steps of the original at 30 fps, then shows where it got
+    void updateSteps() {
+        stepTime += Core::deltaTime;
+        int steps = 0;
+        while (stepTime >= 1.0f / 30.0f && steps < 4) {
+            step();
+            stepTime -= 1.0f / 30.0f;
+            steps++;
+        }
+        if (steps == 4)
+            stepTime = 0.0f;
+
+        pos   = vec3(float(x), float(y), float(z));
+        angle = vec3(int16(rotX) * (PI / 32768.0f), int16(rotY) * (PI / 32768.0f), int16(rotZ) * (PI / 32768.0f));
+    }
+};
+
+// TR2 speedboat
+
+#define BOAT_RADIUS         500
+#define BOAT_SIDE           300
+#define BOAT_FRONT          750
+#define BOAT_TIP            (BOAT_FRONT + 250)
+#define BOAT_MIN_SPEED      20
+#define BOAT_MAX_SPEED      90
+#define BOAT_SLOW_SPEED     (BOAT_MAX_SPEED / 3)
+#define BOAT_FAST_SPEED     (BOAT_MAX_SPEED + 50)
+#define BOAT_MAX_BACK       (-20)
+#define BOAT_ACCEL          5
+#define BOAT_BRAKE          5
+#define BOAT_REVERSE        (-5)
+#define BOAT_SLOWDOWN       1
+#define BOAT_UNDO_TURN      (182 / 4)
+#define BOAT_TURN           (182 / 8)
+#define BOAT_MAX_TURN       (182 * 4)
+#define BOAT_SHIFT_Y        (-5)
+#define BOAT_GRAVITY        6
+#define BOAT_NO_HEIGHT      (TR::NO_FLOOR * 256)
+
+#define SND_TR2_BOAT_IDLE   195
+#define SND_TR2_BOAT_MOVING 197
+#define SND_TR2_BOAT_ENGINE 336
+
+struct SpeedBoat : Vehicle {
+    enum {
+        STATE_MOUNT,
+        STATE_STILL,
+        STATE_MOVING,
+        STATE_JUMP_R,
+        STATE_JUMP_L,
+        STATE_HIT,
+        STATE_FALL,
+        STATE_DEATH = 8,
+    };
+
+    // animations of Lara on the boat (LARA_BOAT model), the boat plays the same ones
+    enum {
+        ANIM_MOUNT_LEFT  = 0,
+        ANIM_MOUNT_START = 1,
+        ANIM_MOUNT_JUMP  = 6,
+        ANIM_MOUNT_RIGHT = 8,
+        ANIM_FALL        = 15,
+        ANIM_DEATH       = 18,
+    };
+
+    enum { FLAG_DESTROYED = 1 };
+
+    int   turnSpeed, leftFall, rightFall, water, tilt, extraRot;
+
+    SpeedBoat(IGame *game, int entity) : Vehicle(game, entity),
+        turnSpeed(0), leftFall(0), rightFall(0), water(0), tilt(0), extraRot(0) {}
+
+    int getWaterHeight(int16 &room, const vec3 &p) {
+        int16 r = room;
+        TR::Room::Sector *sector = level->getWaterLevelSector(r, p);
+        return sector ? sector->ceiling * 256 : BOAT_NO_HEIGHT;
+    }
+
+    // the water (or floor) height under a point of the hull
+    int testWaterHeight(int zOff, int xOff, Pos &p) {
+        int s = tsin(rotY), c = tcos(rotY);
+        p.x = x + ((c * xOff + s * zOff) >> 14);
+        p.z = z + ((c * zOff - s * xOff) >> 14);
+        p.y = y + ((xOff * tsin(rotZ)) >> 14) - ((zOff * tsin(rotX)) >> 14);
+
+        int16 room = getRoomIndex();
+        vec3 v = vec3(float(p.x), float(p.y), float(p.z));
+        TR::Room::Sector *sector = level->getSector(room, v);
+        int h = getWaterHeight(room, v);
+        if (h == BOAT_NO_HEIGHT) {
+            h = int(level->getFloor(sector, v));
+            return h;
+        }
+        return h + BOAT_SHIFT_Y;
     }
 
     static int doDynamics(int height, int fall, int &py) {
@@ -1029,7 +1063,7 @@ struct SpeedBoat : Controller {
         return noTurn;
     }
 
-    void step() {
+    virtual void step() {
         collide = dynamics();
 
         Pos fl, fr;
@@ -1138,11 +1172,7 @@ struct SpeedBoat : Controller {
 
     virtual void setSaveData(const SaveEntity &data) {
         Controller::setSaveData(data);
-        x = int(pos.x);
-        y = int(pos.y);
-        z = int(pos.z);
-        rotX = rotZ = 0;
-        rotY = int16(int(angle.y * (32768.0f / PI)));
+        resetPos();
         speed = fallSpeed = turnSpeed = tilt = extraRot = 0;
         animation.setAnim(0);
         if (isDestroyed())
@@ -1197,18 +1227,7 @@ struct SpeedBoat : Controller {
             return;
         }
 
-        stepTime += Core::deltaTime;
-        int steps = 0;
-        while (stepTime >= 1.0f / 30.0f && steps < 4) {
-            step();
-            stepTime -= 1.0f / 30.0f;
-            steps++;
-        }
-        if (steps == 4)
-            stepTime = 0.0f;
-
-        pos   = vec3(float(x), float(y), float(z));
-        angle = vec3(int16(rotX) * (PI / 32768.0f), int16(rotY) * (PI / 32768.0f), int16(rotZ) * (PI / 32768.0f));
+        updateSteps();
         updateLights();
     }
 };
