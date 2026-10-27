@@ -2833,6 +2833,90 @@ struct EarthquakeTR2 : Controller {
     }
 };
 
+#define BOWL_POUR_TIME      (7 * 30)    // it pours for 7 seconds
+#define BOWL_FLIP_TIME      (5 * 30)    // the flip map 2 seconds before its end
+#define BOWL_FLIP_MAP       4
+#define SND_TR2_BOWL_POUR   284
+#define SND_TR2_WATERFALL_2 285
+
+// the hot liquid poured out of the big bowl of the Ice Palace, it falls and splashes on the floor (as in the original)
+struct HotLiquid : Sprite {
+    int   fallSpeed;
+    float stepTime;
+
+    HotLiquid(IGame *game, int entity) : Sprite(game, entity, false, FRAME_RANDOM), fallSpeed(0), stepTime(0.0f) {
+        intensity = intensityf(2048); // lit by itself, not by the room
+    }
+
+    virtual void update() {
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+
+            if (--frame < 0)
+                frame = getSequence().sCount - 1;
+
+            pos.y += fallSpeed;
+            fallSpeed += 6; // gravity
+
+            updateRoom();
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), pos, info);
+            if (pos.y >= info.floor) {
+                pos.y = info.floor;
+                game->playSound(SND_TR2_WATERFALL_2, pos, Sound::PAN);
+                float a = randf() * PI2;
+                Sprite *splash = (Sprite*)game->addEntity(TR::Entity::WATER_SPLASH, getRoomIndex(), pos);
+                if (splash)
+                    splash->velocity = vec3(sinf(a), 0.0f, cosf(a)) * 50.0f;
+                game->removeEntity(this);
+                return;
+            }
+
+            game->playSound(SND_TR2_BOWL_POUR, pos, Sound::PAN);
+        }
+    }
+};
+
+// the big bowl of the Ice Palace: set off it tips over and pours hot liquid for a while, the flip map changes a little
+// before its end (as in the original)
+struct LavaBowl : Controller {
+    enum { STATE_TIP, STATE_POUR };
+
+    int   pourTime;
+    float stepTime;
+
+    LavaBowl(IGame *game, int entity) : Controller(game, entity), pourTime(0), stepTime(0.0f) {}
+
+    virtual void deactivate(bool removeFromList = false) {
+        if (pourTime >= BOWL_POUR_TIME)
+            Controller::deactivate(removeFromList); // not at the end of its animation, it pours on
+    }
+
+    virtual void update() {
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+
+            if (state != STATE_POUR || pourTime >= BOWL_POUR_TIME)
+                continue;
+
+            Controller *liquid = game->addEntity(TR::Entity::TRAP_EXTRA_FIRE, getRoomIndex(), pos + vec3(512.0f, 612.0f, 512.0f));
+            if (liquid)
+                liquid->activate();
+
+            if (++pourTime == BOWL_FLIP_TIME && !level->state.flags.flipped) {
+                SaveState::ByteFlags &flip = level->state.flipmaps[BOWL_FLIP_MAP];
+                flip.active = TR::ACTIVE;
+                flip.once   = 1;
+                game->flipMap();
+            }
+        }
+
+        updateAnimation(true);
+    }
+};
+
 // the twinkles of the magic of Bartoli and of the dragon, they come in to it from all round (as in the original)
 static void mysticLight(Controller *owner, const vec3 &target) {
     float a = randf() * PI2;

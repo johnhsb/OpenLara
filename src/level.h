@@ -1417,6 +1417,8 @@ struct Level : IGame {
             case TR::Entity::DRAGON_EXPLOSION_2     :
             case TR::Entity::DRAGON_EXPLOSION_3     : return new SphereOfDoom(this, index);
             case TR::Entity::DRAGON_EXPLSION_EMITTER : return new EarthquakeTR2(this, index);
+            case TR::Entity::LAVA_BOWL              : return new LavaBowl(this, index);
+            case TR::Entity::TRAP_EXTRA_FIRE        : return new HotLiquid(this, index);
 
             default                                 : return new Controller(this, index);
         }
