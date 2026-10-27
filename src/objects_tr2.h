@@ -2784,4 +2784,53 @@ struct Projectile : Controller {
     }
 };
 
+// TR2 earthquake of the Dragon's Lair ("earthquake" in the original): while its trigger holds, the ground shakes now
+// and then and it sets off a flame emitter or a falling ceiling of its room at random (as in the original)
+#define SND_TR2_EARTHQUAKE_1    298
+
+struct EarthquakeTR2 : Controller {
+    float stepTime;
+
+    EarthquakeTR2(IGame *game, int entity) : Controller(game, entity), stepTime(0.0f) {}
+
+    // the first one of that kind in the room not set off yet
+    void setOff(TR::Entity::Type type) {
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            TR::Entity &e = level->entities[i];
+            Controller *c = (Controller*)e.controller;
+            if (e.type != type || !c || c->getRoomIndex() != getRoomIndex() || c->flags.active == TR::ACTIVE)
+                continue;
+            if (type == TR::Entity::TRAP_CEILING_1 && c->state != 0)
+                continue; // fallen already
+            c->flags.invisible = false;
+            c->flags.active    = TR::ACTIVE;
+            c->timer           = 0.0f;
+            c->activate();
+            return;
+        }
+    }
+
+    virtual void update() {
+        if (!isActive())
+            return;
+
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+
+            if ((rand() & 0x7FFF) < 512) {
+                game->shakeCamera(0.5f);
+                game->playSound(SND_TR2_EARTHQUAKE_1, pos, 0);
+            }
+
+            int r = rand() & 0x7FFF;
+            if (r < 512)
+                setOff(TR::Entity::TRAP_FLAME_EMITTER);
+            else if (r < 1024)
+                setOff(TR::Entity::TRAP_CEILING_1);
+        }
+    }
+};
+
+
 #endif

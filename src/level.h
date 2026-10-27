@@ -1413,6 +1413,7 @@ struct Level : IGame {
             case TR::Entity::MINISUB                : return new GeneralObject(this, index);
             case TR::Entity::WAKE_BOAT              : return new BoatWake(this, index);
             case TR::Entity::WAKE_SNOWMOBILE        : return new SnowSprite(this, index);
+            case TR::Entity::DRAGON_EXPLSION_EMITTER : return new EarthquakeTR2(this, index);
 
             default                                 : return new Controller(this, index);
         }
