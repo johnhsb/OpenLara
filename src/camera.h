@@ -57,6 +57,7 @@ struct Camera : ICamera {
     int         speed;
     bool        smooth;
     bool        abyss;      // Lara falls into an empty room under the world, the camera stays where it is
+    bool        holdCutscene; // the cinematic stays on its last frame till the level ends
 
     bool        spectator;
     vec3        specPos, specPosSmooth;
@@ -67,6 +68,7 @@ struct Camera : ICamera {
     Camera(IGame *game, Character *owner) : ICamera(), game(game), level(game->getLevel()), frustum(new Frustum()), timer(-1.0f), viewIndex(-1), viewIndexLast(-1), viewTarget(NULL) {
         this->owner = owner;
         abyss = false;
+        holdCutscene = false;
         reset();
 
         spectator = false;
@@ -169,13 +171,15 @@ struct Camera : ICamera {
         return pos;
     }
 
-    virtual void doCutscene(const vec3 &pos, float rotation) {
+    // the level's cinematic frames from the given one on, about the given place
+    virtual void doCutscene(const vec3 &pos, float rotation, float startFrame = 0.0f, bool hold = false) {
         mode = Camera::MODE_CUTSCENE;
         level->cutMatrix.identity();
         level->cutMatrix.rotateY(rotation);
         level->cutMatrix.setPos(pos);
         owner->animation.overrideMask = 0;
-        timer = 0.0f;
+        timer = startFrame;
+        holdCutscene = hold;
     }
 
     bool updateFirstPerson() {
@@ -398,7 +402,7 @@ struct Camera : ICamera {
                     game->loadNextLevel();
                 else {
                     Character *lara = (Character*)owner;
-                    if (lara->health > 0.0f) {
+                    if (lara->health > 0.0f && !holdCutscene) {
                         mode = MODE_FOLLOW;
                         return;
                     }

@@ -38,7 +38,7 @@ struct ICamera {
 
     virtual void setup(bool calcMatrices) {}
     virtual int  getRoomIndex() const { return TR::NO_ROOM; }
-    virtual void doCutscene(const vec3 &pos, float rotation) {}
+    virtual void doCutscene(const vec3 &pos, float rotation, float startFrame = 0.0f, bool hold = false) {}
     virtual Controller* getOwner() { return NULL; }
 
     void setAngle(float x, float y) {

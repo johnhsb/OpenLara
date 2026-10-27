@@ -87,6 +87,13 @@ static TR::Entity::Type laraStartItem(const char *name) {
 #define LARA_EXTRA_START    8       // she gets up in the cell of the rig
 #define LARA_EXTRA_DAGGER   7       // she pulls the dagger out of the dragon
 #define LARA_EXTRA_GUARD    2       // a Xian spearman lifts her on his spear (the level's own animation under the yeti's number)
+#define LARA_EXTRA_END_HOUSE 10     // she goes to the shower when the last fight in her house is over
+
+// the shower at the end of the game (frames of its animation, as in the original)
+#define END_HOUSE_FRAME_START   1   // her gear comes off, the music starts
+#define END_HOUSE_FRAME_SHOTGUN 316 // she grabs the shotgun
+#define END_HOUSE_CINE_FRAME    428 // the cinematic of the level shows it from this frame on
+#define TRACK_TR2_BATH          26
 
 // frames of the TR2+ flare arm animations (hold, throw, draw, ignite and hold again)
 #define FLARE_FRAME_HOLD    0
@@ -3552,6 +3559,64 @@ struct Lara : Character {
         return NULL;
     }
 
+    bool endHouseScene() {
+        return extraAnim && level->id == TR::LVL_TR2_HOUSE && animation.state == LARA_EXTRA_END_HOUSE;
+    }
+
+    // the last fight in her house is over: she drops what she holds and goes to the shower at the given place, the
+    // cinematic of the level shows it till the game ends (as in the original)
+    virtual void endHouse(Controller *place) {
+        if (extraAnim)
+            return;
+
+        if (flareState != FLARE_NONE) {
+            if (flareInHand())
+                flareDispose(false);
+            flareLightOff();
+            flareState = FLARE_NONE;
+        }
+        flareControl = flarePending = flareThenWeapon = false;
+
+        if (wpnCurrent != TR::Entity::NONE) {
+            wpnSetAnim(arms[0], Weapon::IS_HIDDEN, Weapon::Anim::NONE, 0.0f, 0.0f);
+            wpnSetAnim(arms[1], Weapon::IS_HIDDEN, Weapon::Anim::NONE, 0.0f, 0.0f);
+        }
+        wpnNext = TR::Entity::NONE;
+
+        pos       = place->pos;
+        angle     = vec3(0.0f, place->angle.y, 0.0f);
+        roomIndex = place->getRoomIndex();
+        stand     = STAND_GROUND;
+        health    = LARA_MAX_HEALTH;
+        if (!extraStart(LARA_EXTRA_END_HOUSE))
+            return;
+        camera->doCutscene(place->pos, place->angle.y, END_HOUSE_CINE_FRAME, true);
+    }
+
+    // the shower goes on (the frame of its animation before this step)
+    void updateEndHouse(int animPrev, int framePrev) {
+        health = LARA_MAX_HEALTH;
+
+        if (animation.index != animPrev) { // it's over, the game ends
+            game->loadNextLevel();
+            return;
+        }
+
+        #define END_HOUSE_FRAME(f) (framePrev < (f) && animation.frameIndex >= (f))
+
+        if (END_HOUSE_FRAME(END_HOUSE_FRAME_START)) { // no guns, no flare, no backpack
+            if (!layers) initMeshOverrides();
+            for (int i = 1; i < MAX_LAYERS; i++)
+                layers[i].mask = 0;
+            game->playTrack(TRACK_TR2_BATH);
+        }
+
+        if (END_HOUSE_FRAME(END_HOUSE_FRAME_SHOTGUN))
+            meshSwap(1, level->extra.weapons[TR::Entity::SHOTGUN], JOINT_MASK_ARM_R3);
+
+        #undef END_HOUSE_FRAME
+    }
+
     // she pulls the dagger out of its side, the camera shows it (as in the original)
     void pullDagger(Dragon *dragon, Controller *back) {
         pos       = back->pos;
@@ -3645,7 +3710,16 @@ struct Lara : Character {
                 animation.setState(extraState);
         }
 
+        bool endHouse  = endHouseScene();
+        int  animPrev  = animation.index;
+        int  framePrev = animation.frameIndex;
+
         Controller::updateAnimation(true);
+
+        if (endHouse) {
+            updateEndHouse(animPrev, framePrev);
+            return;
+        }
 
         if (animation.state == LARA_EXTRA_GONG) { // the view of the stroke, as in the original
             camera->setAngle(-20, -25);

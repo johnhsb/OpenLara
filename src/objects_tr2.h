@@ -2917,6 +2917,106 @@ struct LavaBowl : Controller {
     }
 };
 
+#define COMBAT_END_DELAY    150         // 5 seconds after the last fight is over the shower scene begins
+#define COMBAT_END_BOSS     TR::Entity::ENEMY_GOON_SHOTGUN
+#define COMBAT_END_BOSS_MESHES 0xFFFF1FFF
+
+// the last fight of the game in Lara's house: once every hostile creature is dead the boss (the first shotgun goon
+// not set off yet) comes, once he's dead too Lara goes to the shower 5 seconds later; it watches from the start of
+// the level (as in the original, the count isn't saved, it starts over on a load)
+struct CombatEnd : Controller {
+    int   bossTimer;
+    float stepTime;
+
+    CombatEnd(IGame *game, int entity) : Controller(game, entity), bossTimer(0), stepTime(0.0f) {
+        activate();
+    }
+
+    bool isComplete() const {
+        return bossTimer >= COMBAT_END_DELAY;
+    }
+
+    static bool isAlive(const TR::Entity &e) {
+        return e.controller && ((Character*)e.controller)->health > 0.0f;
+    }
+
+    int aliveEnemies() {
+        int count = 0;
+        for (int i = 0; i < level->entitiesCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.isEnemy() && e.type != COMBAT_END_BOSS && isAlive(e))
+                count++;
+        }
+        return count;
+    }
+
+    bool bossDead() {
+        for (int i = 0; i < level->entitiesCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.type == COMBAT_END_BOSS && e.controller && !isAlive(e))
+                return true;
+        }
+        return false;
+    }
+
+    // the first of them comes, if he isn't there already
+    void activateBoss() {
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.type != COMBAT_END_BOSS || !e.controller)
+                continue;
+            Controller *boss = (Controller*)e.controller;
+            if (boss->flags.invisible && isAlive(e)) { // still lying in ambush
+                boss->visibleMask  = COMBAT_END_BOSS_MESHES;
+                boss->flags.active = TR::ACTIVE;
+                boss->timer        = 0.0f;
+                boss->activate();
+            }
+            return;
+        }
+    }
+
+    virtual void update() {
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+
+            int alive = aliveEnemies();
+            if (alive == 0 && bossTimer == 0) {
+                bossTimer = 1;
+                activateBoss();
+            } else if (alive == 0 && bossDead() && bossTimer < COMBAT_END_DELAY) {
+                if (++bossTimer == COMBAT_END_DELAY)
+                    ((Character*)game->getLara())->endHouse(this);
+            }
+        }
+    }
+};
+
+// the shotgun of the shower scene, it's there once the last fight is over
+struct EndShotgun : Controller {
+    CombatEnd *combatEnd;
+
+    EndShotgun(IGame *game, int entity) : Controller(game, entity), combatEnd(NULL) {
+        flags.invisible = true;
+        activate();
+    }
+
+    virtual void update() {
+        if (!combatEnd) // made after it
+            for (int i = 0; i < level->entitiesBaseCount; i++)
+                if (level->entities[i].type == TR::Entity::LARA_END_PLACE)
+                    combatEnd = (CombatEnd*)level->entities[i].controller;
+
+        if (!combatEnd || !combatEnd->isComplete()) {
+            flags.invisible = true;
+            return;
+        }
+        flags.invisible = false;
+        updateAnimation(true);
+    }
+};
+
 // the twinkles of the magic of Bartoli and of the dragon, they come in to it from all round (as in the original)
 static void mysticLight(Controller *owner, const vec3 &target) {
     float a = randf() * PI2;

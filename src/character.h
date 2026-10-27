@@ -147,6 +147,7 @@ struct Character : Controller {
     virtual int   getStateDeath()       { return state; }
     virtual int   getStateDefault()     { return state; }
     virtual void  blastAway(const vec3 &center, float radius) {} // thrown off by a sphere of doom
+    virtual void  endHouse(Controller *place) {}                // the last fight of the game is over, she goes to the shower
     virtual int   getInput()            { return health <= 0 ? DEATH : 0; }
     virtual bool  useHeadAnimation()    { return false; }
 
