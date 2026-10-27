@@ -5958,10 +5958,10 @@ struct Lara : Character {
         #pragma GCC optimize ("O0")
     #endif
 
-    // standing she belongs to the room of her middle, as in the original: on a floor opening (a trapdoor) she stays in
-    // the room above
+    // on the ground and in the air she belongs to the room of her middle, as in the original: on a floor opening (a
+    // trapdoor) she stays in the room above, jumping up to a ledge over a lower opening she meets it from the room above
     virtual void updateRoom() {
-        if (stand == STAND_GROUND) {
+        if (stand == STAND_GROUND || stand == STAND_AIR) {
             level->getSector(roomIndex, pos - vec3(0.0f, LARA_HEIGHT * 0.5f, 0.0f));
             level->getWaterInfo(getRoomIndex(), pos, waterLevel, waterDepth);
         } else
