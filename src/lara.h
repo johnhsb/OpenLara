@@ -6037,8 +6037,9 @@ struct Lara : Character {
                 rotateX( TURN_WALL_X * Core::deltaTime);
         }
 
-        if (stand == STAND_AIR && collision.side == Collision::TOP && velocity.y < 0.0f)
-            velocity.y = 30.0f;
+        // the ceiling only stops the rise, the fall starts slowly (as in the original)
+        if (stand == STAND_AIR && collision.side == Collision::TOP && velocity.y < 1.0f)
+            velocity.y = 1.0f;
 
         if (collision.side == Collision::FRONT) {
             float floor = collision.info[Collision::FRONT].floor;
@@ -6063,8 +6064,8 @@ struct Lara : Character {
                         animation.setAnim(ANIM_SMASH_JUMP);
                         velocity.x = -velocity.x * 0.25f;
                         velocity.z = -velocity.z * 0.25f;
-                        if (velocity.y < 0.0f)
-                            velocity.y = 30.0f;
+                        if (velocity.y < 1.0f)
+                            velocity.y = 1.0f;
                     }
                     break;
                 case STAND_GROUND :
