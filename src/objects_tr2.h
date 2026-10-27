@@ -2111,7 +2111,7 @@ struct Bell : Controller {
 
 #define GONG_STRIKE_FRAME   41
 #define GONG_END_FRAME      79
-#define TRACK_TR2_REVEAL    57
+#define TRACK_TR2_REVEAL    61
 
 // the hammer of the gong of the Ice Palace, it swings along with Lara (made where she stands as she strikes the gong):
 // the stroke shakes the view with the reveal music, at its end the heavy trigger under it goes off and it's gone
