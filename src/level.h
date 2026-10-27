@@ -2775,8 +2775,25 @@ struct Level : IGame {
         if (Core::pass == Core::passCompose && water && waterCache && from != TR::NO_ROOM && (level.rooms[from].flags.water ^ level.rooms[to].flags.water))
             waterCache->setVisible(from, to);
 
-        room.flags.visible = true;
-        roomsList[roomsCount++] = RoomDesc(to, viewPort);
+    // a room seen again through another portal is listed once, its view grows to take in both (as the original does),
+    // otherwise the open levels (the Floating Islands) fill the list with copies and lose rooms as the view moves
+        vec4 view = viewPort;
+        if (room.flags.visible) {
+            int i = 0;
+            while (i < roomsCount && roomsList[i].index != to)
+                i++;
+            if (i == roomsCount)
+                return; // hidden on purpose (the flipped rooms of a cutscene)
+
+            vec4 &port = roomsList[i].portal;
+            view = vec4(min(port.x, viewPort.x), min(port.y, viewPort.y), max(port.z, viewPort.z), max(port.w, viewPort.w));
+            if (view == port)
+                return; // nothing new to see through it
+            port = view;
+        } else {
+            room.flags.visible = true;
+            roomsList[roomsCount++] = RoomDesc(to, view);
+        }
 
         vec4 clipPort;
         for (int i = 0; i < room.portalsCount; i++) {
@@ -2785,7 +2802,7 @@ struct Level : IGame {
             if (Core::pass == Core::passCompose && water && waterCache && (level.rooms[to].flags.water ^ level.rooms[p.roomIndex].flags.water))
                 waterCache->setVisible(to, p.roomIndex);
 
-            if (from != room.portals[i].roomIndex && checkPortal(room, p, viewPort, clipPort))
+            if (from != room.portals[i].roomIndex && checkPortal(room, p, view, clipPort))
                 getVisibleRooms(roomsList, roomsCount, to, p.roomIndex, clipPort, water, count + 1);
         }
     }
