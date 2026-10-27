@@ -2362,8 +2362,9 @@ struct Helicopter : Controller {
 
 // a gout of fire of a flamethrower, near Lara it scorches her and sets her on fire
 struct FlameStream : Sprite {
+    float life; // the fire of the dragon flies on till it hits something
 
-    FlameStream(IGame *game, int entity) : Sprite(game, entity, false, Sprite::FRAME_RANDOM) {
+    FlameStream(IGame *game, int entity) : Sprite(game, entity, false, Sprite::FRAME_RANDOM), life(FLAME_STREAM_TIME) {
         getSequence().transp = 2; // additive
     }
 
@@ -2400,7 +2401,7 @@ struct FlameStream : Sprite {
             return;
         }
 
-        if (time >= FLAME_STREAM_TIME) {
+        if (time >= life) {
             game->playSound(SND_TR2_DRAGON_FIRE, pos, Sound::PAN);
             game->removeEntity(this);
         }
@@ -2832,5 +2833,70 @@ struct EarthquakeTR2 : Controller {
     }
 };
 
+// the twinkles of the magic of Bartoli and of the dragon, they come in to it from all round (as in the original)
+static void mysticLight(Controller *owner, const vec3 &target) {
+    float a = randf() * PI2;
+    vec3 p = owner->pos + vec3(sinf(a), 0.0f, cosf(a)) * 5120.0f;
+    p.y += randf() * 8192.0f - 1024.0f;
+    Sprite *s = (Sprite*)owner->game->addEntity(TR::Entity::SPARKLES, owner->getRoomIndex(), p);
+    if (s)
+        s->velocity = (target - p) * (1.0f / 16.0f);
+}
+
+// TR2 sphere of doom: the blast of the change of Bartoli into the dragon, a growing sphere throwing Lara away
+// ("sphere_of_doom" 1 to 3 in the original)
+#define SPHERE_OF_DOOM_RADIUS       640 // at a size of 256
+#define SPHERE_OF_DOOM_GROWTH       64  // a frame
+#define SPHERE_OF_DOOM_LIFE         (60 * 64)
+#define SND_TR2_BARTOLI_TRANSFORM   341
+
+struct SphereOfDoom : Controller {
+    int   size;
+    float stepTime;
+
+    SphereOfDoom(IGame *game, int entity) : Controller(game, entity), size(0), stepTime(0.0f) {
+        lockMatrix = true;
+        updateMatrix();
+    }
+
+    virtual bool getSaveData(SaveEntity &data) {
+        return false; // it's gone in two seconds
+    }
+
+    float radius() const {
+        return float(SPHERE_OF_DOOM_RADIUS * size / 256);
+    }
+
+    void updateMatrix() {
+        float s = size / 256.0f;
+        matrix.identity();
+        matrix.translate(pos);
+        matrix.rotateY(angle.y);
+        matrix.scale(vec3(max(s, 0.01f)));
+    }
+
+    virtual void update() {
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+
+            size += SPHERE_OF_DOOM_GROWTH;
+            angle.y += (getEntity().type == TR::Entity::DRAGON_EXPLOSION_2 ? 10.0f : -10.0f) * DEG2RAD;
+            game->playSound(SND_TR2_BARTOLI_TRANSFORM, pos, Sound::PAN | Sound::UNIQUE);
+
+            Character *lara = (Character*)game->getLara(pos);
+            float r = radius();
+            vec3 d = lara->pos - pos;
+            if (!lara->getRoom().flags.water && d.x * d.x + d.z * d.z < r * r)
+                lara->blastAway(pos, r);
+
+            if (size > SPHERE_OF_DOOM_LIFE) {
+                game->removeEntity(this);
+                return;
+            }
+        }
+        updateMatrix();
+    }
+};
 
 #endif

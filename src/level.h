@@ -1350,10 +1350,10 @@ struct Level : IGame {
             case TR::Entity::ENEMY_GUNMAN_1         : return new Gunman1(this, index);
             case TR::Entity::ENEMY_GUNMAN_2         :
             case TR::Entity::ENEMY_GOON_FLAME       : return new Gunman2(this, index);
-            case TR::Entity::ENEMY_DRAGON_FRONT     :
-            case TR::Entity::ENEMY_DRAGON_BACK      :
+            case TR::Entity::ENEMY_DRAGON_FRONT     : return new Dragon(this, index);
+            case TR::Entity::ENEMY_DRAGON_BACK      : return new DragonBack(this, index);
             case TR::Entity::UNUSED_23              :
-            case TR::Entity::ENEMY_MARCO            :
+            case TR::Entity::ENEMY_MARCO            : return new Bartoli(this, index);
             case TR::Entity::ENEMY_GUARD_SPEAR        : return new XianSpearman(this, index);
             case TR::Entity::ENEMY_GUARD_SWORD        : return new XianKnight(this, index);
             case TR::Entity::ENEMY_GUARD_SPEAR_STATUE :
@@ -1413,6 +1413,9 @@ struct Level : IGame {
             case TR::Entity::MINISUB                : return new GeneralObject(this, index);
             case TR::Entity::WAKE_BOAT              : return new BoatWake(this, index);
             case TR::Entity::WAKE_SNOWMOBILE        : return new SnowSprite(this, index);
+            case TR::Entity::DRAGON_EXPLOSION_1     :
+            case TR::Entity::DRAGON_EXPLOSION_2     :
+            case TR::Entity::DRAGON_EXPLOSION_3     : return new SphereOfDoom(this, index);
             case TR::Entity::DRAGON_EXPLSION_EMITTER : return new EarthquakeTR2(this, index);
 
             default                                 : return new Controller(this, index);

@@ -85,6 +85,7 @@ static TR::Entity::Type laraStartItem(const char *name) {
 #define LARA_EXTRA_AIRLOCK  4
 #define LARA_EXTRA_GONG     5       // she strikes the gong of the Ice Palace
 #define LARA_EXTRA_START    8       // she gets up in the cell of the rig
+#define LARA_EXTRA_DAGGER   7       // she pulls the dagger out of the dragon
 #define LARA_EXTRA_GUARD    2       // a Xian spearman lifts her on his spear (the level's own animation under the yeti's number)
 
 // frames of the TR2+ flare arm animations (hold, throw, draw, ignite and hold again)
@@ -3468,6 +3469,73 @@ struct Lara : Character {
         game->addEntity(TR::Entity::GONG_STICK, getRoomIndex(), pos, angle.y);
     }
 
+    // a sphere of doom throws her out of it as from a fall start (as in the original)
+    virtual void blastAway(const vec3 &center, float radius) {
+        if (health <= 0.0f || extraAnim || boat || skidoo)
+            return;
+        float a = atan2f(pos.x - center.x, pos.z - center.z);
+        angle   = vec3(0.0f, fabsf(clampAngle(angle.y - a)) < PIH ? a : a + PI, 0.0f);
+
+        // out to its edge, unless a wall stands there
+        vec3 p = vec3(center.x + sinf(a) * (radius + 50.0f), pos.y, center.z + cosf(a) * (radius + 50.0f));
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), p, info);
+        if (info.floor >= pos.y - 256.0f && info.ceiling <= pos.y - LARA_HEIGHT) {
+            pos.x = p.x;
+            pos.z = p.z;
+        }
+        velocity = vec3(sinf(a) * 150.0f, -50.0f, cosf(a) * 150.0f);
+        angleExt = a;
+        stand    = STAND_AIR;
+        animation.setAnim(ANIM_FALL_FORTH);
+    }
+
+    // the dragon a body of which that is
+    Dragon* dragonOf(const TR::Entity &e, Controller *c) {
+        if (e.type == TR::Entity::ENEMY_DRAGON_FRONT)
+            return (Dragon*)c;
+        if (e.type == TR::Entity::ENEMY_DRAGON_BACK)
+            return ((DragonBack*)c)->front;
+        return NULL;
+    }
+
+    // she pulls the dagger out of its side, the camera shows it (as in the original)
+    void pullDagger(Dragon *dragon, Controller *back) {
+        pos       = back->pos;
+        angle     = vec3(0.0f, back->angle.y, 0.0f);
+        roomIndex = back->getRoomIndex();
+        velocity  = vec3(0.0f);
+        speed     = 0.0f;
+        stand     = STAND_GROUND;
+        if (!extraStart(LARA_EXTRA_DAGGER))
+            return;
+        camera->doCutscene(pos, angle.y);
+        dragon->daggerPulled();
+    }
+
+    // by the dragon lying down: at its side she can reach the dagger, it pushes her off sideways (as in the original,
+    // the halves lie at the same place, touching either of them she reaches it);
+    // 0 - push her out as usual, 1 - done, 2 - she pulls the dagger
+    int touchDragonDown(Dragon *dragon, Controller *body) {
+        float r  = body->angle.y;
+        vec3  d  = pos - body->pos;
+        float lx = d.x * cosf(r) - d.z * sinf(r); // across it
+        float lz = d.x * sinf(r) + d.z * cosf(r); // along it
+        if (lz <= -DRAGON_SIDE_DAGGER || lz >= DRAGON_SIDE_DAGGER)
+            return 0;
+
+        float a = clampAngle(angle.y - r);
+        if ((input & ACTION) && stand == STAND_GROUND && dragon->canPullDagger() &&
+            lx <= DRAGON_MID_SHIFT && lx > DRAGON_CLOSE_SHIFT - 350 && lz > -350 && lz < 350 && a > 60.0f * DEG2RAD && a < 120.0f * DEG2RAD) {
+            pullDagger(dragon, dragon->back ? (Controller*)dragon->back : body);
+            return 2;
+        }
+
+        float base = lx < DRAGON_MID_SHIFT ? DRAGON_CLOSE_SHIFT : DRAGON_FAR_SHIFT;
+        pos += vec3(sinf(r + PIH), 0.0f, cosf(r + PIH)) * (base - lx);
+        return 1;
+    }
+
     // a springboard throws her up as from a fall start, on she goes with the speed she had (as in the original)
     virtual bool spring() {
         if (boat || skidoo)
@@ -5628,8 +5696,11 @@ struct Lara : Character {
 
             if (e.type == TR::Entity::TRAP_DOOR_1 || e.type == TR::Entity::TRAP_DOOR_2) continue;
 
+            Dragon *dragon = dragonOf(e, controller);
+            if (dragon && (!dragon->isDown() && dragon->health <= 0.0f)) continue; // melted away
+
             if (e.isEnemy()) { // enemies block Lara even before they are triggered
-                if (e.type != TR::Entity::ENEMY_REX && ((Character*)controller)->health <= 0) continue;
+                if (e.type != TR::Entity::ENEMY_REX && ((Character*)controller)->health <= 0 && !dragon) continue;
             } else {
             // fast distance check for object
                 if (e.type != TR::Entity::HAMMER_HANDLE && e.type != TR::Entity::HAMMER_BLOCK && e.type != TR::Entity::SCION_HOLDER)
@@ -5663,6 +5734,16 @@ struct Lara : Character {
             if (!box.contains(p)) // TODO: Box vs Box or check Lara's head point? (check thor hammer handle)
                 continue;
 
+            // the dragon lying down reaches as far as its bounds, its spheres lie up off the floor (as the original
+            // the halves lie at the same place, either offers the dagger)
+            if (dragon && dragon->isDown()) {
+                int touched = touchDragonDown(dragon, controller);
+                if (touched == 2)
+                    return false;
+                if (touched == 1)
+                    continue;
+            }
+
             if (!collide(controller, false))
                 continue;
 
@@ -5670,6 +5751,7 @@ struct Lara : Character {
                 continue; // an enemy behind a closed door neither touches nor pushes her
 
             controller->touchedBy(controller->collide(this, false));
+
 
             if ((e.type == TR::Entity::VEHICLE_SNOWMOBILE_RED || e.type == TR::Entity::VEHICLE_SNOWMOBILE_BLACK) && !skidoo && !boat) {
                 int anim = skidooGetOn((Snowmobile*)controller);
@@ -5691,7 +5773,7 @@ struct Lara : Character {
             }
 
         // push Lara out of objects and walking enemies (flying ones and the dead don't block, except the huge T-Rex body as in the original)
-            if (!e.isEnemy() || (!((Character*)controller)->flying && (((Character*)controller)->health > 0.0f || e.type == TR::Entity::ENEMY_REX))) {
+            if (!e.isEnemy() || (!((Character*)controller)->flying && (((Character*)controller)->health > 0.0f || e.type == TR::Entity::ENEMY_REX || dragon))) {
                 Box pushBox = box;
                 if (e.isEnemy() && (level->version & TR::VER_TR2)) { // out of the bounds of the creature alone (no big push), she may stand at its jaws
                     pushBox = controller->getBoundingBoxLocal();

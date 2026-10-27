@@ -3703,4 +3703,392 @@ struct XianKnight : XianWarrior {
     }
 };
 
+// TR2 dragon of the Dragon's Lair ("dragon_front" and "dragon_back" in the original): Bartoli turns into it, the front
+// half is the creature, the back half follows it. Knocked down it lies there a while, Lara has to pull the dagger out of
+// it before it comes back to life with half its health, then it melts away into its bones (as in the original)
+#define DRAGON_HEALTH           300
+#define DRAGON_TOUCH_DAMAGE     10
+#define DRAGON_SWIPE_DAMAGE     250
+#define DRAGON_RADIUS           341
+#define DRAGON_DIST_CLOSE       (1024 * 3)
+#define DRAGON_DIST_STOP        (1024 * 6)
+#define DRAGON_WALK_TURN        (2.0f * DEG2RAD)    // a frame
+#define DRAGON_NEED_TURN        (1.0f * DEG2RAD)
+#define DRAGON_TOUCH_L          0x7F000000
+#define DRAGON_TOUCH_R          0x000000FE
+#define DRAGON_FIRE_TIME        30
+#define DRAGON_LIVE_TIME        330     // frames it lies knocked down before it gets up
+#define DRAGON_ALMOST_LIVE      100     // and getting up, the dagger can still be pulled out
+#define DRAGON_LIGHT_TIME       (-20)
+#define DRAGON_BONE_TIME        (-100)
+#define DRAGON_DISSOLVE_TIME    (-240)
+#define DRAGON_DISSOLVE_SHIFT   10
+#define DRAGON_SIDE_DAGGER      512     // the reach along it to the dagger
+#define DRAGON_CLOSE_SHIFT      900     // Lara pushed off its side to this far
+#define DRAGON_FAR_SHIFT        2300
+#define DRAGON_MID_SHIFT        ((DRAGON_CLOSE_SHIFT + DRAGON_FAR_SHIFT) / 2)
+
+struct Dragon;
+
+// the back half, it's where the front half is and plays its animations
+struct DragonBack : Enemy {
+    Dragon *front;
+
+    DragonBack(IGame *game, int entity) : Enemy(game, entity, 1, DRAGON_RADIUS, 0.0f, 0.0f), front(NULL) {}
+
+    virtual bool isActiveTarget() { return false; }
+    virtual int  getInput()       { return 0; }
+    virtual bool activate()       { return false; } // the front half moves it, it isn't among the active ones pushing each other
+    virtual void update()         {}
+    virtual void hit(float damage, Controller *enemy = NULL, TR::HitType hitType = TR::HIT_DEFAULT) {}
+};
+
+struct Dragon : Enemy {
+    enum {
+        STATE_EMPTY,
+        STATE_WALK,
+        STATE_LEFT,
+        STATE_RIGHT,
+        STATE_AIM,
+        STATE_FIRE,
+        STATE_STOP,
+        STATE_TURN_LEFT,
+        STATE_TURN_RIGHT,
+        STATE_SWIPE_LEFT,
+        STATE_SWIPE_RIGHT,
+        STATE_DEATH,
+    };
+
+    enum {
+        ANIM_DIE       = 21,
+        ANIM_DEAD      = 22,
+        ANIM_RESURRECT = 23,
+    };
+
+    enum { FLAG_GONE = 1 };
+
+    DragonBack *back;
+    int   phase;        // the flags of the original: the fire left, then the time knocked down (counting down once the dagger is out)
+    int   goal;
+    float turnRate;     // a frame
+    float stepTime;
+
+    Dragon(IGame *game, int entity) : Enemy(game, entity, DRAGON_HEALTH, DRAGON_RADIUS, 300.0f, 1.0f), back(NULL), phase(0), goal(-1), turnRate(0.0f), stepTime(0.0f) {
+        jointHead = -1;
+    }
+
+    bool isGone() const {
+        return (flags.unused & FLAG_GONE) != 0;
+    }
+
+    virtual int getInput() {
+        return 0; // it doesn't die the usual way
+    }
+
+    void link() {
+        if (back)
+            return;
+        for (int i = level->entitiesBaseCount; i < level->entitiesCount; i++) {
+            TR::Entity &e = level->entities[i];
+            if (e.type == TR::Entity::ENEMY_DRAGON_BACK && e.controller) {
+                back = (DragonBack*)e.controller;
+                back->front = this;
+                return;
+            }
+        }
+    }
+
+    // Lara may pull the dagger out of it lying down or just getting up
+    bool canPullDagger() {
+        return health <= 0.0f && phase >= 0 && !isGone() && (animation.index == ANIM_DEAD || (animation.index == ANIM_RESURRECT && animation.frameIndex <= DRAGON_ALMOST_LIVE));
+    }
+
+    bool isDown() {
+        return health <= 0.0f && !isGone();
+    }
+
+    void daggerPulled() {
+        phase = -1;
+        dropCarried();
+    }
+
+    void bones() {
+        Controller *b = game->addEntity(TR::Entity::DRAGON_BONES_BACK, getRoomIndex(), pos, angle.y);
+        Controller *f = game->addEntity(TR::Entity::DRAGON_BONES_FRONT, getRoomIndex(), pos, angle.y);
+        if (f) {
+            f->initMeshOverrides();
+            f->layers[0].mask = ~0xC00000u; // no dagger in it
+        }
+        if (b) b->flags.invisible = false;
+    }
+
+    void gone() {
+        flags.unused |= FLAG_GONE;
+        flags.invisible = true;
+        if (back) {
+            game->checkTrigger(back, true);
+            back->flags.invisible = true;
+            back->deactivate(true);
+        }
+        deactivate(true);
+    }
+
+    // a frame of it knocked down
+    void stepDown() {
+        if (state != STATE_DEATH) {
+            animation.setAnim(ANIM_DIE);
+            goal  = -1;
+            phase = 0;
+            return;
+        }
+
+        if (phase >= 0) {
+            phase++;
+            vec3 heart = pos + vec3(0.0f, -540.0f, 0.0f) + vec3(cosf(angle.y), 0.0f, -sinf(angle.y)) * 1100.0f + vec3(sinf(angle.y), 0.0f, cosf(angle.y)) * 490.0f;
+            mysticLight(this, heart);
+            if (phase == DRAGON_LIVE_TIME)
+                goal = STATE_STOP;
+            if (phase > DRAGON_LIVE_TIME + DRAGON_ALMOST_LIVE) {
+                health = DRAGON_HEALTH / 2; // up again
+                goal   = -1;
+            }
+            return;
+        }
+
+        if (phase == DRAGON_BONE_TIME)
+            bones();
+        else if (phase == DRAGON_DISSOLVE_TIME) {
+            gone();
+            return;
+        } else if (phase < DRAGON_BONE_TIME)
+            pos.y += DRAGON_DISSOLVE_SHIFT;
+        phase--;
+    }
+
+    void fire() {
+        FlameStream *flame = (FlameStream*)game->addEntity(TR::Entity::FLAME_STREAM, getRoomIndex(), getJoint(12) * vec3(35.0f, 171.0f, 1168.0f));
+        if (flame) {
+            flame->aim(target);
+            flame->life = 0x4000 / 30.0f; // it flies on till it hits something
+        }
+    }
+
+    virtual int getStateGround() {
+        if (!think(true))
+            return state;
+
+        float d = targetDist;
+        bool ahead = targetInView && d > DRAGON_DIST_CLOSE && d < DRAGON_DIST_STOP;
+        int touch = touching();
+        if (touch)
+            target->hit(DRAGON_TOUCH_DAMAGE, this);
+
+        vec3  w = waypoint - pos;
+        float a = clamp(clampAngle(normalizeAngle(PIH - w.angleY() - angle.y)), -DRAGON_WALK_TURN, DRAGON_WALK_TURN);
+        turnRate = animation.getSpeed() > 0.0f ? a : 0.0f;
+
+        switch (state) {
+            case STATE_WALK :
+                phase = 0;
+                if (ahead) return STATE_STOP;
+                if (a < -DRAGON_NEED_TURN) return (d < DRAGON_DIST_STOP && targetInView) ? STATE_STOP : STATE_LEFT;
+                if (a >  DRAGON_NEED_TURN) return (d < DRAGON_DIST_STOP && targetInView) ? STATE_STOP : STATE_RIGHT;
+                break;
+            case STATE_LEFT :
+                if (a > -DRAGON_NEED_TURN || ahead) return STATE_WALK;
+                break;
+            case STATE_RIGHT :
+                if (a < DRAGON_NEED_TURN || ahead) return STATE_WALK;
+                break;
+            case STATE_AIM :
+                turnRate = 0.0f;
+                if (ahead) {
+                    phase = DRAGON_FIRE_TIME;
+                    return STATE_FIRE;
+                }
+                phase = 0;
+                break;
+            case STATE_FIRE :
+                turnRate = 0.0f;
+                game->playSound(SND_TR2_DRAGON_FIRE, pos, Sound::PAN);
+                if (phase) {
+                    if (targetInView)
+                        fire();
+                    phase--;
+                } else
+                    return STATE_STOP;
+                break;
+            case STATE_STOP :
+                turnRate = 0.0f;
+                if (ahead) return STATE_AIM;
+                if (d > DRAGON_DIST_STOP || !targetInView) return STATE_WALK;
+                if (d >= DRAGON_DIST_CLOSE || phase)
+                    return targetAngle < 0.0f ? STATE_TURN_LEFT : STATE_TURN_RIGHT;
+                phase = 1;
+                return targetAngle < 0.0f ? STATE_SWIPE_LEFT : STATE_SWIPE_RIGHT;
+            case STATE_TURN_LEFT :
+                phase = 0;
+                turnRate = -DRAGON_NEED_TURN;
+                break;
+            case STATE_TURN_RIGHT :
+                phase = 0;
+                turnRate = DRAGON_NEED_TURN;
+                break;
+            case STATE_SWIPE_LEFT :
+                if (touch & DRAGON_TOUCH_L) {
+                    target->hit(DRAGON_SWIPE_DAMAGE, this);
+                    phase = 0;
+                }
+                break;
+            case STATE_SWIPE_RIGHT :
+                if (touch & DRAGON_TOUCH_R) {
+                    target->hit(DRAGON_SWIPE_DAMAGE, this);
+                    phase = 0;
+                }
+                break;
+        }
+        return state;
+    }
+
+    virtual void updatePosition() {
+        angle.y += turnRate * 30.0f * Core::deltaTime;
+        Enemy::updatePosition();
+    }
+
+    virtual void update() {
+        link();
+        if (isGone())
+            return;
+
+        if (health <= 0.0f) {
+            stepTime += Core::deltaTime;
+            while (stepTime >= 1.0f / 30.0f && !isGone()) {
+                stepTime -= 1.0f / 30.0f;
+                stepDown();
+            }
+            if (isGone())
+                return;
+            if (goal > -1)
+                animation.setState(goal);
+            Controller::updateAnimation(true);
+            updateRoom();
+            updateLights();
+        } else
+            Enemy::update();
+
+        if (back) { // the back half follows
+            back->pos       = pos;
+            back->angle     = angle;
+            back->roomIndex = roomIndex;
+            if (back->animation.index != animation.index)
+                back->animation.setAnim(animation.index);
+            back->animation.time = animation.time;
+            back->animation.updateInfo();
+            back->updateLights();
+        }
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Enemy::setSaveData(data);
+        phase = 0;
+        goal  = -1;
+        if (isGone())
+            flags.invisible = true;
+    }
+};
+
+// TR2 Marco Bartoli in the Dragon's Lair ("bartoli" in the original): Lara coming near, the magic gathers round him, he
+// blows up in three spheres of doom and the dragon stands there (as in the original)
+#define BARTOLI_RANGE       (1024 * 5)
+#define BARTOLI_BOOM_TIME   130
+
+struct Bartoli : Enemy {
+    enum { FLAG_CHANGED = 1 };
+
+    int   timer;
+    float stepTime;
+
+    Bartoli(IGame *game, int entity) : Enemy(game, entity, 1, 0, 0.0f, 0.0f), timer(0), stepTime(0.0f) {
+        flags.invisible = false; // he stands there waiting, not lying in ambush
+    }
+
+    virtual bool isActiveTarget() { return false; }
+    virtual int  getInput()       { return 0; }
+    virtual void hit(float damage, Controller *enemy = NULL, TR::HitType hitType = TR::HIT_DEFAULT) {}
+    virtual bool isCollider()     { return false; }
+
+    bool hasChanged() const {
+        return (flags.unused & FLAG_CHANGED) != 0;
+    }
+
+
+    virtual void deactivate(bool removeFromList = false) {
+        if (hasChanged())
+            Enemy::deactivate(removeFromList); // not at the end of his animation, he changes later
+    }
+
+    void boom(TR::Entity::Type type) {
+        Controller *sphere = game->addEntity(type, getRoomIndex(), pos + vec3(0.0f, 256.0f, 0.0f), 0.0f);
+        if (sphere)
+            sphere->activate();
+    }
+
+    // he's the dragon now
+    void change() {
+        Controller *front = game->addEntity(TR::Entity::ENEMY_DRAGON_FRONT, getRoomIndex(), pos, angle.y);
+        Controller *back  = game->addEntity(TR::Entity::ENEMY_DRAGON_BACK,  getRoomIndex(), pos, angle.y);
+        if (front && back) {
+            front->flags.invisible = back->flags.invisible = false;
+            ((Dragon*)front)->back = (DragonBack*)back;
+            ((DragonBack*)back)->front = (Dragon*)front;
+            ((Dragon*)front)->update(); // the back half there at once
+        }
+        flags.unused |= FLAG_CHANGED;
+        flags.invisible = true;
+        deactivate(true);
+    }
+
+    virtual void update() {
+        if (hasChanged())
+            return;
+
+        stepTime += Core::deltaTime;
+        while (stepTime >= 1.0f / 30.0f) {
+            stepTime -= 1.0f / 30.0f;
+
+            if (timer == 0) {
+                Controller *lara = game->getLara(pos);
+                if (fabsf(lara->pos.x - pos.x) < BARTOLI_RANGE && fabsf(lara->pos.z - pos.z) < BARTOLI_RANGE)
+                    timer = 1;
+                continue;
+            }
+
+            timer++;
+            if ((timer & 7) == 0)
+                game->shakeCamera(timer / 400.0f);
+            mysticLight(this, pos);
+
+            if (timer == BARTOLI_BOOM_TIME)
+                boom(TR::Entity::DRAGON_EXPLOSION_1);
+            else if (timer == BARTOLI_BOOM_TIME + 10)
+                boom(TR::Entity::DRAGON_EXPLOSION_2);
+            else if (timer == BARTOLI_BOOM_TIME + 20)
+                boom(TR::Entity::DRAGON_EXPLOSION_3);
+            else if (timer > BARTOLI_BOOM_TIME + 20) {
+                change();
+                return;
+            }
+        }
+
+        if (timer)
+            Controller::updateAnimation(true);
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Enemy::setSaveData(data);
+        timer = 0;
+        flags.invisible = hasChanged();
+    }
+};
+
 #endif

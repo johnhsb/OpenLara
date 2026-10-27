@@ -146,6 +146,7 @@ struct Character : Controller {
     virtual int   getStateWade()        { return state; }
     virtual int   getStateDeath()       { return state; }
     virtual int   getStateDefault()     { return state; }
+    virtual void  blastAway(const vec3 &center, float radius) {} // thrown off by a sphere of doom
     virtual int   getInput()            { return health <= 0 ? DEATH : 0; }
     virtual bool  useHeadAnimation()    { return false; }
 
