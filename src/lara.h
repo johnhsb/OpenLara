@@ -117,6 +117,8 @@ static TR::Entity::Type laraStartItem(const char *name) {
 
 #define PICKUP_FRAME_GROUND     40
 #define PICKUP_FRAME_UNDERWATER 18
+#define PICKUP_FRAME_FLARE      58  // she takes a flare lying on the floor into the hand
+#define PICKUP_FRAME_FLARE_UW   20
 #define PUZZLE_FRAME            80
 #define KEY_FRAME               110
 
@@ -218,6 +220,7 @@ struct Lara : Character {
         ANIM_PUSH_BUTTON        = 197,
 
         ANIM_ROLL_WATER         = 203,
+        ANIM_FLARE_PICKUP_UW    = 206,
 
     // TR2+
         ANIM_LADDER_UP          = 161,
@@ -1967,6 +1970,13 @@ struct Lara : Character {
 
         switch (flareState) {
             case FLARE_DRAW :
+                if (state == STATE_PICKUP_FLARE || state == STATE_PICK_UP) { // just picked up, the arm follows the body
+                    if (flareFrame >= FLARE_FRAME_HOLD2 - 2) {
+                        flareFrame   = FLARE_FRAME_HOLD2 - 2;
+                        flareControl = false;
+                        break;
+                    }
+                }
                 flareControl = true;
                 if (prev < FLARE_FRAME_GOT_IT && flareFrame >= FLARE_FRAME_GOT_IT) {
                     flareSetMesh(true);
@@ -2616,6 +2626,24 @@ struct Lara : Character {
             }
         }
 
+        for (int i = 0; i < pickupListCount; i++) {
+            if (pickupList[i]->getEntity().type != TR::Entity::FLARE)
+                continue;
+            // a flare is picked up alone with its own animation
+            pickupList[0]   = pickupList[i];
+            pickupListCount = 1;
+            if (stand == STAND_UNDERWATER) {
+                velocity = vec3(0.0f);
+                animation.setAnim(ANIM_FLARE_PICKUP_UW);
+            } else if (animation.canSetState(STATE_PICKUP_FLARE)) {
+                state = STATE_PICKUP_FLARE;
+            } else {
+                pickupListCount = 0;
+                return false;
+            }
+            return true;
+        }
+
         if (pickupListCount > 0) {
             state = STATE_PICK_UP;
             return true;
@@ -2670,8 +2698,12 @@ struct Lara : Character {
     bool canPickup(Controller *controller) {
         TR::Entity::Type type = controller->getEntity().type;
 
-        if (type == TR::Entity::FLARE) // TODO pick up the burning flares
-            return false;
+        if (type == TR::Entity::FLARE) {
+            if (flareState != FLARE_NONE) // one flare in the hand at a time
+                return false;
+            if (stand != STAND_UNDERWATER) // she takes it where she stands (as in the original)
+                return flareInReach(controller);
+        }
 
         // get limits
         TR::Limits::Limit *limit;
@@ -2705,6 +2737,27 @@ struct Lara : Character {
         }
 
         return true;
+    }
+
+    // a flare lying in front of her (the pickup box, turned her way)
+    bool flareInReach(Controller *controller) {
+        if (state != STATE_STOP || !emptyHands())
+            return false;
+        vec3 a = controller->angle;
+        controller->angle = vec3(0.0f, angle.y, 0.0f);
+        mat4 m = controller->getMatrix();
+        controller->angle = a;
+        return TR::Limits::PICKUP.box.contains((m.transpose() * vec4(pos - controller->pos, 0.0f)).xyz());
+    }
+
+    // she has picked up a burning flare, it goes on burning in her hand (as in the original)
+    void flarePickUp(FlareItem *item) {
+        flareState   = FLARE_DRAW;
+        flareFrame   = FLARE_FRAME_HOLD2 - 2;
+        flareAge     = item->age;
+        flareControl = flarePending = false;
+        flareSetMesh(true);
+        game->removeEntity(item);
     }
 
     int doTutorial(int track) {
@@ -5241,6 +5294,15 @@ struct Lara : Character {
 
     virtual void doCustomCommand(int curFrame, int prevFrame) {
         switch (state) {
+            case STATE_PICKUP_FLARE : {
+                int pickupFrame = stand == STAND_UNDERWATER ? PICKUP_FRAME_FLARE_UW : PICKUP_FRAME_FLARE;
+                if (animation.isFrameActive(pickupFrame)) {
+                    if (pickupListCount > 0 && pickupList[0]->getEntity().type == TR::Entity::FLARE)
+                        flarePickUp((FlareItem*)pickupList[0]);
+                    pickupListCount = 0;
+                }
+                break;
+            }
             case STATE_PICK_UP : {
                 int pickupFrame = stand == STAND_UNDERWATER ? PICKUP_FRAME_UNDERWATER : PICKUP_FRAME_GROUND;
                 if (animation.isFrameActive(pickupFrame)) {
