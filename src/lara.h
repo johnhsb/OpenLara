@@ -85,6 +85,7 @@ static TR::Entity::Type laraStartItem(const char *name) {
 #define LARA_EXTRA_AIRLOCK  4
 #define LARA_EXTRA_GONG     5       // she strikes the gong of the Ice Palace
 #define LARA_EXTRA_START    8       // she gets up in the cell of the rig
+#define LARA_EXTRA_GUARD    2       // a Xian spearman lifts her on his spear (the level's own animation under the yeti's number)
 
 // frames of the TR2+ flare arm animations (hold, throw, draw, ignite and hold again)
 #define FLARE_FRAME_HOLD    0
@@ -2452,11 +2453,12 @@ struct Lara : Character {
                 break;
             }
             case TR::HIT_SHARK : // in the jaws of the shark, as it shakes her
-            case TR::HIT_YETI  : { // in the hands of the yeti, as it beats her
+            case TR::HIT_YETI  :   // in the hands of the yeti, as it beats her
+            case TR::HIT_GUARD : { // on the spear of a Xian spearman
                 pos   = enemy->pos;
                 angle = enemy->angle;
                 roomIndex = enemy->getRoomIndex();
-                extraStart(hitType == TR::HIT_SHARK ? LARA_EXTRA_SHARK : LARA_EXTRA_YETI);
+                extraStart(hitType == TR::HIT_SHARK ? LARA_EXTRA_SHARK : (hitType == TR::HIT_GUARD ? LARA_EXTRA_GUARD : LARA_EXTRA_YETI));
                 break;
             }
 

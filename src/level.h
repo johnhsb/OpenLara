@@ -1354,9 +1354,9 @@ struct Level : IGame {
             case TR::Entity::ENEMY_DRAGON_BACK      :
             case TR::Entity::UNUSED_23              :
             case TR::Entity::ENEMY_MARCO            :
-            case TR::Entity::ENEMY_GUARD_SPEAR        :
+            case TR::Entity::ENEMY_GUARD_SPEAR        : return new XianSpearman(this, index);
+            case TR::Entity::ENEMY_GUARD_SWORD        : return new XianKnight(this, index);
             case TR::Entity::ENEMY_GUARD_SPEAR_STATUE :
-            case TR::Entity::ENEMY_GUARD_SWORD        :
             case TR::Entity::ENEMY_GUARD_SWORD_STATUE :
             case TR::Entity::ENEMY_MERCENARY_SNOWMOBILE : return new SkidooDriver(this, index);
             case TR::Entity::ENEMY_MONK_1           :

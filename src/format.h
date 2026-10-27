@@ -1555,6 +1555,7 @@ namespace TR {
         HIT_GIANT_MUTANT,
         HIT_SHARK,
         HIT_YETI,
+        HIT_GUARD,
     };
 
     struct Action {

@@ -3297,4 +3297,410 @@ struct SkidooDriver : Human {
     }
 };
 
+// TR2 warriors of Xian in the Floating Islands and the Dragon's Lair ("xian_spearman" and "xian_knight" in the
+// original): stone statues till their trigger, they come to life part by part, shot down they turn back to stone
+// from the head down and shatter (as in the original)
+#define XIAN_WAKE_TICKS         4   // a mesh comes to life every 4 frames
+#define XIAN_SPEAR_WALK_TURN    (DEG2RAD * 3 * 30)
+#define XIAN_SPEAR_RUN_TURN     (DEG2RAD * 5 * 30)
+#define XIAN_SPEAR_DIST_1       1024
+#define XIAN_SPEAR_DIST_2       1536
+#define XIAN_SPEAR_DIST_3       2048
+#define XIAN_SPEAR_DIST_RUN     3072
+#define XIAN_SPEAR_DAMAGE       75
+#define XIAN_SPEAR_DAMAGE_RUN   120
+#define XIAN_SPEAR_STOP_CHANCE  0x200
+#define XIAN_SPEAR_WALK_CHANCE  0x400
+#define XIAN_SPEAR_TOUCH_L      0x00800     // the spear in the left hand (mesh 11)
+#define XIAN_SPEAR_TOUCH_R      0x40000     // and in the right one (mesh 18)
+#define XIAN_KNIGHT_WALK_TURN   (DEG2RAD * 5 * 30)
+#define XIAN_KNIGHT_FLY_TURN    (DEG2RAD * 4 * 30)
+#define XIAN_KNIGHT_DIST_1      1024
+#define XIAN_KNIGHT_DIST_3      2048
+#define XIAN_KNIGHT_DAMAGE      300
+#define XIAN_KNIGHT_TOUCH       0xC000      // the sword
+#define XIAN_KNIGHT_LIFT_SPEED  (64.0f * 30.0f)
+#define SND_TR2_WARRIOR_HOVER   312
+#define SND_TR2_CRUNCH_2        318
+
+struct XianWarrior : Enemy {
+    enum { FLAG_GONE = 1 };         // flags.unused: shattered, nothing left of it
+
+    TR::Entity::Type statueType;    // the stone look of the parts not alive (the same meshes)
+    uint32 meshBits;                // the parts alive
+    int    wakeCount;
+    int    hits;                    // the weapons that hit in this attack
+    float  maxTurn;                 // kept by the attacks from the state they come from, as in the original
+    int    stateStart;
+    float  stepTime;
+
+    XianWarrior(IGame *game, int entity, float health, TR::Entity::Type statueType, int stateStart) :
+        Enemy(game, entity, health, 204, 0.0f, 1.0f), statueType(statueType), meshBits(0), wakeCount(0), hits(0),
+        maxTurn(0.0f), stateStart(stateStart), stepTime(0.0f) {
+        initMeshOverrides();
+        meshSwap(1, level->getModelIndex(statueType) - 1);
+        updateMeshes();
+        flags.invisible = false; // the statue stands there before its trigger
+    }
+
+    uint32 allMeshes() {
+        return (1u << getModel()->mCount) - 1;
+    }
+
+    void updateMeshes() {
+        if (layers[1].model >= 0)
+            layers[1].mask = ~meshBits & allMeshes();
+    }
+
+    bool isGone() const {
+        return (flags.unused & FLAG_GONE) != 0;
+    }
+
+    virtual bool isCollider() {
+        return !isGone();
+    }
+
+    virtual int getInput() {
+        return 0; // no death animation, it turns back to stone where it stands
+    }
+
+    virtual bool explodeFx() {
+        return false; // only the stone flies apart
+    }
+
+    // it comes to life part by part while it wakes up, it's whole after that
+    void wake() {
+        if (state != stateStart) {
+            meshBits = allMeshes();
+        } else if (wakeCount == 0) {
+            meshBits = ((meshBits << 1) | 1) & allMeshes();
+            wakeCount = XIAN_WAKE_TICKS - 1;
+        } else
+            wakeCount--;
+        updateMeshes();
+    }
+
+    // a weapon touching her hurts her once in an attack
+    bool strike(int touchMask, int weapon, int joint, const vec3 &offset, float damage, TR::HitType lethal = TR::HIT_DEFAULT) {
+        if ((hits & weapon) || !(touching() & touchMask))
+            return false;
+        hits |= weapon;
+        bool alive = target->health > 0.0f;
+        target->hit(damage, this, target->health <= damage ? lethal : TR::HIT_DEFAULT);
+        game->addEntity(TR::Entity::BLOOD, target->getRoomIndex(), getJoint(joint) * offset);
+        return alive && target->health <= 0.0f;
+    }
+
+    // shot down it turns back to stone from the last part on, then shatters
+    void crumble() {
+        meshBits >>= 1;
+        updateMeshes();
+        if (meshBits)
+            return;
+        game->playSound(SND_TR2_EXPLOSION_1, pos, Sound::PAN);
+        layers[0].model = layers[1].model; // the stone flies apart
+        layers[1].mask  = 0;
+        explode(0xFFFFFFFF, 0.0f);
+        flags.unused |= FLAG_GONE;
+    }
+
+    virtual void update() {
+        if (isGone()) {
+            if (explodeMask) {
+                updateExplosion();
+                if (!explodeMask) {
+                    flags.invisible = true;
+                    deactivate(true);
+                }
+            }
+            return;
+        }
+
+        if (health <= 0.0f) { // its pose stays as it turns to stone
+            stepTime += Core::deltaTime;
+            while (stepTime >= 1.0f / 30.0f && !isGone()) {
+                stepTime -= 1.0f / 30.0f;
+                crumble();
+            }
+            return;
+        }
+
+        Enemy::update();
+    }
+
+    virtual void updatePosition() {
+        turn(false, maxTurn);
+        Enemy::updatePosition();
+        setOverrides(true, jointChest, jointHead);
+        lookAt(target);
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Enemy::setSaveData(data);
+        flags.invisible = isGone() || health <= 0.0f;
+        if (health <= 0.0f) {
+            flags.unused |= FLAG_GONE;
+            deactivate(true);
+        }
+        meshBits = (flags.active || state != stateStart) ? allMeshes() : 0;
+        updateMeshes();
+    }
+};
+
+struct XianSpearman : XianWarrior {
+    enum {
+        ANIM_START = 48,
+        ANIM_KILL  = 49,
+    };
+
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_STOP_2,
+        STATE_WALK,
+        STATE_RUN,
+        STATE_AIM_1,
+        STATE_HIT_1,
+        STATE_AIM_2,
+        STATE_HIT_2,
+        STATE_AIM_3,
+        STATE_HIT_3,
+        STATE_AIM_4,
+        STATE_HIT_4,
+        STATE_AIM_5,
+        STATE_HIT_5,
+        STATE_AIM_6,
+        STATE_HIT_6,
+        STATE_DEATH,
+        STATE_START,
+        STATE_KILL,
+    };
+
+    XianSpearman(IGame *game, int entity) : XianWarrior(game, entity, 100, TR::Entity::ENEMY_GUARD_SPEAR_STATUE, STATE_START) {
+        stepHeight =  256;
+        dropHeight = -512;
+        jointChest = 7;
+        jointHead  = 13;
+        animation.setAnim(ANIM_START);
+    }
+
+    // both spears, a killing thrust lifts her up on the spear
+    void thrust(float damage) {
+        int before = hits;
+        bool killed = strike(XIAN_SPEAR_TOUCH_R, 1, 18, vec3(0.0f, 0.0f, 920.0f), damage, TR::HIT_GUARD);
+        killed |= strike(XIAN_SPEAR_TOUCH_L, 2, 11, vec3(0.0f, 0.0f, 920.0f), damage, TR::HIT_GUARD);
+        if (hits != before)
+            game->playSound(SND_TR2_CRUNCH_2, pos, Sound::PAN);
+        if (killed)
+            animation.setAnim(ANIM_KILL);
+    }
+
+    virtual int getStateGround() {
+        if (!think(true) || state == STATE_KILL)
+            return state;
+
+        wake();
+
+        bool bored = mood == MOOD_SLEEP;
+        bool ahead = targetInView;
+        float d = targetDist;
+        int r;
+
+        switch (state) {
+            case STATE_STOP :
+                maxTurn = 0.0f;
+                if (bored) {
+                    r = randControl();
+                    if (r < XIAN_SPEAR_STOP_CHANCE) return STATE_STOP_2;
+                    if (r < XIAN_SPEAR_WALK_CHANCE) return STATE_WALK;
+                    break;
+                }
+                if (ahead && d < XIAN_SPEAR_DIST_1) return STATE_AIM_1;
+                return STATE_WALK;
+            case STATE_STOP_2 :
+                maxTurn = 0.0f;
+                if (mood == MOOD_ESCAPE) return STATE_WALK;
+                if (bored) {
+                    r = randControl();
+                    if (r < XIAN_SPEAR_STOP_CHANCE) return STATE_STOP;
+                    if (r < XIAN_SPEAR_WALK_CHANCE) return STATE_WALK;
+                    break;
+                }
+                if (ahead && d < XIAN_SPEAR_DIST_1) return STATE_AIM_5;
+                return STATE_WALK;
+            case STATE_WALK :
+                maxTurn = XIAN_SPEAR_WALK_TURN;
+                if (mood == MOOD_ESCAPE) return STATE_RUN;
+                if (bored) {
+                    r = randControl();
+                    if (r < XIAN_SPEAR_STOP_CHANCE) return STATE_STOP;
+                    if (r < XIAN_SPEAR_WALK_CHANCE) return STATE_STOP_2;
+                    break;
+                }
+                if (ahead && d < XIAN_SPEAR_DIST_3) {
+                    if (d < XIAN_SPEAR_DIST_2) return STATE_AIM_2;
+                    return randControl() < 0x4000 ? STATE_AIM_3 : STATE_AIM_4;
+                }
+                if (!ahead || d > XIAN_SPEAR_DIST_RUN) return STATE_RUN;
+                break;
+            case STATE_RUN :
+                maxTurn = XIAN_SPEAR_RUN_TURN;
+                if (mood == MOOD_ESCAPE) break;
+                if (bored) return randControl() < 0x4000 ? STATE_STOP : STATE_STOP_2;
+                if (ahead && d < XIAN_SPEAR_DIST_3) return STATE_AIM_6;
+                break;
+            case STATE_AIM_1 :
+                hits = 0;
+                return (!ahead || d > XIAN_SPEAR_DIST_1) ? STATE_STOP : STATE_HIT_1;
+            case STATE_AIM_2 :
+                hits = 0;
+                return (!ahead || d > XIAN_SPEAR_DIST_2) ? STATE_WALK : STATE_HIT_2;
+            case STATE_AIM_3 :
+            case STATE_AIM_4 :
+                hits = 0;
+                return (!ahead || d > XIAN_SPEAR_DIST_3) ? STATE_WALK : STATE_HIT_2;
+            case STATE_AIM_5 :
+                hits = 0;
+                return (!ahead || d > XIAN_SPEAR_DIST_1) ? STATE_STOP_2 : STATE_HIT_5;
+            case STATE_AIM_6 :
+                hits = 0;
+                return (!ahead || d > XIAN_SPEAR_DIST_3) ? STATE_RUN : STATE_HIT_6;
+            case STATE_HIT_1 :
+                thrust(XIAN_SPEAR_DAMAGE);
+                break;
+            case STATE_HIT_2 :
+            case STATE_HIT_3 :
+            case STATE_HIT_4 :
+                thrust(XIAN_SPEAR_DAMAGE);
+                if (state == STATE_KILL) break;
+                if (ahead && d < XIAN_SPEAR_DIST_1)
+                    return randControl() < 0x4000 ? STATE_STOP : STATE_STOP_2;
+                return STATE_WALK;
+            case STATE_HIT_5 :
+                thrust(XIAN_SPEAR_DAMAGE);
+                if (state == STATE_KILL) break;
+                return (ahead && d < XIAN_SPEAR_DIST_1) ? STATE_STOP : STATE_STOP_2;
+            case STATE_HIT_6 :
+                thrust(XIAN_SPEAR_DAMAGE_RUN);
+                if (state == STATE_KILL) break;
+                if (ahead && d < XIAN_SPEAR_DIST_1)
+                    return randControl() < 0x4000 ? STATE_STOP : STATE_STOP_2;
+                return (ahead && d < XIAN_SPEAR_DIST_3) ? STATE_WALK : STATE_RUN;
+        }
+        return state;
+    }
+
+    virtual void updatePosition() {
+        if (state == STATE_KILL) { // Lara is on its spear
+            animation.overrideMask = 0;
+            return;
+        }
+        XianWarrior::updatePosition();
+    }
+};
+
+struct XianKnight : XianWarrior {
+    enum {
+        STATE_EMPTY,
+        STATE_STOP,
+        STATE_WALK,
+        STATE_AIM_1,
+        STATE_SLASH_1,
+        STATE_AIM_2,
+        STATE_SLASH_2,
+        STATE_WAIT,
+        STATE_FLY,
+        STATE_START,
+        STATE_AIM_3,
+        STATE_SLASH_3,
+        STATE_DEATH,
+    };
+
+    XianKnight(IGame *game, int entity) : XianWarrior(game, entity, 80, TR::Entity::ENEMY_GUARD_SWORD_STATUE, STATE_START) {
+        jointChest = 7;
+        jointHead  = 17;
+        walk();
+    }
+
+    void walk() {
+        flying     = false;
+        stepHeight =  256;
+        dropHeight = -256;
+    }
+
+    // Lara's ground zone differs from its own one, it has to fly there
+    bool apart() {
+        uint16 *ground = level->zones[level->state.flags.flipped].ground1;
+        return box != TR::NO_BOX && target && target->box != TR::NO_BOX && ground[box] != ground[target->box];
+    }
+
+    void sparkle() {
+        vec3 p = pos + vec3(randf() * 256.0f - 128.0f, randf() * 256.0f - 256.0f, randf() * 256.0f - 128.0f);
+        game->addEntity(TR::Entity::SPARKLES, getRoomIndex(), p);
+        game->playSound(SND_TR2_WARRIOR_HOVER, pos, Sound::PAN);
+    }
+
+    virtual int getStateGround() {
+        walk();
+        if (state == STATE_FLY && target && apart()) { // it flies over the gaps
+            flying     = true;
+            stepHeight =  20 * 1024;
+            dropHeight = -20 * 1024;
+        }
+
+        if (!think(true))
+            return state;
+
+        wake();
+
+        bool laraDead = target->health <= 0.0f;
+        bool bite = targetCanAttack;
+        float d = targetDist;
+
+        switch (state) {
+            case STATE_STOP :
+                maxTurn = 0.0f;
+                if (laraDead) return STATE_WAIT;
+                if (bite && d < XIAN_KNIGHT_DIST_1) return randControl() < 0x4000 ? STATE_AIM_1 : STATE_AIM_2;
+                if (apart()) return STATE_FLY;
+                return STATE_WALK;
+            case STATE_WALK :
+                maxTurn = XIAN_KNIGHT_WALK_TURN;
+                if (laraDead) return STATE_STOP;
+                if (bite && d < XIAN_KNIGHT_DIST_3) return STATE_AIM_3;
+                if (apart()) return STATE_STOP;
+                break;
+            case STATE_FLY :
+                maxTurn = XIAN_KNIGHT_FLY_TURN;
+                sparkle();
+                if (!flying) return STATE_STOP;
+                break;
+            case STATE_AIM_1 :
+                hits = 0;
+                return (bite && d < XIAN_KNIGHT_DIST_1) ? STATE_SLASH_1 : STATE_STOP;
+            case STATE_AIM_2 :
+                hits = 0;
+                return (bite && d < XIAN_KNIGHT_DIST_1) ? STATE_SLASH_2 : STATE_STOP;
+            case STATE_AIM_3 :
+                hits = 0;
+                return (bite && d < XIAN_KNIGHT_DIST_3) ? STATE_SLASH_3 : STATE_WALK;
+            case STATE_SLASH_1 :
+            case STATE_SLASH_2 :
+            case STATE_SLASH_3 :
+                strike(XIAN_KNIGHT_TOUCH, 1, 15, vec3(0.0f, 37.0f, 550.0f), XIAN_KNIGHT_DAMAGE);
+                break;
+        }
+        return state;
+    }
+
+    virtual void updatePosition() {
+        if (flying) {
+            stand = STAND_AIR;
+            lift(waypoint.y - pos.y, XIAN_KNIGHT_LIFT_SPEED);
+        }
+        XianWarrior::updatePosition();
+        stand = STAND_GROUND; // it decides on the ground states in the air too (as Natla)
+    }
+};
+
 #endif
