@@ -2494,7 +2494,8 @@ namespace TR {
                    (type == CRYSTAL) ||
                    (type >= SECRET_1 && type <= SECRET_3) ||
                    (type == FLARES || type == FLARE) || 
-                   (type >= STONE_ITEM_1 && type <= STONE_ITEM_4);
+                   (type >= STONE_ITEM_1 && type <= STONE_ITEM_4) ||
+                   (type == QUEST_ITEM_1 || type == QUEST_ITEM_2);
         }
 
         static bool isInventoryItem(Type type) {
@@ -2537,11 +2538,14 @@ namespace TR {
                 || type == INV_KEY_ITEM_3
                 || type == INV_KEY_ITEM_4
                 || type == INV_LEADBAR
-                || type == INV_SCION;
+                || type == INV_SCION
+                || type == INV_QUEST_ITEM_1
+                || type == INV_QUEST_ITEM_2;
         }
 
         static bool isCrossLevelItem(Type type) {
-            return isPickup(type) && !isPuzzleItem(type) && !isKeyItem(type) && (type != LEADBAR) && !(type >= SECRET_1 && type <= SECRET_3);
+            return isPickup(type) && !isPuzzleItem(type) && !isKeyItem(type) && (type != LEADBAR) && !(type >= SECRET_1 && type <= SECRET_3) &&
+                   type != QUEST_ITEM_1 && type != QUEST_ITEM_2;
         }
 
         bool isPickup() const {
@@ -3227,6 +3231,7 @@ namespace TR {
 
                 int16 leadbar;
                 int16 scion;
+                int16 quest[2];
             } inv;
         } extra;
 
@@ -5005,6 +5010,8 @@ namespace TR {
                                                                          
                     case Entity::INV_LEADBAR         : extra.inv.leadbar     = i; break;
                     case Entity::INV_SCION           : extra.inv.scion       = i; break;
+                    case Entity::INV_QUEST_ITEM_1    : extra.inv.quest[0]    = i; break;
+                    case Entity::INV_QUEST_ITEM_2    : extra.inv.quest[1]    = i; break;
 
                     case Entity::SKY                 : extra.sky = i; break;
 

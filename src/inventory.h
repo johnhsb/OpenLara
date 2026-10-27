@@ -316,6 +316,8 @@ struct Inventory {
                                                                                                    
                 case TR::Entity::INV_LEADBAR         : desc = Desc( STR_LEAD_BAR,        PAGE_ITEMS,     level->extra.inv.leadbar         ); break;
                 case TR::Entity::INV_SCION           : desc = Desc( STR_SCION,           PAGE_ITEMS,     level->extra.inv.scion           ); break;
+                case TR::Entity::INV_QUEST_ITEM_1    : desc = Desc( STR_PUZZLE,          PAGE_ITEMS,     level->extra.inv.quest[0]        ); break;
+                case TR::Entity::INV_QUEST_ITEM_2    : desc = Desc( STR_PUZZLE,          PAGE_ITEMS,     level->extra.inv.quest[1]        ); break;
                 default                              : desc = Desc( STR_UNKNOWN,         PAGE_ITEMS,     -1                               ); break;
             }
 
