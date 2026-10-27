@@ -56,6 +56,7 @@ struct Camera : ICamera {
     Basis       fpHead;
     int         speed;
     bool        smooth;
+    bool        abyss;      // Lara falls into an empty room under the world, the camera stays where it is
 
     bool        spectator;
     vec3        specPos, specPosSmooth;
@@ -65,6 +66,7 @@ struct Camera : ICamera {
 
     Camera(IGame *game, Character *owner) : ICamera(), game(game), level(game->getLevel()), frustum(new Frustum()), timer(-1.0f), viewIndex(-1), viewIndexLast(-1), viewTarget(NULL) {
         this->owner = owner;
+        abyss = false;
         reset();
 
         spectator = false;
@@ -353,6 +355,20 @@ struct Camera : ICamera {
         if (eye.pos.y < ceiling) eye.pos.y = ceiling;
     }
 
+    // Lara falling into a room with nothing to see (the empty rooms under the Floating Islands)
+    // (it stays there while she lies dead on its invisible floor)
+    bool fallsIntoAbyss() {
+        const TR::Room &room = level->rooms[owner->getRoomIndex()];
+        bool empty = room.data.fCount == 0 && room.data.sCount == 0 && room.meshesCount == 0;
+        if (mode != MODE_FOLLOW || !empty) {
+            abyss = false;
+            return false;
+        }
+        if (owner->stand == Character::STAND_AIR && owner->velocity.y > 0.0f)
+            abyss = true;
+        return abyss;
+    }
+
     virtual void update() {
         if (shake > 0.0f) {
             shake = max(0.0f, shake - Core::deltaTime);
@@ -507,6 +523,11 @@ struct Camera : ICamera {
                         target.room = owner->getRoomIndex();
                         target.pos  = getViewPoint(false);
                     }
+                } else if (fallsIntoAbyss()) {
+                    // she drops away from the camera into the dark below the world (as in the original)
+                    to = eye;
+                    target.room = owner->getRoomIndex();
+                    target.pos  = target.pos.lerp(owner->pos, Core::deltaTime * 5.0f);
                 } else {
                     vec3 p = getViewPoint();
                     target.room = owner->getRoomIndex();
