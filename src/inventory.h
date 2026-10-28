@@ -678,6 +678,9 @@ struct Inventory {
 
             if (level->id == TR::LVL_TR2_HOUSE) // no weapons, no ammo, only the key of the house (the dagger comes with her start)
                 add(TR::Entity::INV_KEY_ITEM_1);
+
+            if (level->id == TR::LVL_TR2_SKIDOO || level->id == TR::LVL_TR2_MONASTRY) // the Seraph of the Deck comes along (the script gives it)
+                add(TR::Entity::INV_PUZZLE_4);
         #ifdef _DEBUG
             addWeapons();
             add(TR::Entity::MEDIKIT_BIG);
