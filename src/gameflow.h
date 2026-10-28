@@ -1047,7 +1047,7 @@ namespace TR {
     }
 
     bool isEmptyLevel(LevelID id) {
-        return id == TR::LVL_TR1_10A || id == TR::LVL_TR2_RIG || id == TR::LVL_TR3_COMPOUND;
+        return id == TR::LVL_TR1_10A || id == TR::LVL_TR2_RIG || id == TR::LVL_TR2_HOUSE || id == TR::LVL_TR3_COMPOUND;
     }
 
     Version getGameVersion() {

@@ -676,10 +676,8 @@ struct Inventory {
                 add(TR::Entity::INV_PISTOLS, UNLIMITED_AMMO);
             }
 
-            if (level->id == TR::LVL_TR2_HOUSE) {
+            if (level->id == TR::LVL_TR2_HOUSE) // no weapons, no ammo, only the key of the house (the dagger comes with her start)
                 add(TR::Entity::INV_KEY_ITEM_1);
-                add(TR::Entity::INV_PUZZLE_1);
-            }
         #ifdef _DEBUG
             addWeapons();
             add(TR::Entity::MEDIKIT_BIG);

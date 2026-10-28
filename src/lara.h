@@ -85,6 +85,7 @@ static TR::Entity::Type laraStartItem(const char *name) {
 #define LARA_EXTRA_AIRLOCK  4
 #define LARA_EXTRA_GONG     5       // she strikes the gong of the Ice Palace
 #define LARA_EXTRA_START    8       // she gets up in the cell of the rig
+#define LARA_EXTRA_START_HOUSE 9    // she comes home with the dagger of Xian and puts it away
 #define LARA_EXTRA_DAGGER   7       // she pulls the dagger out of the dragon
 #define LARA_EXTRA_GUARD    2       // a Xian spearman lifts her on his spear (the level's own animation under the yeti's number)
 #define LARA_EXTRA_END_HOUSE 10     // she goes to the shower when the last fight in her house is over
@@ -94,6 +95,11 @@ static TR::Entity::Type laraStartItem(const char *name) {
 #define END_HOUSE_FRAME_SHOTGUN 316 // she grabs the shotgun
 #define END_HOUSE_CINE_FRAME    428 // the cinematic of the level shows it from this frame on
 #define TRACK_TR2_BATH          26
+
+// the start of the last level in her house (frames of its animation, as in the original)
+#define START_HOUSE_FRAME_BEGIN  1  // the dagger in her hand, the music starts
+#define START_HOUSE_FRAME_DAGGER 401 // she puts it away at her hip, it goes to the inventory
+#define TRACK_TR2_REVEAL_2       63
 
 // frames of the TR2+ flare arm animations (hold, throw, draw, ignite and hold again)
 #define FLARE_FRAME_HOLD    0
@@ -664,7 +670,7 @@ struct Lara : Character {
         airlock     = NULL;
         extraAnim   = false;
         extraState  = -1;
-        startAnim   = level->id == TR::LVL_TR2_RIG;
+        startAnim   = level->id == TR::LVL_TR2_RIG || level->id == TR::LVL_TR2_HOUSE;
         lightning   = NULL;
         environment = NULL;
 
@@ -3559,6 +3565,22 @@ struct Lara : Character {
         return NULL;
     }
 
+    // she comes home: the dagger of Xian in her hand goes to her hip and to the inventory (as in the original)
+    void updateStartHouse(int framePrev) {
+        const TR::Model *spec = getLaraModel(TR::Entity::LARA_SPEC);
+        int16 specIndex = spec ? int16(spec - level->models) : -1;
+
+        if (framePrev < START_HOUSE_FRAME_BEGIN && animation.frameIndex >= START_HOUSE_FRAME_BEGIN) {
+            game->playTrack(TRACK_TR2_REVEAL_2);
+            meshSwap(1, specIndex, JOINT_MASK_ARM_R3);
+        }
+
+        if (framePrev < START_HOUSE_FRAME_DAGGER && animation.frameIndex >= START_HOUSE_FRAME_DAGGER) {
+            meshSwap(1, specIndex, JOINT_MASK_HIPS);
+            game->invAdd(TR::Entity::PUZZLE_1, 1);
+        }
+    }
+
     bool endHouseScene() {
         return extraAnim && level->id == TR::LVL_TR2_HOUSE && animation.state == LARA_EXTRA_END_HOUSE;
     }
@@ -3711,10 +3733,14 @@ struct Lara : Character {
         }
 
         bool endHouse  = endHouseScene();
+        bool startHouse = level->id == TR::LVL_TR2_HOUSE && animation.state == LARA_EXTRA_START_HOUSE;
         int  animPrev  = animation.index;
         int  framePrev = animation.frameIndex;
 
         Controller::updateAnimation(true);
+
+        if (startHouse && animation.index == animPrev)
+            updateStartHouse(framePrev);
 
         if (endHouse) {
             updateEndHouse(animPrev, framePrev);
@@ -5447,7 +5473,7 @@ struct Lara : Character {
         if (startAnim) { // not for a saved game
             startAnim = false;
             if (!laraStartPos.set)
-                extraStart(LARA_EXTRA_START);
+                extraStart(level->id == TR::LVL_TR2_HOUSE ? LARA_EXTRA_START_HOUSE : LARA_EXTRA_START);
         }
 
         if (laraStartPos.set && camera->cameraIndex == 0) {
