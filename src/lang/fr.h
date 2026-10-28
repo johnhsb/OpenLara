@@ -127,6 +127,7 @@ const char *STR_FR[] = { ""
     , "Sceau d'Anubis"
     , "Scarab)ee"
     , "Cl)e pyramide"
+    STR_TR2_ITEMS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]Qu'est-ce qu'un mec peut bien faire pour r)eussir $a attirer votre attention?"

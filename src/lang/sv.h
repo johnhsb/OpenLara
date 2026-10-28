@@ -127,6 +127,7 @@ const char *STR_SV[] = { ""
     , "Anubis Sigill"
     , "Scarab"
     , "Pyramid-Nyckeln"
+    STR_TR2_ITEMS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]Vad m^aste en man g~ora f~or att@f^a din uppm~arskamhet?"

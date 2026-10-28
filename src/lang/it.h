@@ -127,6 +127,7 @@ const char *STR_IT[] = { ""
     , "Sigillo di Anubi"
     , "Scarabeo"
     , "Chiave della piramide"
+    STR_TR2_ITEMS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]Che cosa deve fare un uomo@per ricevere da te questo genere di attenzioni?"

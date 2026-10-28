@@ -127,6 +127,7 @@ const char *STR_ES[] = { ""
     , "Sello de Anubis"
     , "Escarabajo"
     , "Llave de la pir)amide"
+    STR_TR2_ITEMS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]\xBFQu)e es lo que tiene que hacer un@hombre para atraer tu atenci)on?"

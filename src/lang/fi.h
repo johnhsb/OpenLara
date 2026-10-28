@@ -127,6 +127,7 @@ const char *STR_FI[] = { "Suomi"
     , "Anubiksen Sinetti"
     , "Pillerinpy~oritt~aj~a"
     , "Pyramidiavain"
+    STR_TR2_ITEMS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]Mit~a miehen t~aytyisik~a~an tehd~a@saadakseen t~all~aist~a huomiota sinulta?"

@@ -148,6 +148,43 @@ enum StringID {
     , STR_PUZZLE_ANUBIS
     , STR_PUZZLE_SCARAB
     , STR_PUZZLE_PYRAMID
+// TR2 items (the names of the original script)
+    , STR_TR2_KEY_GUARDHOUSE
+    , STR_TR2_KEY_BOATHOUSE
+    , STR_TR2_KEY_STEEL
+    , STR_TR2_KEY_IRON
+    , STR_TR2_KEY_LIBRARY
+    , STR_TR2_KEY_DETONATOR
+    , STR_TR2_KEY_PASS_RED
+    , STR_TR2_KEY_PASS_YELLOW
+    , STR_TR2_KEY_PASS_GREEN
+    , STR_TR2_KEY_PASS_BLUE
+    , STR_TR2_KEY_REST_ROOM
+    , STR_TR2_KEY_CABIN
+    , STR_TR2_KEY_THEATRE
+    , STR_TR2_KEY_STERN
+    , STR_TR2_KEY_STORAGE
+    , STR_TR2_KEY_DRAWBRIDGE
+    , STR_TR2_KEY_HUT
+    , STR_TR2_KEY_STRONGROOM
+    , STR_TR2_KEY_TRAPDOOR
+    , STR_TR2_KEY_ROOFTOPS
+    , STR_TR2_KEY_MAIN_HALL
+    , STR_TR2_KEY_MAIN_CHAMBER
+    , STR_TR2_KEY_GUN_CUPBOARD
+    , STR_TR2_GONG_HAMMER
+    , STR_TR2_PUZZLE_RELAY_BOX
+    , STR_TR2_PUZZLE_CIRCUIT_BOARD
+    , STR_TR2_PUZZLE_MACHINE_CHIP
+    , STR_TR2_PUZZLE_CIRCUIT_BREAKER
+    , STR_TR2_PUZZLE_SERAPH
+    , STR_TR2_PUZZLE_PRAYER_WHEELS
+    , STR_TR2_PUZZLE_GEMSTONES
+    , STR_TR2_PUZZLE_TIBETAN_MASK
+    , STR_TR2_PUZZLE_DRAGON_SEAL
+    , STR_TR2_PUZZLE_MYSTIC_PLAQUE
+    , STR_TR2_PUZZLE_DAGGER
+    , STR_TR2_QUEST_TALION
 // TR1 subtitles
     , STR_TR1_SUB_CAFE
     , STR_TR1_SUB_LIFT
@@ -371,6 +408,46 @@ enum StringID {
     "[121400]Where can you be taking me?@Thought this was my big break." \
     "[128434]Guess changes are as good@as rest. Oh, I need one..." \
     "[134740]"
+
+// TR2 item names (English, the other languages fall back to them)
+#define STR_TR2_ITEMS \
+    , "Guardhouse Key" \
+    , "Boathouse Key" \
+    , "Steel Key" \
+    , "Iron Key" \
+    , "Library Key" \
+    , "Detonator Key" \
+    , "Red Pass Card" \
+    , "Yellow Pass Card" \
+    , "Green Pass Card" \
+    , "Blue Pass Card" \
+    , "Rest Room Key" \
+    , "Cabin Key" \
+    , "Theatre Key" \
+    , "Stern Key" \
+    , "Storage Key" \
+    , "Drawbridge Key" \
+    , "Hut Key" \
+    , "Strongroom Key" \
+    , "Trapdoor Key" \
+    , "Rooftops Key" \
+    , "Main Hall Key" \
+    , "Main Chamber Key" \
+    , "Gun Cupboard Key" \
+    , "Gong Hammer" \
+    , "Relay Box" \
+    , "Circuit Board" \
+    , "Machine Chip" \
+    , "Circuit Breaker" \
+    , "The Seraph" \
+    , "Prayer Wheels" \
+    , "Gemstones" \
+    , "Tibetan Mask" \
+    , "The Dragon Seal" \
+    , "Mystic Plaque" \
+    , "Dagger of Xian" \
+    , "Talion"
+
 
 #define LANG_PREFIXES "_EN", "_FR", "_DE", "_ES", "_IT", "_PL", "_PT", "_RU", "_JA", "_GR", "_FI", "_CZ", "_CN", "_HU", "_SV", "_KO"
 

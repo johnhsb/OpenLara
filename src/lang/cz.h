@@ -127,6 +127,7 @@ const char *STR_CZ[] = { ""
     , "Anupova Pe{ce{t"
     , "Skarab"
     , "Kl)i{c Pyramidy"
+    STR_TR2_ITEMS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]Co mus)i {clovek ud{elat,@aby se od tebe do{ckal takov)e pozornosti?"

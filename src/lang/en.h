@@ -127,6 +127,7 @@ const char *STR_EN[] = { ""
     , "Seal of Anubis"
     , "Scarab"
     , "Pyramid Key"
+    STR_TR2_ITEMS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]What's a man gotta do to@get that kinda attention from ye?"
