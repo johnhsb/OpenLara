@@ -3757,6 +3757,8 @@ struct Lara : Character {
 
         if (extraState < 0 && animation.state == 0) { // back to the breath, done
             extraAnim = false;
+            if (camera->mode == Camera::MODE_CUTSCENE) // the cinematic of the special animation ends with it (as in the original)
+                camera->mode = Camera::MODE_FOLLOW;
             animation.setModel(getModel());
             animation.setAnim(ANIM_STAND);
             airlock = NULL;
@@ -5472,8 +5474,8 @@ struct Lara : Character {
     virtual void update() {
         if (startAnim) { // not for a saved game
             startAnim = false;
-            if (!laraStartPos.set)
-                extraStart(level->id == TR::LVL_TR2_HOUSE ? LARA_EXTRA_START_HOUSE : LARA_EXTRA_START);
+            if (!laraStartPos.set && extraStart(level->id == TR::LVL_TR2_HOUSE ? LARA_EXTRA_START_HOUSE : LARA_EXTRA_START) && level->cameraFramesCount)
+                camera->doCutscene(pos, angle.y); // the cinematic of the level shows it from its first frame (as in the original)
         }
 
         if (laraStartPos.set && camera->cameraIndex == 0) {
