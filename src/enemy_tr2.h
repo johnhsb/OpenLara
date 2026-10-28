@@ -2636,18 +2636,33 @@ struct Spider : Enemy {
         jointChest = jointHead = -1;
     }
 
-    virtual void update() {
-        if (health <= 0.0f && !flags.invisible) { // burst with a single small explosion
-            game->playSound(SND_TR2_SPIDER_EXPLODE, pos, Sound::PAN);
-            Explosion *explosion = (Explosion*)game->addEntity(TR::Entity::EXPLOSION, getRoomIndex(), getBoundingBox().center());
-            if (explosion)
-                explosion->volume = 0.5f; // the original spider sound is too quiet to be heard over the shots
+    virtual bool explodeFx() {
+        return false; // its parts fall apart without a blast
+    }
+
+    virtual void setSaveData(const SaveEntity &data) {
+        Enemy::setSaveData(data);
+        if (health <= 0.0f) { // gone already
             flags.invisible = true;
             deactivate(true);
-            return;
+        }
+    }
+
+    // shot down it bursts apart, as in the original: its parts fly off and vanish on the floor
+    virtual void update() {
+        bool exploded = explodeMask != 0;
+
+        if (health <= 0.0f && !exploded) {
+            game->playSound(SND_TR2_SPIDER_EXPLODE, pos, Sound::PAN);
+            explode(0xFFFFFFFF, 0.0f);
         }
 
         Enemy::update();
+
+        if (exploded && !explodeMask) {
+            flags.invisible = true;
+            deactivate(true);
+        }
     }
 
     virtual int getStateGround() {
