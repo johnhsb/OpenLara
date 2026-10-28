@@ -265,6 +265,11 @@ struct Controller {
 
         parseFloorData(info, sBelow->floorIndex, dx, dz);
 
+        if (level->isAbyss(256 * sBelow->floor)) {
+            info.floor  = level->getAbyssFloor();
+            info.slantX = info.slantZ = 0;
+        }
+
         if (info.roomNext == TR::NO_ROOM) {
             TR::Room::Sector *sAbove = &s;
             while (sAbove->roomAbove != TR::NO_ROOM) sAbove = &level->getSector(sAbove->roomAbove, x, z, dx, dz);

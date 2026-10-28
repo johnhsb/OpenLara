@@ -5512,6 +5512,9 @@ struct Lara : Character {
                 updateExtra();
             else
                 Character::update();
+
+            if (health > 0.0f && level->isAbyss(int(pos.y))) // fallen below the floor of the level (as in the original)
+                hit(health);
             for (int i = 0; i < COUNT(braid); i++) {
                 if (braid[i]) {
                     braid[i]->update();

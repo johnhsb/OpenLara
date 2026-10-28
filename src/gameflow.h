@@ -1041,6 +1041,11 @@ namespace TR {
                id == LVL_TR4_TITLE;
     }
 
+    // the height below which a level has no floor (the NoFloor command of the TR2 script), 0 if it has one everywhere
+    int getNoFloor(LevelID id) {
+        return id == LVL_TR2_FLOATING ? 9728 : 0;
+    }
+
     bool isEmptyLevel(LevelID id) {
         return id == TR::LVL_TR1_10A || id == TR::LVL_TR2_RIG || id == TR::LVL_TR3_COMPOUND;
     }

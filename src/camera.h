@@ -56,7 +56,7 @@ struct Camera : ICamera {
     Basis       fpHead;
     int         speed;
     bool        smooth;
-    bool        abyss;      // Lara falls into an empty room under the world, the camera stays where it is
+    bool        abyss;      // Lara falls into the abyss below the floor of the level, the camera stays where it is
     bool        holdCutscene; // the cinematic stays on its last frame till the level ends
 
     bool        spectator;
@@ -361,15 +361,9 @@ struct Camera : ICamera {
 
     // Lara falling into a room with nothing to see (the empty rooms under the Floating Islands)
     // (it stays there while she lies dead on its invisible floor)
+    // Lara has fallen below the floor of the level (its abyss), the camera stays where it is
     bool fallsIntoAbyss() {
-        const TR::Room &room = level->rooms[owner->getRoomIndex()];
-        bool empty = room.data.fCount == 0 && room.data.sCount == 0 && room.meshesCount == 0;
-        if (mode != MODE_FOLLOW || !empty) {
-            abyss = false;
-            return false;
-        }
-        if (owner->stand == Character::STAND_AIR && owner->velocity.y > 0.0f)
-            abyss = true;
+        abyss = mode == MODE_FOLLOW && level->isAbyss(int(owner->pos.y));
         return abyss;
     }
 

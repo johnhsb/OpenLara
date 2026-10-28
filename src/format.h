@@ -6873,6 +6873,17 @@ namespace TR {
             return sector;
         }
 
+        // the floor of the abyss of a level: a floor that low isn't there, Lara falls on to her death (as in the original,
+        // deep enough for her to fall till the game is over)
+        bool isAbyss(int floor) const {
+            int noFloor = getNoFloor(id);
+            return noFloor && floor >= noFloor;
+        }
+
+        float getAbyssFloor() const {
+            return float(getNoFloor(id) + 26 * 256);
+        }
+
         float getFloor(const Room::Sector *sector, const vec3 &pos, int16 *roomIndex = NULL) {
             int x = int(pos.x);
             int z = int(pos.z);
@@ -6887,6 +6898,9 @@ namespace TR {
             }
 
             int floor = sector->floor * 256;
+
+            if (isAbyss(floor))
+                return getAbyssFloor();
 
             if (!sector->floorIndex)
                 return float(floor);
