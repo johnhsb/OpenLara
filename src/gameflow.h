@@ -197,7 +197,7 @@ namespace TR {
         TRACK_TR1_CUT_4     = 22,
     // TR2
         TRACK_TR2_TITLE     = 64,
-        TRACK_TR2_SECRET    = 43,
+        TRACK_TR2_SECRET    = 47, // the game number of the track (the script's secret sound), not its file
         TRACK_TR2_CHINA_1   = 33,
         TRACK_TR2_CHINA_2   = 59,
         TRACK_TR2_ITALY     = 31,
