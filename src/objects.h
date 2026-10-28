@@ -547,6 +547,8 @@ struct TrapBoulder : Controller {
                 animation.setState(STATE_ROLL);
                 velocity = getDir() * animation.getSpeed();
             }
+        } else if (state == STATE_FALL) { // set off on the floor it starts to roll (as the original does)
+            animation.setState(STATE_ROLL);
         }
 
         if (pos.y >= p.y - 256.0f) {
