@@ -294,6 +294,7 @@ const char *STR_JA[] = { "日本語"
     , "M16 Clips"
     , "Grenades"
     , "Flares"
+    STR_FX_OPTIONS
 };
 #endif
 
@@ -618,6 +619,7 @@ const char *STR_JA[] = { "\x11\x02\x70\x01\x97\x01\xD6\xFF\xFF"
     , "M16 Clips"
     , "Grenades"
     , "Flares"
+    STR_FX_OPTIONS
 };
 
 #endif

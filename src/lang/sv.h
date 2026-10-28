@@ -363,6 +363,7 @@ const char *STR_SV[] = { ""
     , "M16 Clips"
     , "Grenades"
     , "Flares"
+    STR_FX_OPTIONS
 };
 
 #endif

@@ -365,7 +365,7 @@ namespace Core {
     #endif
     } support;
 
-#define SETTINGS_VERSION 7
+#define SETTINGS_VERSION 8
 #define SETTINGS_READING 0xFF
 
     struct Settings {
@@ -447,6 +447,20 @@ namespace Core {
         // temporary, used only for setting controls
         uint8 playerIndex;
         uint8 ctrlIndex;
+
+        // modern effects beyond the original, each can be turned off (and is off where the platform can't do it)
+        struct {
+            uint8 lights;       // fire and explosions light their surroundings
+            uint8 reserved[15];
+
+            void setLights(uint8 value) {
+            #if defined(_GAPI_SW) || defined(_GAPI_GU)
+                lights = 0;
+            #else
+                lights = value;
+            #endif
+            }
+        } effects;
     } settings;
 
     bool resetState;
@@ -970,6 +984,8 @@ namespace Core {
         settings.audio.reverb        = true;
         settings.audio.subtitles     = true;
         settings.audio.language      = defLang;
+        memset(&settings.effects, 0, sizeof(settings.effects));
+        settings.effects.setLights(1);
 
     // player 1
         {

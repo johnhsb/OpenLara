@@ -2364,8 +2364,14 @@ struct Helicopter : Controller {
 struct FlameStream : Sprite {
     float life; // the fire of the dragon flies on till it hits something
 
+    EffectLight light;
+
     FlameStream(IGame *game, int entity) : Sprite(game, entity, false, Sprite::FRAME_RANDOM), life(FLAME_STREAM_TIME) {
         getSequence().transp = 2; // additive
+    }
+
+    virtual ~FlameStream() {
+        light.off(level, entity);
     }
 
     virtual bool getSaveData(SaveEntity &data) {
@@ -2385,6 +2391,7 @@ struct FlameStream : Sprite {
     virtual void update() {
         Sprite::update();
         updateRoom();
+        light.set(level, entity, getRoomIndex(), pos, FIRE_LIGHT_COLOR * 0.8f, FIRE_LIGHT_RADIUS);
 
         TR::Level::FloorInfo info;
         getFloorInfo(getRoomIndex(), pos, info);

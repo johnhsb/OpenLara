@@ -8,6 +8,34 @@
 
 #define TRAP_TOUCH_RADIUS       100.0f // Lara's collision radius
 
+// fire and explosions light their surroundings (a modern effect, the original has it for the flares and the shots only)
+#define FIRE_LIGHT_COLOR        vec3(1.4f, 0.8f, 0.35f)
+#define FIRE_LIGHT_RADIUS       4096.0f
+#define EXPLOSION_LIGHT_RADIUS  6144.0f
+
+struct EffectLight {
+    int room;
+
+    EffectLight() : room(-1) {}
+
+    void set(TR::Level *level, int id, int roomIndex, const vec3 &pos, const vec3 &color, float radius) {
+        if (!Core::settings.effects.lights) {
+            off(level, id);
+            return;
+        }
+        if (room != roomIndex)
+            off(level, id);
+        level->rooms[roomIndex].addDynLight(id, vec4(pos, 0.0f), vec4(color, 1.0f / radius));
+        room = roomIndex;
+    }
+
+    void off(TR::Level *level, int id) {
+        if (room >= 0)
+            level->rooms[room].removeDynLight(id);
+        room = -1;
+    }
+};
+
 // the meshes of the trap touching Lara, as in the original (Object_Collision): only when her origin is
 // within the bounds of the trap widened by her radius, then the spheres of their meshes are tested
 // (spheres = false: the bounds only, returns 1 then)
@@ -161,10 +189,15 @@ struct Flame : Sprite {
     Controller *owner;
     int32 jointIndex;
     float sleepTime;
+    EffectLight light;
 
     Flame(IGame *game, int entity) : Sprite(game, entity, false, Sprite::FRAME_ANIMATED), owner(NULL), jointIndex(0), sleepTime(0.0f) {
         time = randf() * 3.0f;
         activate();
+    }
+
+    virtual ~Flame() {
+        light.off(level, entity);
     }
 
     virtual bool getSaveData(SaveEntity &data) {
@@ -176,6 +209,7 @@ struct Flame : Sprite {
 
         if (jointIndex <= 0) {
             game->playSound(TR::SND_FLAME, pos, Sound::PAN);
+            light.set(level, entity, getRoomIndex(), pos, FIRE_LIGHT_COLOR * (0.8f + randf() * 0.2f), FIRE_LIGHT_RADIUS); // flickering
         }
 
         Character *lara = (Character*)((owner && owner->getEntity().isLara()) ? owner : game->getLara(pos));
@@ -1201,8 +1235,14 @@ struct Explosion : Sprite {
     float volume; // of the explosion sound
     bool  sounded;
 
+    EffectLight light;
+
     Explosion(IGame *game, int entity) : Sprite(game, entity, true, Sprite::FRAME_ANIMATED), volume(1.0f), sounded(false) {
         level->spriteSequences[-(getEntity().modelIndex + 1)].transp = 2; // fix blending mode to additive
+    }
+
+    virtual ~Explosion() {
+        light.off(level, entity);
     }
 
     virtual bool getSaveData(SaveEntity &data) {
@@ -1216,6 +1256,8 @@ struct Explosion : Sprite {
             if (sample)
                 sample->volume *= volume;
         }
+        float fade = 1.0f - clamp(time * SPRITE_FPS / max(1, int(getSequence().sCount)), 0.0f, 1.0f); // it flashes and fades out
+        light.set(level, entity, getRoomIndex(), pos, FIRE_LIGHT_COLOR * 1.5f * fade, EXPLOSION_LIGHT_RADIUS);
         Sprite::update();
     }
 };

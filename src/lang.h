@@ -303,6 +303,8 @@ enum StringID {
     , STR_AMMO_GRENADE
     , STR_FLARES
 
+// modern effects options
+    , STR_OPT_FX_LIGHTS
     , STR_MAX
 };
 
@@ -447,6 +449,11 @@ enum StringID {
     , "Mystic Plaque" \
     , "Dagger of Xian" \
     , "Talion"
+
+// modern effects options (English, the other languages fall back to them)
+#define STR_FX_OPTIONS \
+    , "Dynamic Lights"
+
 
 
 #define LANG_PREFIXES "_EN", "_FR", "_DE", "_ES", "_IT", "_PL", "_PT", "_RU", "_JA", "_GR", "_FI", "_CZ", "_CN", "_HU", "_SV", "_KO"
