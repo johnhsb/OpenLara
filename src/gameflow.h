@@ -1763,6 +1763,40 @@ namespace TR {
                 params.cloudUpColor    = vec4(0.5f, 0.5f, 0.4f, 1.0f);
                 params.wind            = vec3(0.01f, -0.005f, 0.005f);
                 break;
+            // TR2, the clouds and the sun over the original sky
+            case LVL_TR2_ASSAULT  :
+            case LVL_TR2_WALL     :
+            case LVL_TR2_BOAT     :
+            case LVL_TR2_PLATFORM : // clear day
+                params.skyDownColor    = vec4(0.8f, 0.8f, 0.7f, 1.0f);
+                params.skyUpColor      = vec4(0.3f, 0.4f, 0.5f, 1.0f);
+                params.sunDirSize      = vec4(vec3(1.0f, 0.75f, -1.0f).normal(), 0.002f);
+                params.sunColorGlare   = vec4(0.55f, 0.45f, 0.3f, 6.0f);
+                params.cloudDownColor  = vec4(0.4f, 0.45f, 0.55f, 1.0f);
+                params.cloudUpColor    = vec4(1.05f, 1.03f, 0.95f, 1.0f);
+                params.wind            = vec3(0.01f, -0.005f, 0.005f);
+                break;
+            case LVL_TR2_SKIDOO   :
+            case LVL_TR2_MONASTRY :
+            case LVL_TR2_CATACOMB :
+            case LVL_TR2_ICECAVE  : // cold day of Tibet
+                params.skyDownColor    = vec4(0.8f, 0.8f, 0.7f, 1.0f);
+                params.skyUpColor      = vec4(0.3f, 0.4f, 0.5f, 1.0f);
+                params.sunDirSize      = vec4(vec3(1.0f, 0.75f, -1.0f).normal(), 0.002f);
+                params.sunColorGlare   = vec4(0.5f, 0.45f, 0.35f, 6.0f);
+                params.cloudDownColor  = vec4(0.5f, 0.55f, 0.65f, 1.0f);
+                params.cloudUpColor    = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+                params.wind            = vec3(0.01f, -0.005f, 0.005f);
+                break;
+            case LVL_TR2_VENICE : // overcast
+                params.skyDownColor    = vec4(0.8f, 0.8f, 0.7f, 1.0f);
+                params.skyUpColor      = vec4(0.3f, 0.4f, 0.5f, 1.0f);
+                params.sunDirSize      = vec4(vec3(1.0f, 0.75f, -1.0f).normal(), 0.001f);
+                params.sunColorGlare   = vec4(0.15f, 0.15f, 0.15f, 4.0f);
+                params.cloudDownColor  = vec4(0.35f, 0.4f, 0.4f, 1.0f);
+                params.cloudUpColor    = vec4(0.7f, 0.75f, 0.75f, 1.0f);
+                params.wind            = vec3(0.01f, -0.005f, 0.005f);
+                break;
             case LVL_TR3_HOUSE : // test
                 params.skyDownColor    = vec4(0.8f, 0.8f, 0.7f, 1.0f);
                 params.skyUpColor      = vec4(0.3f, 0.4f, 0.5f, 1.0f);
