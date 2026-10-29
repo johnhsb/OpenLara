@@ -333,6 +333,30 @@ struct Camera : ICamera {
         }
     }
 
+    // the lift of the Opera House holds for the camera too (as in the original): riding it with the door closed the
+    // camera comes inside, under its roof, drawn from the walls of the cage towards her
+    void clipLift(float &floor, float &ceiling) {
+        for (int i = 0; i < level->entitiesCount; i++) {
+            TR::Entity &e = level->entities[i];
+            if (e.type != TR::Entity::ELEVATOR || !e.controller)
+                continue;
+            Controller *lift = (Controller*)e.controller;
+
+            vec3 p = eye.pos;
+            for (int step = 1; step <= 8; step++) {
+                float f = floor + 256, c = ceiling - 256;
+                lift->liftFloor(int(p.x) / 1024, int(p.z) / 1024, int(p.y), owner->pos, f, c);
+                if (f != -32512.0f || c != -32512.0f) {
+                    eye.pos = p;
+                    floor   = f - 256;
+                    ceiling = c + 256;
+                    break;
+                }
+                p = eye.pos.lerp(target.pos, step / 8.0f);
+            }
+        }
+    }
+
     void move(const TR::Location &to) {
         float t = (smooth && speed) ? (30.0f / speed * Core::deltaTime) : 1.0f;
         if (mode == MODE_LOOK)
@@ -352,6 +376,7 @@ struct Camera : ICamera {
         }
     
         float ceiling = level->getCeiling(sector, eye.pos) + 256;
+        clipLift(floor, ceiling);
         if (floor < ceiling)
             floor = ceiling = (floor + ceiling) * 0.5f;
 
