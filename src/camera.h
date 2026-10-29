@@ -456,6 +456,8 @@ struct Camera : ICamera {
                     updateFirstPerson();
             }
         } else {
+            fov = getDefaultFOV(); // a cinematic leaves its own behind (the one at the start of a level)
+
             if (Core::settings.detail.stereo == Core::Settings::STEREO_VR) {
                 lookAngle = vec3(0.0f);
             } else {
@@ -757,13 +759,17 @@ struct Camera : ICamera {
     #endif
     }
 
+    float getDefaultFOV() const {
+        return firstPerson ? 90.0f : 65.0f;
+    }
+
     void changeView(bool firstPerson) {
         this->firstPerson = firstPerson;
 
         if (firstPerson)
             smooth = false;
 
-        fov   = firstPerson ? 90.0f : 65.0f;
+        fov   = getDefaultFOV();
         znear = firstPerson ? 16.0f : 32.0f;
         zfar  = 45.0f * 1024.0f;
 
