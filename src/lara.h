@@ -3023,8 +3023,8 @@ struct Lara : Character {
                 break;
             }
 
-            case TR::Level::Trigger::COMBAT :
-                if (wpnReady() && !emptyHands())
+            case TR::Level::Trigger::COMBAT : // with her guns out and ready only, as in the original
+                if (!wpnReady() || emptyHands())
                     return;
                 break;
 
