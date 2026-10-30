@@ -3063,7 +3063,7 @@ struct Lara : Character {
 
                     if (info.trigger == TR::Level::Trigger::SWITCH)
                         flags.active ^= info.trigInfo.mask;
-                    else if (info.trigger == TR::Level::Trigger::ANTIPAD)
+                    else if (info.trigger == TR::Level::Trigger::ANTIPAD || info.trigger == TR::Level::Trigger::ANTITRIGGER)
                         flags.active &= ~info.trigInfo.mask;
                     else
                         flags.active |= info.trigInfo.mask;
@@ -3148,7 +3148,7 @@ struct Lara : Character {
 
                     if (info.trigger == TR::Level::Trigger::SWITCH)
                         flags.active ^= info.trigInfo.mask;
-                    else if (info.trigger == TR::Level::Trigger::ANTIPAD)
+                    else if (info.trigger == TR::Level::Trigger::ANTIPAD || info.trigger == TR::Level::Trigger::ANTITRIGGER)
                         flags.active &= ~info.trigInfo.mask;
                     else
                         flags.active |= info.trigInfo.mask;

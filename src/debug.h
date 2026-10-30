@@ -230,6 +230,7 @@ namespace Debug {
                 case_name(TR::Level::Trigger, ANTIPAD  );
                 case_name(TR::Level::Trigger, COMBAT   );
                 case_name(TR::Level::Trigger, DUMMY    );
+                case_name(TR::Level::Trigger, ANTITRIGGER);
             }
             return "UNKNOWN";
         }

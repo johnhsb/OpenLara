@@ -3076,6 +3076,7 @@ namespace TR {
                 ANTIPAD     ,
                 COMBAT      ,
                 DUMMY       ,
+                ANTITRIGGER , // TR2: it turns its entities off as the anti pad does, wherever Lara is over it
             };
         };
     
