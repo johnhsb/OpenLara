@@ -362,6 +362,10 @@ struct Inventory {
                 if (TR::getGameVersionByLevel(id) != (level->version & TR::VER_VERSION))
                     continue;
 
+                // a slot of the title (left by old saves) has no level to load, its empty title reads as the language name
+                if (TR::isTitleLevel(id))
+                    continue;
+
                 OptionItem item;
                 item.type   = OptionItem::TYPE_BUTTON;
                 item.offset = slot.isCheckpoint() ? STR_CURRENT_POSITION : TR::LEVEL_INFO[id].title;
