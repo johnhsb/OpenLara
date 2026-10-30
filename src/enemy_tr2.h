@@ -2855,11 +2855,16 @@ struct Tiger : Enemy {
         jointChest = -1;//21;
         jointHead  = -1;//22;
         nextState  = STATE_NONE;
+        ai         = AI_FIXED; // the violent mood of the original: it attacks Lara anywhere in its zone
     }
 
     virtual int getStateGround() {
+        // the stop to roar asks again till the walk or the run comes to it (the goal of the original stays till
+        // reached), else it got lost out of the few frames that lead to the stop and the tiger prowled on
+        bool roarAsked = nextState == STATE_ROAR && (state == STATE_WALK || state == STATE_RUN);
+
         if (!think(true))
-            return state;
+            return roarAsked ? STATE_STOP : state;
 
         if (nextState == state)
             nextState = STATE_NONE;
@@ -2885,7 +2890,7 @@ struct Tiger : Enemy {
                 return STATE_RUN;
             case STATE_WALK     : 
                 maxTurn = TIGER_TURN_SLOW;
-                if (randControl() < TIGER_ROAR) {
+                if (roarAsked || randControl() < TIGER_ROAR) {
                     nextState = STATE_ROAR;
                     return STATE_STOP;
                 }
@@ -2905,7 +2910,7 @@ struct Tiger : Enemy {
                     else
                         return STATE_ATTACK_2;
                 }
-                if (mood != MOOD_ATTACK && randControl() < TIGER_ROAR) {
+                if (roarAsked || (mood != MOOD_ATTACK && randControl() < TIGER_ROAR)) {
                     nextState = STATE_ROAR;
                     return STATE_STOP;
                 }
