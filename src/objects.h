@@ -40,6 +40,11 @@ struct EffectLight {
 // within the bounds of the trap widened by her radius, then the spheres of their meshes are tested
 // (spheres = false: the bounds only, returns 1 then)
 inline int touchLara(Controller *trap, Controller *lara, bool spheres = true) {
+    // only the traps of her room and the rooms through its portals (M_ObjectCollision): the spinning blade of the
+    // room behind the wall of the long ladder in The Great Wall reached her on the ladder
+    if (!lara->isNearRoom(lara->getRoomIndex(), trap->getRoomIndex()))
+        return 0;
+
     Box box = trap->getBoundingBoxLocal();
     Box laraBox = lara->getBoundingBoxLocal();
 

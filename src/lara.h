@@ -2603,18 +2603,6 @@ struct Lara : Character {
         return animation.setAnim(ANIM_TO_UNDERWATER);
     }
 
-    // the room or one through its portals: as in the original she reaches an item lying across the border, on the
-    // floor of the room below hers (she belongs to the room of her middle)
-    bool isNearRoom(int room, int other) const {
-        if (room == other)
-            return true;
-        const TR::Room &r = level->rooms[room];
-        for (int i = 0; i < r.portalsCount; i++)
-            if (r.portals[i].roomIndex == other)
-                return true;
-        return false;
-    }
-
     bool doPickUp() {
         if (!animation.canSetState(STATE_PICK_UP))
             return false;

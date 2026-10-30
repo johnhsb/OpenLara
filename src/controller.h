@@ -940,6 +940,19 @@ struct Controller {
         return getBoundingBoxLocal().intersect(Sphere(getMatrix().inverseOrtho() * sphere.center, sphere.radius));
     }
 
+    // the room or one through its portals, the rooms of the items Lara meets in the original: she reaches an item lying
+    // across the border, on the floor of the room below hers (she belongs to the room of her middle), and the traps of
+    // a room behind a wall don't touch her
+    bool isNearRoom(int room, int other) const {
+        if (room == other)
+            return true;
+        const TR::Room &r = level->rooms[room];
+        for (int i = 0; i < r.portalsCount; i++)
+            if (r.portals[i].roomIndex == other)
+                return true;
+        return false;
+    }
+
     // a wall stands between the bodies (the sectors of a closed door are walls), they don't touch through it, the line
     // goes from origin to origin (always in open sectors) at the heights of the bodies
     virtual bool walledFrom(Controller *c) {
