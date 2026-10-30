@@ -305,6 +305,7 @@ enum StringID {
 
 // modern effects options
     , STR_OPT_FX_LIGHTS
+    , STR_OPT_FX_SKY
     , STR_MAX
 };
 
@@ -452,7 +453,8 @@ enum StringID {
 
 // modern effects options (English, the other languages fall back to them)
 #define STR_FX_OPTIONS \
-    , "Dynamic Lights"
+    , "Dynamic Lights" \
+    , "Sky Effects"
 
 
 

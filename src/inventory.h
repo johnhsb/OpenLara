@@ -56,6 +56,7 @@ struct OptionItem {
             case STR_OPT_DETAIL_SHADOWS  : stg.detail.setShadows((Core::Settings::Quality)value);  return stg.detail.shadows  == value;
             case STR_OPT_DETAIL_WATER    : stg.detail.setWater((Core::Settings::Quality)value);    return stg.detail.water    == value;
             case STR_OPT_FX_LIGHTS       : stg.effects.setLights(value);                           return stg.effects.lights  == value;
+            case STR_OPT_FX_SKY          : stg.effects.setSky(value);                              return stg.effects.sky     == value;
             default : return true;
         }
     }
@@ -145,6 +146,7 @@ static const OptionItem optDetail[] = {
 #endif
     OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_SIMPLE_ITEMS,    SETTINGS( detail.simple    ), STR_OFF, 0, 1 ),
     OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_FX_LIGHTS,       SETTINGS( effects.lights   ), STR_OFF, 0, 1 ),
+    OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_FX_SKY,          SETTINGS( effects.sky      ), STR_OFF, 0, 1 ),
 #ifdef INV_QUALITY
     OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_RESOLUTION,      SETTINGS( detail.scale     ), STR_SCALE_100, 0, 3 ),
     OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_DETAIL_VSYNC,    SETTINGS( detail.vsync     ), STR_OFF, 0, 1 ),

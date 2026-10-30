@@ -101,7 +101,11 @@ void loadSettings(Stream *stream, void *userData) {
         stream->read(version);
         if (version == SETTINGS_VERSION && stream->size == sizeof(Core::Settings))
             stream->raw((char*)&Core::settings + 1, stream->size - 1); // read settings data right after version number
-        else if (version == 7 && stream->size == OFFSETOF(Core::Settings, effects))
+        else if (version == 8 && stream->size == sizeof(Core::Settings)) {
+            stream->raw((char*)&Core::settings + 1, stream->size - 1);
+            Core::settings.effects.unused = 0;
+            Core::settings.effects.sky    = 1; // added after these, on by default
+        } else if (version == 7 && stream->size == OFFSETOF(Core::Settings, effects))
             stream->raw((char*)&Core::settings + 1, stream->size - 1); // the settings before the effects, these keep their defaults
         delete stream;
     }
@@ -114,6 +118,7 @@ void loadSettings(Stream *stream, void *userData) {
     Core::setVSync(Core::settings.detail.vsync != 0);
 
     Core::settings.effects.setLights(Core::settings.effects.lights); // off where the platform can't do it
+    Core::settings.effects.setSky(Core::settings.effects.sky);
 
     #if defined(_GAPI_SW) || defined(_GAPI_GU)
         Core::settings.detail.filter   = Core::Settings::LOW;

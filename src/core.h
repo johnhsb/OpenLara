@@ -365,7 +365,7 @@ namespace Core {
     #endif
     } support;
 
-#define SETTINGS_VERSION 8
+#define SETTINGS_VERSION 9
 #define SETTINGS_READING 0xFF
 
     struct Settings {
@@ -451,7 +451,17 @@ namespace Core {
         // modern effects beyond the original, each can be turned off (and is off where the platform can't do it)
         struct {
             uint8 lights;       // fire and explosions light their surroundings
-            uint8 reserved[15];
+            uint8 unused;       // the FXAA of version 8, kept for the place of the next ones
+            uint8 sky;          // clouds and sun on the sky of the outdoors
+            uint8 reserved[13];
+
+            void setSky(uint8 value) {
+            #if defined(_GAPI_GL) || defined(_GAPI_D3D11) // the sky is drawn with these only
+                sky = value;
+            #else
+                sky = 0;
+            #endif
+            }
 
             void setLights(uint8 value) {
             #if defined(_GAPI_SW) || defined(_GAPI_GU)
@@ -986,6 +996,7 @@ namespace Core {
         settings.audio.language      = defLang;
         memset(&settings.effects, 0, sizeof(settings.effects));
         settings.effects.setLights(1);
+        settings.effects.setSky(1);
 
     // player 1
         {
