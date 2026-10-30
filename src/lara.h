@@ -3094,7 +3094,10 @@ struct Lara : Character {
                     if (!level->cameras[cmd.args].flags.once) {
                         camera->viewIndex = cmd.args;
 
-                        if (!(info.trigger == TR::Level::Trigger::COMBAT) &&
+                        // looking around or with the guns out she keeps her camera (as in the original),
+                        // else it would jump there for a frame and glide back as she leaves it at once
+                        if (camera->mode != Camera::MODE_LOOK && camera->mode != Camera::MODE_COMBAT &&
+                            !(info.trigger == TR::Level::Trigger::COMBAT) &&
                             !(info.trigger == TR::Level::Trigger::SWITCH && info.trigInfo.timer && !switchIsDown) &&
                              (info.trigger == TR::Level::Trigger::SWITCH || camera->viewIndex != camera->viewIndexLast))
                         {
