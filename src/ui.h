@@ -34,6 +34,7 @@ namespace UI {
     StringID subsStr;
 
     bool     showHelp;
+    bool     showFPS;
 
     struct PickupItem {
         float      time;
@@ -652,6 +653,18 @@ namespace UI {
         if (helpTipTime > 0.0f)
             helpTipTime -= Core::deltaTime;
 
+        if (Input::down[ikF]) {
+            // unless the player has bound a control to F
+            bool bound = false;
+            for (int i = 0; i < COUNT(Core::settings.controls); i++)
+                for (int j = 0; j < cMAX; j++)
+                    bound |= Core::settings.controls[i].keys[j].key == ikF;
+            if (!bound) {
+                Input::down[ikF] = false;
+                showFPS = !showFPS;
+            }
+        }
+
         float w = UI::width;
         if (game->getLara(1)) {
             w *= 0.5f;
@@ -750,6 +763,12 @@ namespace UI {
         char buf[256];
         sprintf(buf, "%d", Core::stats.fps);
         textOut(vec2(0, 16), buf, aLeft, width, 255, UI::SHADE_ORANGE);
+    #else
+        if (showFPS) {
+            char buf[32];
+            sprintf(buf, "FPS %d", Core::stats.fps);
+            textOut(vec2(16, height - 16), buf, aLeft, width - 32, 255, UI::SHADE_ORANGE);
+        }
     #endif
     }
 

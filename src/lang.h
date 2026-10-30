@@ -476,6 +476,7 @@ static char helpText[1024];
 const char *helpTextFormat =
     "Start - add second player or restore Lara@"
     "H - Show or hide this help@"
+    "F - Show or hide FPS@"
     "ALT and ENTER - Fullscreen@"
     "5 - Save Game@"
     "9 - Load Game@"

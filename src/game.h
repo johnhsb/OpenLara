@@ -321,7 +321,7 @@ namespace Game {
             return true;
 
     #ifdef _DEBUG
-        if (Input::down[ikF]) {
+        if (Input::down[ikShift] && Input::down[ikF]) { // F alone shows the FPS
             level->flipMap();
             Input::down[ikF] = false;
         }
