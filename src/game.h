@@ -117,11 +117,14 @@ void loadSettings(Stream *stream, void *userData) {
 
     memset(&Core::settings.effects, 0, sizeof(Core::settings.effects)); // the place of the old effects
 
+    // the qualities read (saved on other hardware maybe) go down to what this one can do
+    Core::settings.detail.setFilter  ((Core::Settings::Quality)Core::settings.detail.filter);
+    Core::settings.detail.setLighting((Core::Settings::Quality)Core::settings.detail.lighting);
+    Core::settings.detail.setShadows ((Core::Settings::Quality)Core::settings.detail.shadows);
+    Core::settings.detail.setWater   ((Core::Settings::Quality)Core::settings.detail.water);
+
     #if defined(_GAPI_SW) || defined(_GAPI_GU)
-        Core::settings.detail.filter   = Core::Settings::LOW;
-        Core::settings.detail.lighting = Core::Settings::LOW;
-        Core::settings.detail.shadows  = Core::Settings::LOW;
-        Core::settings.detail.water    = Core::Settings::LOW;
+        Core::settings.detail.filter = Core::Settings::LOW;
     #endif
 
     shaderCache = new ShaderCache();
