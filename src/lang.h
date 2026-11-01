@@ -302,10 +302,6 @@ enum StringID {
     , STR_AMMO_M16
     , STR_AMMO_GRENADE
     , STR_FLARES
-
-// modern effects options
-    , STR_OPT_FX_LIGHTS
-    , STR_OPT_FX_SKY
     , STR_MAX
 };
 
@@ -451,10 +447,6 @@ enum StringID {
     , "Dagger of Xian" \
     , "Talion"
 
-// modern effects options (English, the other languages fall back to them)
-#define STR_FX_OPTIONS \
-    , "Dynamic Lights" \
-    , "Sky Effects"
 
 
 

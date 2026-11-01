@@ -367,7 +367,6 @@ const char *STR_RU[] = { ""
     , "M16 Clips"
     , "Grenades"
     , "Flares"
-    STR_FX_OPTIONS
 };
 
 inline bool isCyrillic(char c) {

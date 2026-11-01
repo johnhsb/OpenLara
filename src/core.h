@@ -448,28 +448,10 @@ namespace Core {
         uint8 playerIndex;
         uint8 ctrlIndex;
 
-        // modern effects beyond the original, each can be turned off (and is off where the platform can't do it)
+        // the place of the modern effects of versions 8 and 9, now they go with the lighting quality (the lights of fire
+        // and explosions from medium, the clouds and the sun of the sky at high)
         struct {
-            uint8 lights;       // fire and explosions light their surroundings
-            uint8 unused;       // the FXAA of version 8, kept for the place of the next ones
-            uint8 sky;          // clouds and sun on the sky of the outdoors
-            uint8 reserved[13];
-
-            void setSky(uint8 value) {
-            #if defined(_GAPI_GL) || defined(_GAPI_D3D11) // the sky is drawn with these only
-                sky = value;
-            #else
-                sky = 0;
-            #endif
-            }
-
-            void setLights(uint8 value) {
-            #if defined(_GAPI_SW) || defined(_GAPI_GU)
-                lights = 0;
-            #else
-                lights = value;
-            #endif
-            }
+            uint8 reserved[16];
         } effects;
     } settings;
 
@@ -995,8 +977,6 @@ namespace Core {
         settings.audio.subtitles     = true;
         settings.audio.language      = defLang;
         memset(&settings.effects, 0, sizeof(settings.effects));
-        settings.effects.setLights(1);
-        settings.effects.setSky(1);
 
     // player 1
         {

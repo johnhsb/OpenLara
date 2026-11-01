@@ -19,7 +19,7 @@ struct EffectLight {
     EffectLight() : room(-1) {}
 
     void set(TR::Level *level, int id, int roomIndex, const vec3 &pos, const vec3 &color, float radius) {
-        if (!Core::settings.effects.lights) {
+        if (Core::settings.detail.lighting < Core::Settings::MEDIUM) { // from medium lighting
             off(level, id);
             return;
         }

@@ -363,7 +363,6 @@ const char *STR_PT[] = { ""
     , "M16 Clips"
     , "Grenades"
     , "Flares"
-    STR_FX_OPTIONS
 };
 
 #endif

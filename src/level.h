@@ -1993,14 +1993,14 @@ struct Level : IGame {
         TR::SkyParams skyParams;
 
         if (level.version & TR::VER_TR1) {
-            if (!Core::settings.effects.sky || Core::settings.detail.lighting < Core::Settings::HIGH || !Core::support.tex3D || !TR::getSkyParams(level.id, skyParams))
+            if (Core::settings.detail.lighting < Core::Settings::HIGH || !Core::support.tex3D || !TR::getSkyParams(level.id, skyParams))
                 return;
             type = Shader::SKY_AZURE;
         } else { // TR2, TR3
             if (level.extra.sky == -1)
                 return;
 
-            if (!Core::settings.effects.sky || Core::settings.detail.lighting < Core::Settings::HIGH || !Core::support.tex3D) {
+            if (Core::settings.detail.lighting < Core::Settings::HIGH || !Core::support.tex3D) {
                 type = Shader::DEFAULT; // the original sky
             } else {
                 type = Shader::SKY_CLOUDS;

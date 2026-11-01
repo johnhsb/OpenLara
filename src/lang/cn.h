@@ -366,7 +366,6 @@ const char *STR_CN[] = { "简体中文"
     , "M16 Clips"
     , "Grenades"
     , "Flares"
-    STR_FX_OPTIONS
 };
 #endif
 
@@ -786,7 +785,6 @@ const char *STR_CN[] = { "\x11\x02\x8A\x02\x6C\x01\x54\x03\x02\xFF\xFF"
     , "M16 Clips"
     , "Grenades"
     , "Flares"
-    STR_FX_OPTIONS
 };
 
 #endif
