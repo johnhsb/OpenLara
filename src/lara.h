@@ -2288,19 +2288,24 @@ struct Lara : Character {
         point = box.center();
 
         point.y = box.min.y + (box.max.y - box.min.y) / 3.0f;
-        if (checkOcclusion(from, point, (point - from).length()))
+        if (checkOcclusion(from, point))
             return true;
 
         point.y = box.min.y + (box.max.y - box.min.y) / 10.0f;
-        return checkOcclusion(from, point, (point - from).length());
+        return checkOcclusion(from, point);
     }
 
-    // the line of sight reaches the point (one trace step short at most), the original checks it exactly, so an enemy
-    // close behind a closed door is out of sight even if its body pokes through the door
-    bool checkOcclusion(const vec3 &from, const vec3 &to, float dist) {
-        int room;
-        vec3 d = trace(getRoomIndex(), from, to, room, false); // check occlusion
-        return ((d - from).length() > (dist - 32.0f));
+    // the line of sight of the original (the one of the enemies too): it follows the rooms sector by sector, so it sees
+    // over the edge of a balcony down into the room below, and a closed door (a wall in its sector) hides what's behind
+    bool checkOcclusion(const vec3 &from, const vec3 &to) {
+        TR::Location a, b;
+        a.room = getRoomIndex();
+        a.box  = TR::NO_BOX;
+        a.pos  = from;
+        b.room = a.room;
+        b.box  = TR::NO_BOX;
+        b.pos  = to;
+        return trace(a, b);
     }
 
     bool checkHit(Controller *target, const vec3 &from, const vec3 &to, vec3 &point) {
