@@ -3041,6 +3041,7 @@ struct Lara : Character {
         }
 
         bool needFlip = false;
+        bool canFlip  = false; // the trigger has a flip, done or not
         TR::Effect::Type effect = TR::Effect::NONE;
         Controller *cameraTarget = NULL;
 
@@ -3104,6 +3105,7 @@ struct Lara : Character {
                     break;
                 case TR::Action::FLIP : {
                     SaveState::ByteFlags &flip = level->state.flipmaps[cmd.args];
+                    canFlip = true;
 
                     if (flip.once)
                         break;
@@ -3122,10 +3124,12 @@ struct Lara : Character {
                     break;
                 }
                 case TR::Action::FLIP_ON :
+                    canFlip = true;
                     if (level->state.flipmaps[cmd.args].active == TR::ACTIVE && !level->state.flags.flipped)
                         needFlip = true;
                     break;
                 case TR::Action::FLIP_OFF :
+                    canFlip = true;
                     if (level->state.flipmaps[cmd.args].active == TR::ACTIVE && level->state.flags.flipped)
                         needFlip = true;
                     break;
@@ -3192,11 +3196,13 @@ struct Lara : Character {
         if (cameraTarget && (camera->mode == Camera::MODE_STATIC || camera->mode == Camera::MODE_HEAVY))
             camera->viewTarget = cameraTarget;
 
-        if (needFlip) {
+        if (needFlip)
             game->flipMap();
+
+        // as in the original, the effect of a trigger with a flip goes with the flip only: a switch that flipped once
+        // for good shakes the earth no more
+        if (effect != TR::Effect::NONE && (needFlip || !canFlip))
             game->setEffect(this, effect);
-        } else if ((level->version & TR::VER_TR2) && effect != TR::Effect::NONE)
-            game->setEffect(this, effect); // TR2 effects go without a flip as well
     }
 
     void waterSplash() {
