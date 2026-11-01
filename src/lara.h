@@ -6055,7 +6055,7 @@ struct Lara : Character {
 
     // while hanging only the slope along the wall matters (as in the original), a ledge may be steep towards/away from Lara
         vec2 slantAxis = standHang ? vec2(cosf(angle.y), -sinf(angle.y)) : vec2(0.0f);
-        collision = Collision(this, room, pos, offset, vel, radius, angleExt, minHeight, maxHeight, maxAscent, maxDescent, slantAxis);
+        collision = Collision(this, room, pos, offset, vel, radius, angleExt, minHeight, maxHeight, maxAscent, maxDescent, slantAxis, standHang);
 
         if (!standHang && (collision.side == Collision::LEFT || collision.side == Collision::RIGHT)) {
             float rot = TURN_WALL_Y * Core::deltaTime;

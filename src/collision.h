@@ -16,10 +16,11 @@ struct Collision {
     } info[4];
 
     vec2 slantAxis; // when set, only the slant along this axis counts as steep (e.g. along the wall while hanging)
+    bool ledge;     // the hands on a ledge: its floor only counts, not the ceiling over it (as in the original)
 
     Collision() : side(NONE) {}
 
-    Collision(Controller *controller, int roomIndex, vec3 &pos, const vec3 &offset, const vec3 &velocity, float radius, float angle, int minHeight, int maxHeight, int maxAscent, int maxDescent, const vec2 &slantAxis = vec2(0.0f)) : slantAxis(slantAxis) {
+    Collision(Controller *controller, int roomIndex, vec3 &pos, const vec3 &offset, const vec3 &velocity, float radius, float angle, int minHeight, int maxHeight, int maxAscent, int maxDescent, const vec2 &slantAxis = vec2(0.0f), bool ledge = false) : slantAxis(slantAxis), ledge(ledge) {
         if (velocity.x != 0.0f || velocity.z != 0.0f) // the way it moves, whichever, or is pushed (the facing of a standing one)
             angle = normalizeAngle(PI2 + vec2(velocity.z, velocity.x).angle());
         pos += velocity;
@@ -52,7 +53,7 @@ struct Collision {
             return;
         }
 
-        float hCell = info[NONE].ceiling - (hpos.y - maxHeight);
+        float hCell = ledge ? 0.0f : info[NONE].ceiling - (hpos.y - maxHeight);
         if (hCell > 0) {
             if (hCell > 128) {
                 pos.x -= velocity.x;
@@ -98,7 +99,10 @@ struct Collision {
 
         bool steep = (slantAxis.x == 0.0f && slantAxis.y == 0.0f) ? (abs(info.slantX) > 2 || abs(info.slantZ) > 2) : (fabsf(info.slantX * slantAxis.x + info.slantZ * slantAxis.y) > 2.0f);
 
-        if ((info.ceiling == info.floor) ||  (info.floor - info.ceiling < height) || (pos.y - info.floor > maxAscent) || (info.floor - pos.y > maxDescent) || (info.ceiling > pos.y) ||
+        // a ledge under a low ceiling (slanting down to it) is held all the same
+        bool lowCeiling = !ledge && ((info.ceiling == info.floor) || (info.floor - info.ceiling < height) || (info.ceiling > pos.y));
+
+        if (lowCeiling || (pos.y - info.floor > maxAscent) || (info.floor - pos.y > maxDescent) ||
             (maxAscent == maxDescent && (maxAscent <= 256 + 128) && steep)) {
             this->side = side;
             return true;
