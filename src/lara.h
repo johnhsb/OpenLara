@@ -3165,6 +3165,11 @@ struct Lara : Character {
                     effect = TR::Effect::remap(level->version, cmd.args);
                     break;
                 case TR::Action::SECRET :
+                    // TR2 counts its secrets with their music as the dragons are picked up, a trigger under one (or left
+                    // over without one, all of them number 0) would count another and play the TR1 track (a voice of
+                    // the training level)
+                    if (level->version & TR::VER_TR2)
+                        break;
                     if (!(saveStats.secrets & (1 << cmd.args))) {
                         saveStats.secrets |= 1 << cmd.args;
                         if (!game->playSound(TR::SND_SECRET, pos))
