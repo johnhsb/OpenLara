@@ -197,6 +197,7 @@ InputKey codeToInputKey(int code) {
         case SDL_SCANCODE_X          : return ikX;
         case SDL_SCANCODE_Y          : return ikY;
         case SDL_SCANCODE_Z          : return ikZ;
+        case SDL_SCANCODE_F12        : return ikF12;
         case SDL_SCANCODE_AC_HOME    : return ikEscape;
     }
     return ikNone;

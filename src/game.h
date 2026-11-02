@@ -9,6 +9,12 @@
 #include "ui.h"
 #include "savegame.h"
 
+#ifdef _GAPI_GL
+    #define STB_IMAGE_WRITE_STATIC
+    #define STB_IMAGE_WRITE_IMPLEMENTATION
+    #include "libs/stb_image_write/stb_image_write.h"
+#endif
+
 #define MAX_CHEAT_SEQUENCE 8
 
 namespace Game {
@@ -389,10 +395,40 @@ namespace Game {
         Core::endFrame();
     }
 
+#ifdef _GAPI_GL
+    // saves the back buffer as screenshot_NNNN.jpg in the working directory
+    void saveScreenshot() {
+        char name[32];
+        for (int i = 0; i < 10000; i++) {
+            sprintf(name, "screenshot_%04d.jpg", i);
+            FILE *f = fopen(name, "rb");
+            if (!f) break;
+            fclose(f);
+        }
+
+        int w = Core::width;
+        int h = Core::height;
+        uint8 *data = new uint8[w * h * 4];
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+        stbi_flip_vertically_on_write(1); // GL rows go from the bottom
+        if (stbi_write_jpg(name, w, h, 4, data, 90))
+            LOG("save %s\n", name);
+        delete[] data;
+    }
+#endif
+
     bool render() {
         if (frameBegin()) {
             frameRender();
             frameEnd();
+        #ifdef _GAPI_GL
+            if (Input::down[ikF12]) {
+                saveScreenshot();
+                Input::down[ikF12] = false;
+            }
+        #endif
             return true;
         }
         return false;
