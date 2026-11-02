@@ -6028,7 +6028,8 @@ struct Lara : Character {
     // on the ground and in the air she belongs to the room of her middle, as in the original: on a floor opening (a
     // trapdoor) she stays in the room above, jumping up to a ledge over a lower opening she meets it from the room above
     virtual void updateRoom() {
-        if (stand == STAND_GROUND || stand == STAND_AIR) {
+        // climbing up onto a ledge on the room border ends with the feet right on it, the body tells the room above
+        if (stand == STAND_GROUND || stand == STAND_AIR || state == STATE_HANG_UP || state == STATE_HANDSTAND) {
             level->getSector(roomIndex, pos - vec3(0.0f, LARA_HEIGHT * 0.5f, 0.0f));
             level->getWaterInfo(getRoomIndex(), pos, waterLevel, waterDepth);
         } else
@@ -6150,11 +6151,14 @@ struct Lara : Character {
                         } else {
                             animation.setAnim(isLeftFoot ? ANIM_SMASH_RUN_LEFT : ANIM_SMASH_RUN_RIGHT);
                         }
-                    } else if (stand == STAND_HANG) {
+                    } else if (standHang) {
                     // Collision may keep the sideways step when the blocking sector is the one Lara hangs on (e.g. ledge too steep along the wall)
                         pos.x = opos.x;
                         pos.z = opos.z;
                         animation.setAnim(ANIM_HANG, -21);
+                    } else if (stand == STAND_HANG) {
+                    // climbing up onto the ledge goes on as in the original, the room may be still the one below it
+                    // (a ledge on the room border), so the sector under the ledge is taken for a low ceiling
                     } else if (state != STATE_ROLL_START && state != STATE_ROLL_END)
                         animation.setAnim((state == STATE_RUN || state == STATE_WALK) ? (isLeftFoot ? ANIM_STAND_LEFT : ANIM_STAND_RIGHT) : ANIM_STAND);
                     velocity.x = velocity.z = 0.0f;
