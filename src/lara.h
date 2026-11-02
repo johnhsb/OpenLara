@@ -4659,6 +4659,23 @@ struct Lara : Character {
             animation.setAnim(ANIM_LADDER_IDLE);
     }
 
+    // shimmy on a climbable wall, as in the original only the wall behind the hands and the body counts, not the ledge height
+    // (the hands may be far below its top when the wall is too narrow for the feet)
+    void moveLadderHang() {
+        vec3 opos = pos;
+        vec3 vel  = velocity * Core::deltaTime * 30.0f;
+        pos.x += vel.x;
+        pos.z += vel.z;
+
+        Box bounds = animation.getBoundingBox(vec3(0.0f), 0);
+        if (testLadderHang(int(bounds.min.y), int(bounds.max.y - bounds.min.y)))
+            return;
+
+        pos = opos;
+        velocity.x = velocity.z = 0.0f;
+        animation.setAnim(ANIM_HANG, -21);
+    }
+
     bool checkClimb() {
         if ((input & (FORTH | ACTION)) == (FORTH | ACTION) && !(input & (LEFT | RIGHT)) && (animation.index == ANIM_STAND || animation.index == ANIM_STAND_NORMAL) && emptyHands() && collision.side == Collision::FRONT) { // TODO: get rid of animation.index
             float floor   = collision.info[Collision::FRONT].floor;
@@ -6021,6 +6038,12 @@ struct Lara : Character {
     void move() {
         if (stand == STAND_HANG && isLadderState()) {
             moveLadder();
+            updateRoom();
+            return;
+        }
+
+        if (stand == STAND_HANG && (state == STATE_HANG_LEFT || state == STATE_HANG_RIGHT) && getClimbStatus()) {
+            moveLadderHang();
             updateRoom();
             return;
         }
