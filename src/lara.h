@@ -4896,7 +4896,9 @@ struct Lara : Character {
     // so resolve the room at ledge height first (as Collision does)
     void getLedgeInfo(const vec3 &p, float ledge, TR::Level::FloorInfo &info) {
         int room = getRoomIndex();
-        Collision::getFloor(level, room, vec3(pos.x, ledge - 32.0f, pos.z));
+        // the hands may be up to 128 below the ledge on a climbable wall, its top can be in the room above
+        // while the sector under it in Lara's room is closed (a block with a free space beneath)
+        Collision::getFloor(level, room, vec3(pos.x, ledge - 128.0f - 32.0f, pos.z));
         getFloorInfo(room, p, info);
         if (info.roomAbove != TR::NO_ROOM && info.floor >= ledge)
             getFloorInfo(info.roomAbove, p, info);
