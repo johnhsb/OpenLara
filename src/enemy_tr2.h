@@ -2837,7 +2837,7 @@ struct Tiger : Enemy {
 
     enum {
         STATE_NONE = -1,
-        STATE_DEATH    ,
+        STATE_EMPTY    ,
         STATE_STOP     ,
         STATE_WALK     ,
         STATE_RUN      ,
@@ -2846,6 +2846,7 @@ struct Tiger : Enemy {
         STATE_ATTACK_1 ,
         STATE_ATTACK_2 ,
         STATE_ATTACK_3 ,
+        STATE_DEATH    ,
     };
 
     float maxTurn; // kept from the state that leads to an attack, as in the original
@@ -2927,8 +2928,9 @@ struct Tiger : Enemy {
         return state;
     }
 
+    // the death is known by its animation, its state is 9 in some levels and 0 in others (the wall, the tomb)
     virtual int getStateDeath() {
-        if (state == STATE_DEATH)
+        if (animation.index == ANIM_DEATH)
             return state;
         return animation.setAnim(ANIM_DEATH);
     }
@@ -2936,7 +2938,7 @@ struct Tiger : Enemy {
     virtual void updatePosition() {
         turn(state == STATE_RUN, maxTurn);
 
-        if (state == STATE_DEATH) {
+        if (health <= 0.0f) {
             animation.overrideMask = 0;
             return;
         }
