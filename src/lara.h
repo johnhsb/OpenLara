@@ -6226,17 +6226,25 @@ struct Lara : Character {
         if (box != sink.flags.boxIndex) {
             uint16 *boxes;
             uint16 count = game->findPath(0xFFFFFF, -0xFFFFFF, false, box, sink.flags.boxIndex, getZones(), &boxes);
-            if (count > 1) {
+        // the boxes of the path Lara is in already are passed (boxes overlap, the center of the next one may be
+        // where she is and the flow held her there), she goes to the nearest point inside the first one she is not in
+            int next = 1;
+            while (next < count && level->boxes[boxes[next]].contains(int(pos.x), int(pos.z)))
+                next++;
+
+            if (next < count) {
             #ifdef _DEBUG
                 //dbgBoxesCount = count;
                 //dbgBoxes = new uint16[dbgBoxesCount];
                 //memcpy(dbgBoxes, boxes, sizeof(uint16) * dbgBoxesCount);
             #endif
-                TR::Box &b = level->boxes[boxes[1]];
-                target.x = (b.minX + b.maxX) * 0.5f;
+                TR::Box &b = level->boxes[boxes[next]];
+                int insetX = min(256, (b.maxX - b.minX) / 2);
+                int insetZ = min(256, (b.maxZ - b.minZ) / 2);
+                target.x = float(clamp(int(pos.x), b.minX + insetX, b.maxX - insetX));
                 if (target.y > b.floor)
                     target.y = float(b.floor);
-                target.z = (b.minZ + b.maxZ) * 0.5f;
+                target.z = float(clamp(int(pos.z), b.minZ + insetZ, b.maxZ - insetZ));
             }
         }
 
