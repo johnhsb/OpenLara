@@ -41,7 +41,7 @@ const char *STR_EN[] = { ""
     , "%s - Select"
     , "%s - Go Back"
 // inventory pages
-    , "OPTIONS"
+    , "OPTION"
     , "INVENTORY"
     , "ITEMS"
 // save game page
@@ -128,6 +128,7 @@ const char *STR_EN[] = { ""
     , "Scarab"
     , "Pyramid Key"
     STR_TR2_ITEMS
+    STR_TR2_STATS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]What's a man gotta do to@get that kinda attention from ye?"
@@ -362,7 +363,7 @@ const char *STR_EN[] = { ""
     , "Harpoons"
     , "M16 Clips"
     , "Grenades"
-    , "Flares"
+    , "Flare"
 };
 
 #endif

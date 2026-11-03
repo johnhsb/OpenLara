@@ -128,6 +128,7 @@ const char *STR_HU[] = { ""
     , "Szkarabeusz"
     , "Piramis kulcs"
     STR_TR2_ITEMS
+    STR_TR2_STATS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]Mit kell tennie az embernek, ahhoz,@hogy megkapja azt a bizonyos figyelmet?"

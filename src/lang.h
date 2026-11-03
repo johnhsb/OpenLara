@@ -185,6 +185,14 @@ enum StringID {
     , STR_TR2_PUZZLE_MYSTIC_PLAQUE
     , STR_TR2_PUZZLE_DAGGER
     , STR_TR2_QUEST_TALION
+// TR2 level statistics (the names of the original script)
+    , STR_TR2_STATS_TIME
+    , STR_TR2_STATS_SECRETS
+    , STR_TR2_STATS_SECRETS_OF
+    , STR_TR2_STATS_KILLS
+    , STR_TR2_STATS_AMMO
+    , STR_TR2_STATS_MEDI
+    , STR_TR2_STATS_DISTANCE
 // TR1 subtitles
     , STR_TR1_SUB_CAFE
     , STR_TR1_SUB_LIFT
@@ -446,6 +454,16 @@ enum StringID {
     , "Mystic Plaque" \
     , "Dagger of Xian" \
     , "Talion"
+
+// TR2 level statistics (English, the other languages fall back to them)
+#define STR_TR2_STATS \
+    , "Time Taken" \
+    , "Secrets Found" \
+    , "%d of %d" \
+    , "Kills" \
+    , "Ammo Used" \
+    , "Health Packs Used" \
+    , "Distance Travelled"
 
 
 

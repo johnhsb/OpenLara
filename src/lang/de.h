@@ -128,6 +128,7 @@ const char *STR_DE[] = { ""
     , "Skarab~aus"
     , "Schl~ussel der Pyramide"
     STR_TR2_ITEMS
+    STR_TR2_STATS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]Was muss ein Mann tun, um solche Aufmerksamkeit von Ihnen zu kriegen?"

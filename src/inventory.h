@@ -2150,13 +2150,61 @@ struct Inventory {
         else
             sprintf(time, "%d:%02d", m, s);
 
-        sprintf(buf, STR[STR_LEVEL_STATS], 
+        if (TR::getGameVersionByLevel(TR::LevelID(saveStats.level)) == TR::VER_TR2) {
+            showLevelStatsTR2(pos, time, secrets, secretsMax);
+            return;
+        }
+
+        sprintf(buf, STR[STR_LEVEL_STATS],
                 STR[TR::LEVEL_INFO[saveStats.level].title],
                 saveStats.kills,
                 saveStats.pickups,
                 secrets, secretsMax, time);
 
         UI::textOut(pos, buf, UI::aCenter, UI::width);
+    }
+
+    // the statistics of the original TR2: the level name over the rows of its script, the names on the left and the
+    // values on the right, the secrets only in a level that has them (Hits are not counted)
+    void showLevelStatsTR2(const vec2 &pos, const char *time, int secrets, int secretsMax) {
+        char secretsStr[32], kills[16], ammo[16], medi[16], distance[16];
+
+        sprintf(secretsStr, STR[STR_TR2_STATS_SECRETS_OF], secrets, secretsMax);
+        sprintf(kills, "%d", saveStats.kills);
+        sprintf(ammo,  "%d", saveStats.ammoUsed);
+        // a small medi pack counts half of a large one
+        if (saveStats.mediUsed & 1)
+            sprintf(medi, "%d.5", saveStats.mediUsed / 2);
+        else
+            sprintf(medi, "%d", saveStats.mediUsed / 2);
+        if (saveStats.distance < 1000)
+            sprintf(distance, "%dm", saveStats.distance);
+        else
+            sprintf(distance, "%d.%02dkm", saveStats.distance / 1000, saveStats.distance % 1000 / 10);
+
+        const struct {
+            StringID    name;
+            const char *value;
+        } rows[] = {
+            { STR_TR2_STATS_TIME,     time       },
+            { STR_TR2_STATS_SECRETS,  secretsStr },
+            { STR_TR2_STATS_KILLS,    kills      },
+            { STR_TR2_STATS_AMMO,     ammo       },
+            { STR_TR2_STATS_MEDI,     medi       },
+            { STR_TR2_STATS_DISTANCE, distance   },
+        };
+
+        UI::textOut(pos, TR::LEVEL_INFO[saveStats.level].title, UI::aCenter, UI::width);
+
+        float x = UI::width * 0.5f - 150.0f;
+        float y = pos.y + LINE_HEIGHT * 2.0f;
+        for (int i = 0; i < COUNT(rows); i++) {
+            if (rows[i].name == STR_TR2_STATS_SECRETS && !secretsMax)
+                continue;
+            UI::textOut(vec2(x, y), rows[i].name, UI::aLeft, 300.0f);
+            UI::textOut(vec2(x, y), rows[i].value, UI::aRight, 300.0f);
+            y += LINE_HEIGHT;
+        }
     }
 
     void renderUI() {

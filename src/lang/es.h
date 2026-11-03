@@ -128,6 +128,7 @@ const char *STR_ES[] = { ""
     , "Escarabajo"
     , "Llave de la pir)amide"
     STR_TR2_ITEMS
+    STR_TR2_STATS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]\xBFQu)e es lo que tiene que hacer un@hombre para atraer tu atenci)on?"

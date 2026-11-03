@@ -128,6 +128,7 @@ const char *STR_PL[] = { ""
     , "Skarabeusz"
     , "Klucz do piramidy"
     STR_TR2_ITEMS
+    STR_TR2_STATS
 // TR1 subtitles
     /* CAFE */ ,
     "[43500]Co m|e*zczyzna musi zrobi)c,@*zeby zwr)oci)c na siebie a*z tak|a uwag|e?"

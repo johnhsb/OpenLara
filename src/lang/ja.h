@@ -131,6 +131,7 @@ const char *STR_JA[] = { "日本語"
     , "スカラベ"
     , "ピラミッドの鍵"
     STR_TR2_ITEMS
+    STR_TR2_STATS
 // TR1 subtitles
     /* CAFE */ ,
     ""
@@ -455,6 +456,7 @@ const char *STR_JA[] = { "\x11\x02\x70\x01\x97\x01\xD6\xFF\xFF"
     , "\x11\x01\x17\x01\x49\x01\x18\x01\x71\xFF\xFF"
     , "\x11\x01\x57\x01\x18\x01\x52\x01\x2F\x01\x31\x01\x01\x01\x44\xFF\xFF"
     STR_TR2_ITEMS
+    STR_TR2_STATS
 // TR1 subtitles
     /* CAFE */ ,
     ""

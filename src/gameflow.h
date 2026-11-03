@@ -309,8 +309,8 @@ namespace TR {
         { "EMPRTOMB"  , STR_TR2_EMPRTOMB  , TRACK_TR2_CHINA_2   , 3 },
         { "CUT4"      , STR_EMPTY         , TRACK_TR2_CUT_4     , 0 },
         { "FLOATING"  , STR_TR2_FLOATING  , TRACK_TR2_CHINA_2   , 3 },
-        { "XIAN"      , STR_TR2_XIAN      , TRACK_TR2_CHINA_2   , 3 },
-        { "HOUSE"     , STR_TR2_HOUSE     , NO_TRACK            , 3 },
+        { "XIAN"      , STR_TR2_XIAN      , TRACK_TR2_CHINA_2   , 0 }, // no secrets (the Secrets command of the script)
+        { "HOUSE"     , STR_TR2_HOUSE     , NO_TRACK            , 0 }, // no secrets (the Secrets command of the script)
     // TR3
         { "TITLE"     , STR_EMPTY         , TRACK_TR3_TITLE     , 0 },
         { "HOUSE"     , STR_TR3_HOUSE     , NO_TRACK            , 3 },
