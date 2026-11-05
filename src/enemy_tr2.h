@@ -3182,16 +3182,16 @@ struct SkidooDriver : Human {
         vec3  d = waypoint - pos;
         float a = clamp(clampAngle(normalizeAngle(PIH - d.angleY() - angle.y)), -SKIDOO_DRIVER_TURN / 30.0f, SKIDOO_DRIVER_TURN / 30.0f);
 
-        bool near = fabsf(targetAngle) < SKIDOO_DRIVER_TARGET_ANGLE && targetDist < SKIDOO_DRIVER_WAIT_RANGE;
+        bool isNear = fabsf(targetAngle) < SKIDOO_DRIVER_TARGET_ANGLE && targetDist < SKIDOO_DRIVER_WAIT_RANGE;
         int  next = state;
 
         switch (state) {
             case STATE_WAIT :
-                if (mood != MOOD_SLEEP && !near)
+                if (mood != MOOD_SLEEP && !isNear)
                     next = STATE_MOVING;
                 break;
             case STATE_MOVING :
-                if (mood == MOOD_SLEEP || near)
+                if (mood == MOOD_SLEEP || isNear)
                     next = STATE_WAIT;
                 else if (a < -SKIDOO_DRIVER_MIN_TURN)
                     next = STATE_START_LEFT;
