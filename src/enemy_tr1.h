@@ -1073,8 +1073,7 @@ struct Bat : Enemy {
             target = (Character*)game->getLara(pos);
 
         if (flying) {
-            float wy = waypoint.y - (target->stand != STAND_ONWATER ? 765.0f : 64.0f);
-            lift(wy - pos.y, BAT_LIFT_SPEED);
+            lift(flyHeight - pos.y, BAT_LIFT_SPEED);
         }
         Enemy::updatePosition();
     }

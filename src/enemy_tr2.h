@@ -2474,8 +2474,7 @@ struct Crow : Enemy {
                 getFloorInfo(getRoomIndex(), pos, info);
                 pos.y = info.floor;
             } else {
-                float wy = waypoint.y - (target->stand != STAND_ONWATER ? 765.0f : 64.0f);
-                lift(wy - pos.y, CROW_LIFT_SPEED);
+                lift(flyHeight - pos.y, CROW_LIFT_SPEED);
             }
         }
         Enemy::updatePosition();
@@ -3359,6 +3358,7 @@ struct XianWarrior : Enemy {
     XianWarrior(IGame *game, int entity, float health, TR::Entity::Type statueType, int stateStart) :
         Enemy(game, entity, health, 204, 0.0f, 1.0f), statueType(statueType), meshBits(0), wakeCount(0), hits(0),
         maxTurn(0.0f), stateStart(stateStart), stepTime(0.0f) {
+        ai = AI_FIXED; // the violent mood of the original: it attacks Lara anywhere in its zone
         initMeshOverrides();
         meshSwap(1, level->getModelIndex(statueType) - 1);
         updateMeshes();
@@ -3718,7 +3718,7 @@ struct XianKnight : XianWarrior {
     virtual void updatePosition() {
         if (flying) {
             stand = STAND_AIR;
-            lift(waypoint.y - pos.y, XIAN_KNIGHT_LIFT_SPEED);
+            lift(flyHeight - pos.y, XIAN_KNIGHT_LIFT_SPEED);
         }
         XianWarrior::updatePosition();
         stand = STAND_GROUND; // it decides on the ground states in the air too (as Natla)

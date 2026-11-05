@@ -69,6 +69,7 @@ struct Enemy : Character {
 
     uint16 targetBox;
     vec3   waypoint;
+    float  flyHeight;   // the height a flyer in the air heads for
 
     float thinkTime;
     int   touchBits;    // the meshes Lara touched since the last think
@@ -95,6 +96,7 @@ struct Enemy : Character {
         targetDist   = +INF;
         targetInView = targetFromView = targetCanAttack = false;
         waypoint     = pos;
+        flyHeight    = pos.y;
     }
 
     virtual ~Enemy() {
@@ -575,7 +577,10 @@ struct Enemy : Character {
         if (targetBox == TR::NO_BOX)
             gotoBox(target->box);
 
-        if (path && (path->index == 0 || this->box != path->boxes[path->index - 1]) && this->box != path->boxes[path->index])
+        // off its path it looks for a new one, a flyer passes the point to the next box high over the floor, where the
+        // box under it may still be the one it comes from
+        if (path && (path->index == 0 || this->box != path->boxes[path->index - 1]) && this->box != path->boxes[path->index]
+            && !(flying && path->index >= 2 && this->box == path->boxes[path->index - 2]))
             targetBoxOld = TR::NO_BOX;
 
         if (zoneOld != zone)
@@ -591,8 +596,9 @@ struct Enemy : Character {
         if (targetBox != TR::NO_BOX && path) {
             vec3 d = pos - waypoint;
 
-        // the waypoint is reached when close to it or inside the box it leads to (a fast runner may circle around the point)
-            if ((fabsf(d.x) < 512 && fabsf(d.y) < 512 && fabsf(d.z) < 512) || (path->index > 0 && path->index < path->count && box == path->boxes[path->index]))
+        // the waypoint is reached when close to it or inside the box it leads to (a fast runner may circle around the point),
+        // a flyer keeps its own height over the floor of the point
+            if ((fabsf(d.x) < 512 && (flying || fabsf(d.y) < 512) && fabsf(d.z) < 512) || (path->index > 0 && path->index < path->count && box == path->boxes[path->index]))
                 nextWaypoint();
         }
 
@@ -604,7 +610,36 @@ struct Enemy : Character {
             wound = false;
         }
 
+        updateFlyHeight();
+
         return true;
+    }
+
+    // the height a flyer heads for, as the original takes it: on its way it keeps its own height, only lifted a block
+    // over the floors of the boxes it goes through, on the box of Lara it goes for her top (her feet out of the air)
+    // and on a box it is only sent to for a step and a half over the floor
+    void updateFlyHeight() {
+        if (targetBox == TR::NO_BOX) {
+            flyHeight = pos.y;
+            return;
+        }
+
+        if (box == targetBox || !path || path->index >= path->count - 1) {
+            if (targetBox == target->box) {
+                flyHeight = target->pos.y;
+                if (target->stand != STAND_UNDERWATER && target->stand != STAND_ONWATER && target->stand != STAND_WADE)
+                    flyHeight += target->getBoundingBoxLocal().min.y;
+            } else
+                flyHeight = float(level->boxes[targetBox].floor - 384);
+            return;
+        }
+
+        float y = pos.y;
+        if (box != TR::NO_BOX)
+            y = min(y, float(level->boxes[box].floor - 1024));
+        for (int i = max(0, path->index - 1); i <= path->index; i++)
+            y = min(y, float(level->boxes[path->boxes[i]].floor - 1024));
+        flyHeight = y;
     }
 
     void nextWaypoint() {
