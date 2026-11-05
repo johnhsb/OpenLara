@@ -546,6 +546,11 @@ int main(int argc, char **argv) {
         contentDir[contentDirLen+1] = '\0';
     }
 
+    // under WSL Mesa falls back to the llvmpipe software renderer, the GPU is reached through D3D12 (/dev/dxg),
+    // unless the user picked a driver already
+    if (access("/dev/dxg", F_OK) == 0)
+        setenv("GALLIUM_DRIVER", "d3d12", 0);
+
     int w, h;
     SDL_GameControllerAddMappingsFromFile("gamecontrollerdb.txt");
     SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_EVENTS|SDL_INIT_GAMECONTROLLER|SDL_INIT_HAPTIC);
