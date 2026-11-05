@@ -586,8 +586,9 @@ struct Controller {
         data.flags      = e.flags.value ^ flags.value;
         data.timer      = timer == 0.0f ? 0 : (timer < 0.0f ? -1 : int16(timer * 30.0f));
     // animation
-        data.animIndex  = m ? animation.index : 0;
-        data.animFrame  = m ? animation.frameIndex : 0;
+        bool animated = m && animation.index >= 0 && animation.index < level->animsCount; // a pickup model has none
+        data.animIndex  = animated ? animation.index : 0;
+        data.animFrame  = animated ? animation.frameIndex : 0;
 
         data.extraSize  = 0;
 
@@ -615,7 +616,9 @@ struct Controller {
         timer       = data.timer == -1 ? -1.0f : (data.timer / 30.0f);
         hideAmbush(); // a game saved before it was hidden
     // animation
-        if (m) animation.setAnim(data.animIndex, -data.animFrame);
+        // a model with animations takes a valid one (a game saved with a pickup model had none of its own there)
+        if (m && m->animation != 0xFFFF && data.animIndex < level->animsCount)
+            animation.setAnim(data.animIndex, -data.animFrame);
         updateLights(false);
     }
 

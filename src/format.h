@@ -452,7 +452,7 @@
     E( MUZZLE_GLOW           ) \
     E( UNUSED_33             ) \
     E( _RICOCHET             ) \
-    E( UNUSED_34             ) \
+    E( _SPARKLES             ) \
     E( _MUZZLE_FLASH         ) \
     E( MUZZLE_FLASH_M16      ) \
     E( UNUSED_35             ) \
@@ -2251,6 +2251,7 @@ namespace TR {
                 REMAP_2( BUBBLE               );
                 REMAP_2( BLOOD                );
                 REMAP_2( RICOCHET             );
+                REMAP_2( SPARKLES             ); // the twinkle of TR2 (the trail of the Xian knights, the sparkles of the pickups)
                 REMAP_2( MUZZLE_FLASH         );
                 REMAP_2( VIEW_TARGET          );
                 REMAP_2( WATERFALL            );

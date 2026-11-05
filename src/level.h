@@ -802,6 +802,11 @@ struct Level : IGame {
             return NULL;
 
         TR::Entity &e = level.entities[index];
+        if (e.isSprite() && e.modelIndex >= 0) { // no sprites of that type in the level, nothing to show
+            e.type = TR::Entity::NONE;
+            return NULL;
+        }
+
         if (e.isPickup())
             e.intensity = 4096;
         else
