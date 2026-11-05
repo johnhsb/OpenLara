@@ -265,7 +265,8 @@ struct Controller {
 
         parseFloorData(info, sBelow->floorIndex, dx, dz);
 
-        if (level->isAbyss(256 * sBelow->floor)) {
+        // only Lara falls on into the abyss to her death, a creature stops at its floor (as in the original)
+        if (level->isAbyss(256 * sBelow->floor) && getEntity().isLara()) {
             info.floor  = level->getAbyssFloor();
             info.slantX = info.slantZ = 0;
         }

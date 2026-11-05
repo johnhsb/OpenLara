@@ -3652,8 +3652,9 @@ struct XianKnight : XianWarrior {
 
     // Lara's ground zone differs from its own one, it has to fly there
     bool apart() {
+        Character *t = target ? target : (Character*)game->getLara(pos); // no target chosen yet just after a game loaded
         uint16 *ground = level->zones[level->state.flags.flipped].ground1;
-        return box != TR::NO_BOX && target && target->box != TR::NO_BOX && ground[box] != ground[target->box];
+        return box != TR::NO_BOX && t && t->box != TR::NO_BOX && ground[box] != ground[t->box];
     }
 
     void sparkle() {
@@ -3686,6 +3687,9 @@ struct XianKnight : XianWarrior {
                 if (bite && d < XIAN_KNIGHT_DIST_1) return randControl() < 0x4000 ? STATE_AIM_1 : STATE_AIM_2;
                 if (apart()) return STATE_FLY;
                 return STATE_WALK;
+            case STATE_WAIT : // the original waits on there over Lara dead, a game loaded may bring her back to life
+                if (!laraDead) return STATE_STOP;
+                break;
             case STATE_WALK :
                 maxTurn = XIAN_KNIGHT_WALK_TURN;
                 if (laraDead) return STATE_STOP;

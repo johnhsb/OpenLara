@@ -868,6 +868,7 @@ struct Lara : Character {
         angle.x  = TR::angle(data.extra.lara.angleX);
         health   = data.extra.lara.health;
         oxygen   = data.extra.lara.oxygen;
+        updateZone(); // her box where she is, the creatures head there even before she moves
 
         // nor the special animations
         if (extraAnim) {
