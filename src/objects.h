@@ -546,6 +546,7 @@ struct TrapBoulder : Controller {
                 velocity  = vec3(0.0f);
                 animation.setAnim(0);
                 flags.unused = false;
+                Sound::stop(soundRoll(), &pos);
             }
             return;
         }
@@ -603,6 +604,7 @@ struct TrapBoulder : Controller {
                 pos.x    = old.x;
                 pos.z    = old.z;
                 velocity = vec3(0.0f);
+                Sound::stop(soundRoll(), &pos); // the roll sample loops, so it plays on until stopped
                 if (soundStop() != -1)
                     game->playSound(soundStop(), pos, Sound::PAN);
                 if (settles())

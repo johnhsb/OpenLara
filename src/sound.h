@@ -1362,13 +1362,14 @@ namespace Sound {
         return NULL;
     }
 
-    void stop(int id = -1)
+    // with uniquePtr only the channel of that sound source stops
+    void stop(int id = -1, const vec3 *uniquePtr = NULL)
     {
         OS_LOCK(lock);
 
         for (int i = 0; i < channelsCount; i++)
         {
-            if (id == -1 || channels[i]->id == id)
+            if ((id == -1 || channels[i]->id == id) && (!uniquePtr || channels[i]->uniquePtr == uniquePtr))
             {
                 channels[i]->stop();
             }
