@@ -576,7 +576,12 @@ struct TrapBoulder : Controller {
         pos += velocity * (30.0f * Core::deltaTime);
 
         TR::Room::Sector *sector = level->getSector(roomIndex, pos);
-        p.y = level->getFloor(sector, pos);
+
+        // the floor with the bridges, a ball rolls down a tilting bridge instead of dropping through it (as the
+        // original takes its height)
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), pos, info);
+        p.y = info.floor;
 
         if (pos.y < p.y) {
             if (velocity.y == 0.0f) {
