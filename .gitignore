@@ -9,3 +9,6 @@ DerivedData/
 
 # Object files
 *.o
+
+# SDL2 build output
+src/platform/sdl2/OpenLara
