@@ -129,7 +129,9 @@ varying vec4 vTexCoord; // xy - atlas coords, zw - trapezoidal correction
 				fog = d * WATER_FOG_DIST;
 				fog *= step(uParam.y, coord.y);
 			#else
-				fog = length(vViewVec.xyz);
+				// clear near the camera, then the haze thickens smoothly with the distance (in the units of its range)
+				fog = max(0.0, length(vViewVec.xyz) - FOG_START_DIST * uFogParams.w);
+				fog *= fog;
 			#endif
 			vNormal.w = clamp(1.0 / exp(fog), 0.0, 1.0);
 
@@ -342,6 +344,40 @@ varying vec4 vTexCoord; // xy - atlas coords, zw - trapezoidal correction
 		}
 	#endif
 
+	#if defined(OPT_NORMALMAP) && defined(TYPE_ROOM)
+		#define BUMP
+		uniform sampler2D sNormal;
+
+		// the normal of the normal map of the texture, its tangents from the derivatives of the place and the texture
+		// coords on the screen (no tangents in the vertices)
+		vec3 bumpNormal(vec3 N, vec3 p, vec2 uv) {
+			vec3 dp1  = dFdx(p);
+			vec3 dp2  = dFdy(p);
+			vec2 duv1 = dFdx(uv);
+			vec2 duv2 = dFdy(uv);
+			vec3 dp2perp = cross(dp2, N);
+			vec3 dp1perp = cross(N, dp1);
+			vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+			vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+			float d = max(dot(T, T), dot(B, B));
+			if (d <= 0.0) return N;
+			float inv = inversesqrt(d);
+			vec3 m = texture2D(sNormal, uv).xyz * 2.0 - 1.0;
+			m.xy *= BUMP_STRENGTH;
+			return normalize(T * (inv * m.x) + B * (inv * m.y) + N * m.z);
+		}
+
+		// the light of the room is in its vertices, it takes the bumps as they turn to the main light of the room or away
+		// from it, the light kept in front of the surface
+		float bumpLight(vec3 N, vec3 bump, vec3 lightVec) {
+			vec3 L = dot(lightVec, lightVec) > 1e-8 ? normalize(lightVec) : N;
+			L = normalize(L + N * 1.001);
+			// a bump turned away from the surface takes less light anyway, the light of a surface stays as it was on
+			// the whole, only its light and dark change
+			return clamp(dot(bump, L) / max(dot(N, L) * dot(bump, N), 0.2), 0.5, 1.5);
+		}
+	#endif
+
 	float calcSpecular(vec3 normal, vec3 viewVec, vec3 lightVec, vec4 color, float intensity) {
 		vec3 vv = normalize(viewVec);
 		vec3 rv = reflect(-vv, normal);
@@ -379,6 +415,10 @@ varying vec4 vTexCoord; // xy - atlas coords, zw - trapezoidal correction
 			#endif
 
 			vec3 normal = normalize(vNormal.xyz);
+
+			#ifdef BUMP
+				float rBump = bumpLight(normal, bumpNormal(normal, vCoord, uv), vLightVec);
+			#endif
 
 			#ifdef TYPE_ENTITY
 				float rSpecular = uMaterial.z;
@@ -421,6 +461,10 @@ varying vec4 vTexCoord; // xy - atlas coords, zw - trapezoidal correction
 
 			#ifdef OPT_CONTACT
 				light *= getContactAO(vCoord, normal) * 0.5 + 0.5;
+			#endif
+
+			#ifdef BUMP
+				light *= rBump;
 			#endif
 
 			color.xyz *= light;

@@ -75,6 +75,13 @@ const char *STR_ES[] = { ""
     , "Objetos simples"
     , "Resolution"
     , STR_SCALE
+    , "Surface Relief"
+    , "Fog Distance"
+    , "Fog Color"
+    , "Gray"
+    , "Black"
+    , "Blue Gray"
+    , "Sand"
 // sound options
     , "Fijar volumen"
     , "Reverberaci)on"

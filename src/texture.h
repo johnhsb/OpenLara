@@ -768,8 +768,8 @@ struct Atlas {
 
                 int16 w  = rect.z - rect.x;
                 int16 h  = rect.w - rect.y;
-                int16 tx = (tile.z - tile.x) + atlas->border.x + atlas->border.z;
-                int16 ty = (tile.w - tile.y) + atlas->border.y + atlas->border.w;
+                int16 tx = ((tile.z - tile.x) + atlas->border.x + atlas->border.z) * atlas->scale;
+                int16 ty = ((tile.w - tile.y) + atlas->border.y + atlas->border.w) * atlas->scale;
 
                 if (w < tx || h < ty)
                     return NULL;
@@ -799,10 +799,14 @@ struct Atlas {
     int      size;
     int      width, height;
     short4   border;
+    int      scale;     // the texels of an upscaled texture pack for a texel of the original, its borders too
+    int      maxSize;   // the largest texture the GPU takes, 0 for any
+    bool     makeNormals;   // a normal map of the atlas too, of the light and dark of its texels as heights
+    Texture  *normals;
     void     *userData;
     Callback *callback;
 
-    Atlas(int maxTiles, short4 border, void *userData, Callback *callback) : root(NULL), tilesCount(0), size(0), border(border), userData(userData), callback(callback) {
+    Atlas(int maxTiles, short4 border, void *userData, Callback *callback, int scale = 1) : root(NULL), tilesCount(0), size(0), border(border), scale(scale), maxSize(0), makeNormals(false), normals(NULL), userData(userData), callback(callback) {
         tiles = new Tile[maxTiles];
     }
 
@@ -826,7 +830,7 @@ struct Atlas {
         tilesCount++;
 
         if (uv.x != 0x7FFF)
-            size += (uv.z - uv.x + border.x + border.z) * (uv.w - uv.y + border.y + border.w);
+            size += (uv.z - uv.x + border.x + border.z) * (uv.w - uv.y + border.y + border.w) * scale * scale;
     }
 
     bool insertAll(int *indices) {
@@ -838,7 +842,8 @@ struct Atlas {
         return true;
     }
 
-    Texture* pack(uint32 opt) {
+    // places the tiles, false for an atlas larger than the GPU takes
+    bool layout() {
     // TODO TR2 fix CUT2 AV
 //        width  = 4096;//nextPow2(int(sqrtf(float(size))));
 //        height = 2048;//(width * width / 2 > size) ? (width / 2) : width;
@@ -880,6 +885,13 @@ struct Atlas {
 
         delete[] indices;
 
+        return !maxSize || (width <= maxSize && height <= maxSize);
+    }
+
+    Texture* pack(uint32 opt) {
+        if (!root)
+            layout();
+
         AtlasColor *data = new AtlasColor[width * height];
         memset(data, 0, width * height * sizeof(data[0]));
         fill(root, data);
@@ -889,9 +901,62 @@ struct Atlas {
 
         //Texture::SaveBMP("atlas", (char*)data, width, height);
 
+        if (makeNormals)
+            normals = makeNormalMap(data, opt);
+
         delete[] data;
         return atlas;
     };
+
+    // the light and dark of a texture as its heights (the dark sinks in), the normals of their slopes; the borders around
+    // the textures in the atlas go on with their edges, the slopes of one texture don't take the next one in
+    Texture* makeNormalMap(const AtlasColor *data, uint32 opt) {
+    #ifdef USE_ATLAS_RGBA16
+        return NULL;
+    #else
+        float *h = new float[width * height];
+        float *t = new float[width * height];
+        for (int i = 0; i < width * height; i++) {
+            const AtlasColor &c = data[i];
+            t[i] = (c.r * 0.299f + c.g * 0.587f + c.b * 0.114f) / 255.0f;
+        }
+        for (int y = 0; y < height; y++) // smoothed, the noise of the texels makes no bumps
+            for (int x = 0; x < width; x++) {
+                float sum = 0.0f;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                        sum += t[clamp(y + dy, 0, height - 1) * width + clamp(x + dx, 0, width - 1)];
+                h[y * width + x] = sum / 9.0f;
+            }
+        delete[] t;
+
+        // the slopes of the texels of the original, a texture pack has scale texels for one
+        float k = 0.5f * scale;
+
+        AtlasColor *n = new AtlasColor[width * height];
+        for (int y = 0; y < height; y++) {
+            int y0 = max(y - 1, 0), y1 = min(y + 1, height - 1);
+            for (int x = 0; x < width; x++) {
+                int x0 = max(x - 1, 0), x1 = min(x + 1, width - 1);
+                #define H(px, py) h[(py) * width + (px)]
+                float dx = (H(x1, y0) + 2.0f * H(x1, y) + H(x1, y1)) - (H(x0, y0) + 2.0f * H(x0, y) + H(x0, y1));
+                float dy = (H(x0, y1) + 2.0f * H(x, y1) + H(x1, y1)) - (H(x0, y0) + 2.0f * H(x, y0) + H(x1, y0));
+                #undef H
+                vec3 v = vec3(-dx * k, -dy * k, 1.0f).normal();
+                AtlasColor &c = n[y * width + x];
+                c.r = uint8(clamp(int(v.x * 127.5f + 128.0f), 0, 255));
+                c.g = uint8(clamp(int(v.y * 127.5f + 128.0f), 0, 255));
+                c.b = uint8(clamp(int(v.z * 127.5f + 128.0f), 0, 255));
+                c.a = 255;
+            }
+        }
+        delete[] h;
+
+        Texture *tex = new Texture(width, height, 1, ATLAS_FORMAT, opt, n);
+        delete[] n;
+        return tex;
+    #endif
+    }
 
     void fill(Node *node, void *data) {
         if (!node) return;

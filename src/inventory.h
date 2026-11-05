@@ -59,6 +59,20 @@ struct OptionItem {
         }
     }
 
+    // the text of a value, the strength of the relief of the surfaces and the range of the haze in blocks
+    const char* getValueText(uint8 value, char *buf) const {
+        if (title == STR_OPT_DETAIL_BUMP || title == STR_OPT_DETAIL_FOG) {
+            if (!value)
+                return STR[STR_OFF];
+            if (title == STR_OPT_DETAIL_BUMP)
+                sprintf(buf, "%d.%d", value / 10, value % 10); // the strength, the font has no percent sign
+            else
+                sprintf(buf, "%d", value * 3);
+            return buf;
+        }
+        return STR[color + value];
+    }
+
     float drawParam(float x, float y, float w, StringID oStr, bool active, uint8 value) const {
         if (oStr != STR_EMPTY) {
             UI::textOut(vec2(x + 32.0f, y), oStr);
@@ -66,11 +80,12 @@ struct OptionItem {
             w = w * 0.5f - 32.0f;
         }
 
-        StringID vStr = StringID(color + int(value));
+        char buf[16];
+        const char *vStr = getValueText(value, buf);
 
         uint8 alpha = 255;
         if (type == TYPE_KEY && waitForKey == this) {
-            vStr = STR_PRESS_ANY_KEY;
+            vStr = STR[STR_PRESS_ANY_KEY];
             float t = (Core::getTime() % 1000) / 1000.0f;
             t = 0.2f + (sinf(t * PI * 2) * 0.5f + 0.5f) * 0.8f;
             alpha = uint8(t * 255.0f);
@@ -79,7 +94,7 @@ struct OptionItem {
         UI::textOut(vec2(x, y), vStr, UI::aCenter, w, alpha, UI::SHADE_GRAY); // color as StringID
 
         if (type == TYPE_PARAM && active) {
-            int maxWidth = UI::getTextSize(STR[color + value]).x;
+            int maxWidth = UI::getTextSize(vStr).x;
             maxWidth = maxWidth / 2 + 8;
             x += w * 0.5f;
             if (maxValue != 0xFF) {
@@ -141,6 +156,9 @@ static const OptionItem optDetail[] = {
     OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_DETAIL_LIGHTING, SETTINGS( detail.lighting  ), STR_QUALITY_LOW, 0, 2 ),
     OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_DETAIL_SHADOWS,  SETTINGS( detail.shadows   ), STR_QUALITY_LOW, 0, 2 ),
     OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_DETAIL_WATER,    SETTINGS( detail.water     ), STR_QUALITY_LOW, 0, 2 ),
+    OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_DETAIL_BUMP,     SETTINGS( effects.bump     ), STR_OFF, 0, 10 ),
+    OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_DETAIL_FOG,      SETTINGS( effects.fog      ), STR_OFF, 0, 10 ),
+    OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_DETAIL_FOG_COLOR, SETTINGS( effects.fogColor ), STR_FOG_GRAY, 0, Core::Settings::FOG_COLOR_MAX - 1 ),
 #endif
     OptionItem( OptionItem::TYPE_PARAM,  STR_OPT_SIMPLE_ITEMS,    SETTINGS( detail.simple    ), STR_OFF, 0, 1 ),
 #ifdef INV_QUALITY

@@ -2,18 +2,25 @@
 #define H_GAME
 
 #include "core.h"
+
+#ifdef _GAPI_GL
+    #define STB_IMAGE_WRITE_STATIC
+    #define STB_IMAGE_WRITE_IMPLEMENTATION
+    #include "libs/stb_image_write/stb_image_write.h"
+
+    // the JPEG tiles of a texture pack (a tenth of the size of the PNG ones)
+    #define STB_IMAGE_STATIC
+    #define STBI_ONLY_JPEG
+    #define STBI_NO_STDIO
+    #define STB_IMAGE_IMPLEMENTATION
+    #include "libs/stb_image/stb_image.h"
+#endif
 #include "format.h"
 #include "cache.h"
 #include "inventory.h"
 #include "level.h"
 #include "ui.h"
 #include "savegame.h"
-
-#ifdef _GAPI_GL
-    #define STB_IMAGE_WRITE_STATIC
-    #define STB_IMAGE_WRITE_IMPLEMENTATION
-    #include "libs/stb_image_write/stb_image_write.h"
-#endif
 
 #define MAX_CHEAT_SEQUENCE 8
 
@@ -105,12 +112,13 @@ void loadSettings(Stream *stream, void *userData) {
     if (stream) {
         uint8 version;
         stream->read(version);
-        if (version == SETTINGS_VERSION && stream->size == sizeof(Core::Settings))
+        if ((version == SETTINGS_VERSION || version == 9 || version == 8) && stream->size == sizeof(Core::Settings))
             stream->raw((char*)&Core::settings + 1, stream->size - 1); // read settings data right after version number
-        else if (version == 8 && stream->size == sizeof(Core::Settings))
-            stream->raw((char*)&Core::settings + 1, stream->size - 1);
         else if (version == 7 && stream->size == OFFSETOF(Core::Settings, effects))
             stream->raw((char*)&Core::settings + 1, stream->size - 1); // the settings before the effects, these keep their defaults
+
+        if (version != SETTINGS_VERSION) // the old effects had their place there, the relief and the haze take their defaults
+            Core::settings.effects.setDefaults();
         delete stream;
     }
 
@@ -121,7 +129,8 @@ void loadSettings(Stream *stream, void *userData) {
     Core::settings.version = SETTINGS_VERSION;
     Core::setVSync(Core::settings.detail.vsync != 0);
 
-    memset(&Core::settings.effects, 0, sizeof(Core::settings.effects)); // the place of the old effects
+    if (Core::settings.effects.fogColor >= Core::Settings::FOG_COLOR_MAX)
+        Core::settings.effects.fogColor = Core::Settings::FOG_COLOR_GRAY;
 
     // the qualities read (saved on other hardware maybe) go down to what this one can do
     Core::settings.detail.setFilter  ((Core::Settings::Quality)Core::settings.detail.filter);

@@ -365,7 +365,7 @@ namespace Core {
     #endif
     } support;
 
-#define SETTINGS_VERSION 9
+#define SETTINGS_VERSION 10
 #define SETTINGS_READING 0xFF
 
     struct Settings {
@@ -448,10 +448,23 @@ namespace Core {
         uint8 playerIndex;
         uint8 ctrlIndex;
 
-        // the place of the modern effects of versions 8 and 9, now they go with the lighting quality (the lights of fire
-        // and explosions from medium, the clouds and the sun of the sky at high)
+        // the place of the modern effects of versions 8 and 9 (now they go with the lighting quality: the lights of fire
+        // and explosions from medium, the clouds and the sun of the sky at high), version 10 keeps the relief of the
+        // surfaces and the haze of the distance there
+        enum FogColor { FOG_COLOR_GRAY, FOG_COLOR_BLACK, FOG_COLOR_BLUE, FOG_COLOR_SAND, FOG_COLOR_MAX };
+
         struct {
-            uint8 reserved[16];
+            uint8 bump;     // the strength of the normal maps in tenths, 0 for none
+            uint8 fog;      // the range of the haze in 3 blocks, 0 for none
+            uint8 fogColor;
+            uint8 reserved[13];
+
+            void setDefaults() {
+                memset(this, 0, sizeof(*this));
+                bump     = 3;
+                fog      = 5;
+                fogColor = FOG_COLOR_GRAY;
+            }
         } effects;
     } settings;
 
@@ -724,6 +737,21 @@ namespace Core {
     int lightStackCount;
 
     Texture *whiteTex, *whiteCube, *blackTex, *ditherTex, *noiseTex, *perlinTex;
+    Texture *flatNormalTex; // a normal map of a flat surface
+
+// normal maps made of the textures for the light on the surfaces, OL_NORMAL_MAP=0 turns them off, OL_BUMP=<strength>
+    bool  normalMapping;
+    float envBump;          // OL_BUMP=<strength> in place of the setting, -1 for none
+
+// the haze of the distance, it begins 3 blocks off (OL_FOG=<start>,<range> in blocks, OL_FOG_COLOR=<r>,<g>,<b>)
+    float fogStartDist;
+    float envFogRange;      // in blocks, -1 for none
+    bool  envFogColor;
+    vec3  fogColorEnv;
+
+    float getBump() {
+        return envBump >= 0.0f ? envBump : settings.effects.bump * 0.1f;
+    }
 
     enum Pass { passCompose, passShadow, passAmbient, passSky, passWater, passFilter, passGUI, passMAX } pass;
 
@@ -921,6 +949,29 @@ namespace Core {
         }
         eye = 0.0f;
 
+        { // normal maps, the OpenGL renderer makes the light of them (it takes the derivatives of the shaders)
+            const char *env = getenv("OL_NORMAL_MAP");
+        #ifdef _GAPI_GL
+            normalMapping = support.derivatives && !(env && atoi(env) == 0);
+        #else
+            normalMapping = false;
+        #endif
+            env = getenv("OL_BUMP");
+            envBump = env ? max(0.0f, float(atof(env))) : -1.0f;
+
+            float start = 3.0f, range = -1.0f;
+            env = getenv("OL_FOG");
+            if (env && sscanf(env, "%f,%f", &start, &range) == 1) {
+                range = start;
+                start = 0.0f;
+            }
+            fogStartDist = max(0.0f, start) * 1024.0f;
+            envFogRange  = range;
+
+            env = getenv("OL_FOG_COLOR");
+            envFogColor = env && sscanf(env, "%f,%f,%f", &fogColorEnv.x, &fogColorEnv.y, &fogColorEnv.z) == 3;
+        }
+
         { // init dummy textures
             int size = SQR(support.texMinSize) * 6;
             uint32 *data = new uint32[size];
@@ -929,6 +980,9 @@ namespace Core {
             whiteCube = new Texture(support.texMinSize, support.texMinSize, 1, FMT_RGBA, OPT_CUBEMAP, data);
             memset(data, 0x00, size * sizeof(data[0]));
             blackTex  = new Texture(support.texMinSize, support.texMinSize, 1, FMT_RGBA, OPT_NEAREST, data);
+            for (int i = 0; i < size; i++)
+                data[i] = 0xFFFF8080; // (0, 0, 1)
+            flatNormalTex = new Texture(support.texMinSize, support.texMinSize, 1, FMT_RGBA, OPT_NEAREST, data);
             delete[] data;
         }
 
@@ -976,7 +1030,7 @@ namespace Core {
         settings.audio.reverb        = true;
         settings.audio.subtitles     = true;
         settings.audio.language      = defLang;
-        memset(&settings.effects, 0, sizeof(settings.effects));
+        settings.effects.setDefaults();
 
     // player 1
         {
@@ -1109,6 +1163,7 @@ namespace Core {
         delete eyeTex[0];
         delete eyeTex[1];
         delete whiteTex;
+        delete flatNormalTex;
         delete whiteCube;
         delete blackTex;
         delete ditherTex;

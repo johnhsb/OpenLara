@@ -90,6 +90,13 @@ enum StringID {
     , STR_SCALE_75
     , STR_SCALE_50
     , STR_SCALE_25
+    , STR_OPT_DETAIL_BUMP
+    , STR_OPT_DETAIL_FOG
+    , STR_OPT_DETAIL_FOG_COLOR
+    , STR_FOG_GRAY
+    , STR_FOG_BLACK
+    , STR_FOG_BLUE
+    , STR_FOG_SAND
 // sound options
     , STR_SET_VOLUMES
     , STR_REVERBERATION

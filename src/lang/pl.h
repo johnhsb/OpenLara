@@ -75,6 +75,13 @@ const char *STR_PL[] = { ""
     , "Proste przedmioty"
     , "Resolution"
     , STR_SCALE
+    , "Surface Relief"
+    , "Fog Distance"
+    , "Fog Color"
+    , "Gray"
+    , "Black"
+    , "Blue Gray"
+    , "Sand"
 // sound options
     , "Ustaw g}lo)sno)s)c"
     , "Pog}los"

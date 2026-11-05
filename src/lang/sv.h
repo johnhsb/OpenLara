@@ -75,6 +75,13 @@ const char *STR_SV[] = { ""
     , "Enkla Objekt"
     , "Uppl~osning"
     , STR_SCALE
+    , "Surface Relief"
+    , "Fog Distance"
+    , "Fog Color"
+    , "Gray"
+    , "Black"
+    , "Blue Gray"
+    , "Sand"
 // sound options
     , "St~all in Volym"
     , "Eko"

@@ -75,6 +75,13 @@ const char *STR_PT[] = { ""
     , "Itens Simples"
     , "Resolution"
     , STR_SCALE
+    , "Surface Relief"
+    , "Fog Distance"
+    , "Fog Color"
+    , "Gray"
+    , "Black"
+    , "Blue Gray"
+    , "Sand"
 // sound options
     , "Configurar o Volume"
     , "Revertebra|c+ao"

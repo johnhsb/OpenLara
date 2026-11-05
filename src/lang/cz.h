@@ -75,6 +75,13 @@ const char *STR_CZ[] = { ""
     , "Jednoduch)e objekty"
     , "Rozli{sen)i"
     , STR_SCALE
+    , "Surface Relief"
+    , "Fog Distance"
+    , "Fog Color"
+    , "Gray"
+    , "Black"
+    , "Blue Gray"
+    , "Sand"
 // sound options
     , "Nastaven)i Zvuku"
     , "Dozvuk"

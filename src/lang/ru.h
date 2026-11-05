@@ -79,6 +79,13 @@ const char *STR_RU[] = { ""
     , "Простые предметы"
     , "Разрешение"
     , STR_SCALE
+    , "Surface Relief"
+    , "Fog Distance"
+    , "Fog Color"
+    , "Gray"
+    , "Black"
+    , "Blue Gray"
+    , "Sand"
 // sound options
     , "Настро{ика звука"
     , "Реверберация"

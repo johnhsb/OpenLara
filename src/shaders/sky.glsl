@@ -4,6 +4,7 @@ varying vec2 vTexCoord;
 varying vec3 vCoord;
 
 uniform vec4 uViewPos;
+uniform vec4 uFogParams; // the haze of the level, the sky goes into it at the horizon
 
 #ifdef VERTEX
 	uniform mat4 uViewProj;
@@ -115,6 +116,11 @@ uniform vec4 uViewPos;
 				col = raymarching(dir, dist.x, dist.y, col);
 			}
 		#endif
+
+		if (uFogParams.w > 0.0) {
+			float h = clamp(dir.y / 0.35, 0.0, 1.0);
+			col = mix(uFogParams.xyz, col, h * h * (3.0 - 2.0 * h));
+		}
 
 		fragColor = vec4(col, 1.0);
 	}

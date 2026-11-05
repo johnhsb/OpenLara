@@ -75,6 +75,13 @@ const char *STR_HU[] = { ""
     , "Egyszer\"u t)argyak"
     , "Felbont)as"
     , STR_SCALE
+    , "Surface Relief"
+    , "Fog Distance"
+    , "Fog Color"
+    , "Gray"
+    , "Black"
+    , "Blue Gray"
+    , "Sand"
 // sound options
     , "Hanger\"o be)all)it)asa"
     , "Visszaver\"od)es"

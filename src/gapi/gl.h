@@ -644,6 +644,13 @@ namespace GAPI {
                 strcat(defines, "#define OPT_TEXTURE_3D\n");
             }
 
+            sprintf(defines + strlen(defines), "#define FOG_START_DIST %.1f\n", Core::fogStartDist);
+
+            if (Core::normalMapping && Core::getBump() > 0.0f) {
+                strcat(defines, "#define OPT_NORMALMAP\n");
+                sprintf(defines + strlen(defines), "#define BUMP_STRENGTH %.3f\n", Core::getBump());
+            }
+
             #ifndef _OS_CLOVER
                 // TODO: only for non Mali-400?
                 strcat(defines, "#define OPT_TRAPEZOID\n");

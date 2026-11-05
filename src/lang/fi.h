@@ -75,6 +75,13 @@ const char *STR_FI[] = { "Suomi"
     , "Litte~at Esineet"
     , "Resolution"
     , STR_SCALE
+    , "Surface Relief"
+    , "Fog Distance"
+    , "Fog Color"
+    , "Gray"
+    , "Black"
+    , "Blue Gray"
+    , "Sand"
 // sound options
     , "~A~anenvoimakkus"
     , "Kaikueffekti"

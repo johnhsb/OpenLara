@@ -14,6 +14,10 @@
 #include "network.h"
 #include "extension.h"
 
+#ifdef _WIN32
+    #include <direct.h> // _mkdir
+#endif
+
 #if defined(_DEBUG) && defined(_GAPI_GL) && !defined(_GAPI_GLES)
     #define DEBUG_RENDER
 #endif
@@ -36,6 +40,8 @@ struct Level : IGame {
     TR::Level   level;
     Texture     *atlasRooms;
     Texture     *atlasObjects;
+    Texture     *normalRooms;   // the normal maps of the atlases
+    Texture     *normalObjects;
     Texture     *atlasSprites;
     Texture     *atlasGlyphs;
     MeshBuilder *mesh;
@@ -386,9 +392,13 @@ struct Level : IGame {
         bool rebuildWater   = settings.detail.water    != Core::settings.detail.water;
         bool switchModels   = settings.detail.simple   != Core::settings.detail.simple;
 
-        bool rebuildShaders = rebuildWater || rebuildAmbient || rebuildShadows;
+        bool rebuildBump    = settings.effects.bump     != Core::settings.effects.bump; // the normal maps go in the shaders
+        bool changeHaze     = settings.effects.fog      != Core::settings.effects.fog ||
+                              settings.effects.fogColor != Core::settings.effects.fogColor;
 
-        bool redraw = memcmp(&settings.detail, &Core::settings.detail, sizeof(settings.detail)) != 0;
+        bool rebuildShaders = rebuildWater || rebuildAmbient || rebuildShadows || rebuildBump;
+
+        bool redraw = memcmp(&settings.detail, &Core::settings.detail, sizeof(settings.detail)) != 0 || rebuildBump || changeHaze;
 
         bool toggleVR = (settings.detail.stereo == Core::Settings::STEREO_VR) ^ (Core::settings.detail.stereo == Core::Settings::STEREO_VR);
 
@@ -408,6 +418,9 @@ struct Level : IGame {
             shaderCache = new ShaderCache();
         #endif
         }
+
+        if (changeHaze)
+            setupHaze();
 
         if (rebuildMesh) {
             delete mesh;
@@ -615,6 +628,38 @@ struct Level : IGame {
         if (Core::settings.detail.shadows > Core::Settings::MEDIUM) {
             Core::active.shader->setParam(uContacts, Core::contacts[0], MAX_CONTACTS);
         }
+    }
+
+    // the haze of the distance, the setting of the range and of the color (TR1 keeps the colors of its levels), the
+    // environment in place of them (OL_FOG=<start>,<range> in blocks, OL_FOG_COLOR=<r>,<g>,<b> in 0..1, OL_FOG=0 none)
+    void setupHaze() {
+        static const vec3 colors[Core::Settings::FOG_COLOR_MAX] = {
+            vec3(0.10f, 0.10f, 0.10f),  // gray
+            vec3(0.00f, 0.00f, 0.00f),  // black
+            vec3(0.13f, 0.14f, 0.16f),  // blue gray
+            vec3(0.25f, 0.20f, 0.15f),  // sand
+        };
+
+        vec4 original = TR::getFogParams(level.id);
+        float range = Core::envFogRange >= 0.0f ? Core::envFogRange : Core::settings.effects.fog * 3.0f;
+
+        if (range <= 0.0f || original.w == 0.0f) {
+            levelFogParams = FOG_NONE;
+            return;
+        }
+
+        vec3 color = (level.version & TR::VER_TR1) ? original.xyz() : colors[Core::settings.effects.fogColor % Core::Settings::FOG_COLOR_MAX];
+        if (Core::envFogColor)
+            color = Core::fogColorEnv;
+
+        levelFogParams = vec4(color, 1.0f / (range * 1024.0f));
+    }
+
+    // an atlas of rooms or objects and its normal map
+    void bindAtlas(Texture *atlas) {
+        atlas->bind(sDiffuse);
+        Texture *normals = (atlas == atlasRooms) ? normalRooms : ((atlas == atlasObjects) ? normalObjects : NULL);
+        (normals ? normals : Core::flatNormalTex)->bind(sNormal);
     }
 
     virtual void setupBinding() {
@@ -976,7 +1021,7 @@ struct Level : IGame {
     }
 //==============================
 
-    Level(Stream &stream) : level(stream), waitTrack(false), isEnded(false), bodiesFall(false), cutsceneWaitTimer(0.0f), animTexTimer(0.0f), statsTimeDelta(0.0f) {
+    Level(Stream &stream) : level(stream), waitTrack(false), isEnded(false), bodiesFall(false), cutsceneWaitTimer(0.0f), animTexTimer(0.0f), statsTimeDelta(0.0f), normalRooms(NULL), normalObjects(NULL), hdTiles(NULL), hdScale(1) {
         paused = false;
 
         level.simpleItems = Core::settings.detail.simple == 1;
@@ -997,6 +1042,7 @@ struct Level : IGame {
         underwaterColor     = vec3(0.6f, 0.9f, 0.9f);
         underwaterFogParams = vec4(underwaterColor * 0.2f, 1.0f / (6 * 1024));
         levelFogParams      = TR::getFogParams(level.id);
+        setupHaze();
 
         inventory->game = this;
 
@@ -1106,6 +1152,8 @@ struct Level : IGame {
         delete zoneCache;
 
         delete atlasRooms;
+        delete normalRooms;
+        delete normalObjects;
         #ifndef SPLIT_BY_TILE
             delete atlasObjects;
             delete atlasSprites;
@@ -1441,6 +1489,290 @@ struct Level : IGame {
     uint8 *glyphsCN;
     uint8 *glyphsKO;
 
+// an upscaled texture pack: "texture/<LEVEL>_<tile>.png" in the data folder takes the place of a 256x256 texture tile of
+// the level with one hdScale times as large a side (all of a level the same), OL_DUMP_TEXTURES=1 writes the original tiles
+// to "texture/original/" for an upscaler
+    AtlasColor **hdTiles;
+    int hdScale;
+
+    void getTileName(char *buf, const char *dir, int index, const char *ext = "png") {
+        sprintf(buf, "texture/%s%s_%d.%s", dir, TR::LEVEL_INFO[level.id].name, index, ext);
+    }
+
+    // a tile of a texture pack, PNG or JPEG (RGBA, NULL for none)
+    Color32* loadTile(int index, uint32 &w, uint32 &h, char *name) {
+        char path[512];
+
+        getTileName(name, "", index, "png");
+        sprintf(path, "%s%s", contentDir, name);
+        if (Stream::exists(path)) {
+            Stream stream(name);
+            return (Color32*)Texture::LoadPNG(stream, w, h);
+        }
+
+    #ifdef _GAPI_GL
+        getTileName(name, "", index, "jpg");
+        sprintf(path, "%s%s", contentDir, name);
+        if (Stream::exists(path)) {
+            Stream stream(name);
+            uint8 *file = new uint8[stream.size];
+            stream.raw(file, stream.size);
+            int iw, ih, comp;
+            uint8 *pixels = stbi_load_from_memory(file, stream.size, &iw, &ih, &comp, 4);
+            delete[] file;
+            if (!pixels)
+                return NULL;
+            w = iw;
+            h = ih;
+            Color32 *data = new Color32[w * h]; // freed as the PNG ones
+            memcpy(data, pixels, w * h * 4);
+            stbi_image_free(pixels);
+            return data;
+        }
+    #endif
+
+        return NULL;
+    }
+
+    // a texture tile of the level as the game shows it, premultiplied
+    void getOriginalTile(AtlasTile *tile, int index) {
+        memset(tile, 0, sizeof(*tile));
+        for (int pass = 0; pass < 2; pass++) {
+            int count = pass ? level.spriteTexturesCount : level.objectTexturesCount;
+            for (int j = 0; j < count; j++) {
+                TR::TextureInfo &t = pass ? level.spriteTextures[j] : level.objectTextures[j];
+                if (t.tile != index) continue;
+                short4 uv = t.getMinMax();
+                uv.z++;
+                uv.w++;
+                level.fillObjectTexture(tile, uv, &t);
+            }
+        }
+    }
+
+#ifdef _GAPI_GL
+    static void makeDir(const char *path) {
+        #ifdef _WIN32
+            _mkdir(path);
+        #else
+            mkdir(path, 0777);
+        #endif
+    }
+
+    // the tiles as the game shows them, the colors run on under the transparent texels so that an upscaler blends no
+    // black into the edges of the cut-outs
+    void dumpTiles() {
+        char path[512];
+        sprintf(path, "%stexture", contentDir);
+        makeDir(path);
+        strcat(path, "/original");
+        makeDir(path);
+
+        AtlasTile *tile = new AtlasTile();
+        Color32 *tmp = new Color32[256 * 256];
+
+        for (int i = 0; i < level.tilesCount; i++) {
+            getOriginalTile(tile, i);
+
+            Color32 *c = (Color32*)tile->color;
+            for (int k = 0; k < 256 * 256; k++) // back from the premultiplied alpha
+                if (c[k].a && c[k].a < 255) {
+                    c[k].r = uint8(min(255, c[k].r * 255 / c[k].a));
+                    c[k].g = uint8(min(255, c[k].g * 255 / c[k].a));
+                    c[k].b = uint8(min(255, c[k].b * 255 / c[k].a));
+                }
+
+            for (int pass = 0; pass < 8; pass++) { // the colors of the edges run on into the transparent texels
+                memcpy(tmp, c, sizeof(Color32) * 256 * 256);
+                for (int y = 0; y < 256; y++)
+                    for (int x = 0; x < 256; x++) {
+                        Color32 &p = c[y * 256 + x];
+                        if (p.a || p.value) continue;
+                        int r = 0, g = 0, b = 0, n = 0;
+                        for (int dy = -1; dy <= 1; dy++)
+                            for (int dx = -1; dx <= 1; dx++) {
+                                int sx = x + dx, sy = y + dy;
+                                if (sx < 0 || sy < 0 || sx > 255 || sy > 255) continue;
+                                Color32 &q = tmp[sy * 256 + sx];
+                                if (!q.a && !q.value) continue;
+                                r += q.r; g += q.g; b += q.b; n++;
+                            }
+                        if (n) {
+                            p.r = r / n; p.g = g / n; p.b = b / n;
+                            p.a = 0;
+                            if (!p.value) p.r = 1; // marked as filled
+                        }
+                    }
+            }
+
+            sprintf(path, "%s", contentDir);
+            getTileName(path + strlen(path), "original/", i);
+            if (stbi_write_png(path, 256, 256, 4, c, 256 * 4))
+                LOG("save %s\n", path);
+        }
+
+        delete[] tmp;
+        delete tile;
+    }
+#endif
+
+    void loadHDTiles() {
+        hdScale = 1;
+        hdTiles = new AtlasColor*[level.tilesCount];
+        memset(hdTiles, 0, sizeof(AtlasColor*) * level.tilesCount);
+
+        bool binaryAlpha = (level.version & (TR::VER_TR1 | TR::VER_TR2 | TR::VER_TR3)) != 0;
+        AtlasTile *orig = new AtlasTile();
+
+    // how much of the detail of the upscaler shows over the smooth original, OL_TEXTURE_PACK_MIX=0..1
+        float mix = 1.0f;
+        const char *mixEnv = getenv("OL_TEXTURE_PACK_MIX");
+        if (mixEnv)
+            mix = clamp(float(atof(mixEnv)), 0.0f, 1.0f);
+
+        for (int i = 0; i < level.tilesCount; i++) {
+            char name[256];
+            uint32 w, h;
+            Color32 *data = loadTile(i, w, h, name);
+            if (!data) continue;
+
+            int s = w / 256;
+            if (w != h || (w % 256) || s < 2 || (hdScale > 1 && s != hdScale)) {
+                LOG("! %s: %dx%d, a tile pack takes the same multiple of 256 for all\n", name, w, h);
+                delete[] data;
+                continue;
+            }
+            hdScale = s;
+
+            getOriginalTile(orig, i);
+            blendHDTile(data, (Color32*)orig->color, i, s, mix);
+
+            for (uint32 k = 0; k < w * h; k++) {
+                Color32 &c = data[k];
+                if (binaryAlpha) // the cut-outs of the original are on or off, they keep its shapes whatever the upscaler made of them
+                    c.a = ((Color32*)orig->color)[(k / w / s) * 256 + (k % w) / s].a ? 255 : 0;
+                c.r = uint8((uint16(c.r) * c.a) / 255); // premultiplied as the atlas has it
+                c.g = uint8((uint16(c.g) * c.a) / 255);
+                c.b = uint8((uint16(c.b) * c.a) / 255);
+            }
+
+            hdTiles[i] = (AtlasColor*)data;
+        }
+
+        delete orig;
+
+        if (hdScale > 1)
+            LOG("texture pack x%d\n", hdScale);
+    }
+
+    // the upscaler sees a whole tile and blends the textures next to each other in it into their edges, so the textures
+    // of the original that go on from one face to the next don't fit any more, and it makes up light and dark of its own:
+    // a texture takes the original smoothly upscaled and only the fine detail of the upscaler over it (the upscaled less
+    // its blur of about a texel of the original, both inside the texture), none of it a texel in from the edges, all of
+    // it two texels in
+    void blendHDTile(Color32 *hd, const Color32 *orig, int tile, int s, float mix) {
+        int size = 256 * s;
+        Color32 *out = new Color32[size * size];
+        memcpy(out, hd, sizeof(Color32) * size * size);
+
+        float *tmp = new float[size * size * 3];
+        float *low = new float[size * size * 3];
+
+        for (int pass = 0; pass < 2; pass++) {
+            int count = pass ? level.spriteTexturesCount : level.objectTexturesCount;
+            for (int j = 0; j < count; j++) {
+                TR::TextureInfo &t = pass ? level.spriteTextures[j] : level.objectTextures[j];
+                if (t.tile != tile) continue;
+                short4 r = t.getMinMax(); // the texels of the texture: x..z, y..w
+                if (r.z < r.x || r.w < r.y) continue;
+
+                int X0 = r.x * s, X1 = (r.z + 1) * s;
+                int Y0 = r.y * s, Y1 = (r.w + 1) * s;
+                int W  = X1 - X0, H = Y1 - Y0;
+                int br = s;
+                float bn = 1.0f / (2 * br + 1);
+
+            // the blur of the upscaled inside the texture
+                for (int y = 0; y < H; y++) {
+                    for (int x = 0; x < W; x++) {
+                        float acc[3] = { 0.0f, 0.0f, 0.0f };
+                        for (int i = -br; i <= br; i++) {
+                            const Color32 &c = hd[(Y0 + y) * size + X0 + clamp(x + i, 0, W - 1)];
+                            acc[0] += c.r; acc[1] += c.g; acc[2] += c.b;
+                        }
+                        float *o = tmp + (y * W + x) * 3;
+                        o[0] = acc[0] * bn; o[1] = acc[1] * bn; o[2] = acc[2] * bn;
+                    }
+                }
+                for (int y = 0; y < H; y++) {
+                    for (int x = 0; x < W; x++) {
+                        float acc[3] = { 0.0f, 0.0f, 0.0f };
+                        for (int i = -br; i <= br; i++) {
+                            const float *c = tmp + (clamp(y + i, 0, H - 1) * W + x) * 3;
+                            acc[0] += c[0]; acc[1] += c[1]; acc[2] += c[2];
+                        }
+                        float *o = low + (y * W + x) * 3;
+                        o[0] = acc[0] * bn; o[1] = acc[1] * bn; o[2] = acc[2] * bn;
+                    }
+                }
+
+                for (int Y = Y0; Y < Y1; Y++) {
+                    float v  = (Y + 0.5f) / s - 0.5f;
+                    int   y0 = int(floorf(v));
+                    float fy = v - y0;
+                    float dy = min(v - r.y + 0.5f, r.w + 0.5f - v); // to the edge, in texels
+
+                    for (int X = X0; X < X1; X++) {
+                        float u  = (X + 0.5f) / s - 0.5f;
+                        int   x0 = int(floorf(u));
+                        float fx = u - x0;
+                        float dx = min(u - r.x + 0.5f, r.z + 0.5f - u);
+
+                    // the original upscaled, bilinear over its opaque texels inside the texture
+                        float cr = 0.0f, cg = 0.0f, cb = 0.0f, cw = 0.0f;
+                        for (int k = 0; k < 4; k++) {
+                            int   ox = clamp(x0 + (k & 1), int(r.x), int(r.z));
+                            int   oy = clamp(y0 + (k >> 1), int(r.y), int(r.w));
+                            float w  = ((k & 1) ? fx : 1.0f - fx) * ((k >> 1) ? fy : 1.0f - fy);
+                            const Color32 &c = orig[oy * 256 + ox];
+                            if (!c.a) continue;
+                            cr += c.r * w;
+                            cg += c.g * w;
+                            cb += c.b * w;
+                            cw += w;
+                        }
+                        if (cw <= 0.0f) continue; // transparent
+
+                        cr /= cw;
+                        cg /= cw;
+                        cb /= cw;
+
+                        float k = mix * clamp(min(dx, dy) - 1.0f, 0.0f, 1.0f);
+                        const Color32 &h = hd[Y * size + X];
+                        const float   *l = low + ((Y - Y0) * W + X - X0) * 3;
+                        Color32 &o = out[Y * size + X];
+                        o.r = uint8(clamp(cr + (h.r - l[0]) * k, 0.0f, 255.0f));
+                        o.g = uint8(clamp(cg + (h.g - l[1]) * k, 0.0f, 255.0f));
+                        o.b = uint8(clamp(cb + (h.b - l[2]) * k, 0.0f, 255.0f));
+                    }
+                }
+            }
+        }
+
+        memcpy(hd, out, sizeof(Color32) * size * size);
+        delete[] low;
+        delete[] tmp;
+        delete[] out;
+    }
+
+    void freeHDTiles() {
+        if (!hdTiles) return;
+        for (int i = 0; i < level.tilesCount; i++)
+            delete[] hdTiles[i];
+        delete[] hdTiles;
+        hdTiles = NULL;
+    }
+
     static int getAdvGlyphPage(int index) {
         index -= UI::advGlyphsStart;
         if (index >= RU_GLYPH_COUNT) {
@@ -1497,6 +1829,7 @@ struct Level : IGame {
         short4 mm;
 
         bool isSprite = false;
+        int  hdTile   = -1;     // the tile of the texture pack to take it from
 
         if (id < level->objectTexturesCount) { // textures
             TR::TextureInfo &t = level->objectTextures[id];
@@ -1504,6 +1837,7 @@ struct Level : IGame {
             src     = owner->tileData->color;
             uv      = t.texCoordAtlas;
             uvCount = 4;
+            hdTile  = t.tile;
             if (data) {
                 level->fillObjectTexture(owner->tileData, tile.uv, tile.tex);
             }
@@ -1517,6 +1851,7 @@ struct Level : IGame {
                 uv       = t.texCoordAtlas;
                 uvCount  = 2;
                 isSprite = true;
+                hdTile   = t.tile;
                 if (data) {
                     if (id < UI::advGlyphsStart) {
                         level->fillObjectTexture(owner->tileData, tile.uv, tile.tex);
@@ -1588,41 +1923,47 @@ struct Level : IGame {
             }
         }
 
-        int cx = -mm.x, cy = -mm.y;
+    // an atlas of a texture pack has scale texels for a texel of the original, from the tile of the pack or the original
+        int scale = atlas->scale;
+        AtlasColor *hd = (scale > 1 && hdTile >= 0 && hdTile < level->tilesCount && owner->hdTiles) ? owner->hdTiles[hdTile] : NULL;
+        int offX = 0, offY = 0;
 
         if (data) {
-            int w = mm.z - mm.x + 1;
-            int h = mm.w - mm.y + 1;
+            int w  = (mm.z - mm.x + 1) * scale;
+            int h  = (mm.w - mm.y + 1) * scale;
+            int bx = atlas->border.x * scale;
+            int by = atlas->border.y * scale;
             dst += tileY * atlasWidth + tileX;
-            for (int y = -atlas->border.y; y < h + atlas->border.w; y++) {
-                for (int x = -atlas->border.x; x < w + atlas->border.z; x++) {
-                    AtlasColor *p = &src[mm.y * stride + mm.x];
-                    ASSERT((x + atlas->border.x + tileX) >= 0 && (x + atlas->border.x + tileX) < atlasWidth);
-                    ASSERT((y + atlas->border.y + tileY) >= 0 && (y + atlas->border.y + tileY) < atlasHeight);
-                    p += clamp(x, 0, w - 1);
-                    p += clamp(y, 0, h - 1) * stride;
+            for (int y = -by; y < h + atlas->border.w * scale; y++) {
+                for (int x = -bx; x < w + atlas->border.z * scale; x++) {
+                    ASSERT((x + bx + tileX) >= 0 && (x + bx + tileX) < atlasWidth);
+                    ASSERT((y + by + tileY) >= 0 && (y + by + tileY) < atlasHeight);
+                    int sx = clamp(x, 0, w - 1);
+                    int sy = clamp(y, 0, h - 1);
 
                     if (isSprite && (y < 0 || y >= h || x < 0 || x >= w)) {
-                        dst[x + atlas->border.x].value = 0;
+                        dst[x + bx].value = 0;
+                    } else if (hd) {
+                        dst[x + bx] = hd[(mm.y * scale + sy) * (256 * scale) + mm.x * scale + sx];
                     } else {
-                        dst[x + atlas->border.x] = *p;
+                        dst[x + bx] = src[(mm.y + sy / scale) * stride + mm.x + sx / scale];
                     }
                 }
                 dst += atlasWidth;
             }
 
-            cx += tileX + atlas->border.x;
-            cy += tileY + atlas->border.y;
+            offX = tileX + bx;
+            offY = tileY + by;
         }
 
         for (int i = 0; i < uvCount; i++) {
             if (uv[i].x == mm.z) uv[i].x++;
             if (uv[i].y == mm.w) uv[i].y++;
-            uv[i].x += cx;
-            uv[i].y += cy;
+            int32 ux = (uv[i].x - mm.x) * scale + offX;
+            int32 uy = (uv[i].y - mm.y) * scale + offY;
 
-            uv[i].x = int32(uv[i].x) * 32767 / atlasWidth;
-            uv[i].y = int32(uv[i].y) * 32767 / atlasHeight;
+            uv[i].x = ux * 32767 / atlasWidth;
+            uv[i].y = uy * 32767 / atlasHeight;
         }
 
     // apply ref for instanced tile
@@ -1759,63 +2100,93 @@ struct Level : IGame {
             glyphsKO = Texture::LoadBMP(stream, glyphsW, glyphsH);
         }
 
+    #ifdef _GAPI_GL
+        if (getenv("OL_DUMP_TEXTURES")) {
+            dumpTiles();
+            Core::isQuit = true; // only the export
+        }
+    #endif
+        loadHDTiles();
+
+    // the largest atlas the GPU takes, kept to 8192 texels a side for the memory of the texture pack
+        int maxSize = 8192;
+    #ifdef _GAPI_GL
+        GLint glMax = 0;
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &glMax);
+        if (glMax > 0) maxSize = min(maxSize, int(glMax));
+    #endif
+
     // repack texture tiles
         int maxTiles = level.objectTexturesCount + level.spriteTexturesCount + CTEX_MAX;
-        Atlas *rAtlas = new Atlas(maxTiles, short4(4, 4, 4, 4), this, fillCallback);
-        Atlas *oAtlas = new Atlas(maxTiles, short4(4, 4, 4, 4), this, fillCallback);
-        Atlas *sAtlas = new Atlas(maxTiles, short4(4, 4, 4, 4), this, fillCallback);
-        Atlas *gAtlas = new Atlas(maxTiles, short4(0, 0, 1, 1), this, fillCallback);
-        // add textures
-        for (int i = 0; i < level.objectTexturesCount; i++) {
-            TR::TextureInfo &t = level.objectTextures[i];
-            if (t.tile == 0xFFFF) continue;
+        Atlas *rAtlas, *oAtlas, *sAtlas, *gAtlas;
+        for (int scale = hdScale; ; scale /= 2) { // a texture pack too large for the GPU at half the scale
+            rAtlas = new Atlas(maxTiles, short4(4, 4, 4, 4), this, fillCallback, scale);
+            oAtlas = new Atlas(maxTiles, short4(4, 4, 4, 4), this, fillCallback, scale);
+            sAtlas = new Atlas(maxTiles, short4(4, 4, 4, 4), this, fillCallback, scale);
+            gAtlas = new Atlas(maxTiles, short4(0, 0, 1, 1), this, fillCallback);
+            rAtlas->maxSize = oAtlas->maxSize = sAtlas->maxSize = maxSize;
+            rAtlas->makeNormals = oAtlas->makeNormals = Core::normalMapping;
+            // add textures
+            for (int i = 0; i < level.objectTexturesCount; i++) {
+                TR::TextureInfo &t = level.objectTextures[i];
+                if (t.tile == 0xFFFF) continue;
 
-            short4 uv;
-            uv.x = min(min(t.texCoord[0].x, t.texCoord[1].x), t.texCoord[2].x);
-            uv.y = min(min(t.texCoord[0].y, t.texCoord[1].y), t.texCoord[2].y);
-            uv.z = max(max(t.texCoord[0].x, t.texCoord[1].x), t.texCoord[2].x) + 1;
-            uv.w = max(max(t.texCoord[0].y, t.texCoord[1].y), t.texCoord[2].y) + 1;
+                short4 uv;
+                uv.x = min(min(t.texCoord[0].x, t.texCoord[1].x), t.texCoord[2].x);
+                uv.y = min(min(t.texCoord[0].y, t.texCoord[1].y), t.texCoord[2].y);
+                uv.z = max(max(t.texCoord[0].x, t.texCoord[1].x), t.texCoord[2].x) + 1;
+                uv.w = max(max(t.texCoord[0].y, t.texCoord[1].y), t.texCoord[2].y) + 1;
 
-            if (t.type == TR::TEX_TYPE_ROOM)
-                rAtlas->add(i, uv, &t);
-            else
-                oAtlas->add(i, uv, &t);
-        }
-        // add sprites
-        for (int i = 0; i < level.spriteTexturesCount; i++) {
-            TR::TextureInfo &t = level.spriteTextures[i];
-            if (t.tile == 0xFFFF) continue;
-
-            short4 uv;
-            uv.x = t.texCoord[0].x;
-            uv.y = t.texCoord[0].y;
-            uv.z = t.texCoord[1].x + 1;
-            uv.w = t.texCoord[1].y + 1;
-
-            if (i >= UI::advGlyphsStart) {
-             // add virtual UV offset for additional glyph sprites
-                int offset = ATLAS_PAGE_GLYPHS + getAdvGlyphPage(i) * 256;
-                uv.y += offset;
-                uv.w += offset;
+                if (t.type == TR::TEX_TYPE_ROOM)
+                    rAtlas->add(i, uv, &t);
+                else
+                    oAtlas->add(i, uv, &t);
             }
+            // add sprites
+            for (int i = 0; i < level.spriteTexturesCount; i++) {
+                TR::TextureInfo &t = level.spriteTextures[i];
+                if (t.tile == 0xFFFF) continue;
 
-            if (level.extra.glyphs != -1) {
-                TR::SpriteSequence &seq = level.spriteSequences[level.extra.glyphs];
-                if ((i >= seq.sStart && i < seq.sStart + seq.sCount) || i >= UI::advGlyphsStart) {
-                    gAtlas->add(level.objectTexturesCount + i, uv, &t);
-                    continue;
+                short4 uv;
+                uv.x = t.texCoord[0].x;
+                uv.y = t.texCoord[0].y;
+                uv.z = t.texCoord[1].x + 1;
+                uv.w = t.texCoord[1].y + 1;
+
+                if (i >= UI::advGlyphsStart) {
+                 // add virtual UV offset for additional glyph sprites
+                    int offset = ATLAS_PAGE_GLYPHS + getAdvGlyphPage(i) * 256;
+                    uv.y += offset;
+                    uv.w += offset;
                 }
+
+                if (level.extra.glyphs != -1) {
+                    TR::SpriteSequence &seq = level.spriteSequences[level.extra.glyphs];
+                    if ((i >= seq.sStart && i < seq.sStart + seq.sCount) || i >= UI::advGlyphsStart) {
+                        gAtlas->add(level.objectTexturesCount + i, uv, &t);
+                        continue;
+                    }
+                }
+                sAtlas->add(level.objectTexturesCount + i, uv, &t);
             }
-            sAtlas->add(level.objectTexturesCount + i, uv, &t);
-        }
-        // add common textures
-        const short2 CommonTexOffset[] = { short2(1, 5), short2(1, 5), short2(1, 5), short2(5, 5), short2(1, 1), short2(1, 1), short2(1, 1) };
-        ASSERT(COUNT(CommonTexOffset) == CTEX_MAX);
-        memset(CommonTex, 0, sizeof(CommonTex));
-        for (int i = 0; i < CTEX_MAX; i++) {
-            CommonTex[i].type = CommonTex[i].dataType = TR::TEX_TYPE_SPRITE;
-            Atlas *dst = (i == CTEX_FLASH || i == CTEX_WHITE_OBJECT) ? oAtlas : ((i == CTEX_WHITE_ROOM) ? rAtlas : gAtlas);
-            dst->add(level.objectTexturesCount + level.spriteTexturesCount + i, short4(i * 32, ATLAS_PAGE_BARS, i * 32 + CommonTexOffset[i].x, ATLAS_PAGE_BARS + CommonTexOffset[i].y), &CommonTex[i]);
+            // add common textures
+            const short2 CommonTexOffset[] = { short2(1, 5), short2(1, 5), short2(1, 5), short2(5, 5), short2(1, 1), short2(1, 1), short2(1, 1) };
+            ASSERT(COUNT(CommonTexOffset) == CTEX_MAX);
+            memset(CommonTex, 0, sizeof(CommonTex));
+            for (int i = 0; i < CTEX_MAX; i++) {
+                CommonTex[i].type = CommonTex[i].dataType = TR::TEX_TYPE_SPRITE;
+                Atlas *dst = (i == CTEX_FLASH || i == CTEX_WHITE_OBJECT) ? oAtlas : ((i == CTEX_WHITE_ROOM) ? rAtlas : gAtlas);
+                dst->add(level.objectTexturesCount + level.spriteTexturesCount + i, short4(i * 32, ATLAS_PAGE_BARS, i * 32 + CommonTexOffset[i].x, ATLAS_PAGE_BARS + CommonTexOffset[i].y), &CommonTex[i]);
+            }
+
+            if (scale == 1 || (rAtlas->layout() && oAtlas->layout() && sAtlas->layout()))
+                break;
+
+            LOG("! texture pack x%d too large\n", scale);
+            delete rAtlas;
+            delete oAtlas;
+            delete sAtlas;
+            delete gAtlas;
         }
 
         // get result texture
@@ -1823,6 +2194,8 @@ struct Level : IGame {
         
         atlasRooms   = rAtlas->pack(OPT_MIPMAPS | OPT_VRAM_3DS);
         atlasObjects = oAtlas->pack(OPT_MIPMAPS);
+        normalRooms   = rAtlas->normals;
+        normalObjects = oAtlas->normals;
         atlasSprites = sAtlas->pack(OPT_MIPMAPS);
         atlasGlyphs  = gAtlas->pack(0);
 
@@ -1834,6 +2207,7 @@ struct Level : IGame {
 
         delete[] tileData;
         tileData = NULL;
+        freeHDTiles();
 
         delete[] glyphsRU;
         delete[] glyphsJA;
@@ -2030,6 +2404,7 @@ struct Level : IGame {
         Core::setViewProj(Core::mView, Core::mProj);
 
         setShader(Core::passSky, type, false, false);
+        Core::active.shader->setParam(uFogParams, camera->isUnderwater() ? FOG_NONE : levelFogParams);
 
         if (type != Shader::DEFAULT) {
             float time = Core::params.x;
@@ -2148,7 +2523,7 @@ struct Level : IGame {
             dir = -1;
         }
 
-        atlasRooms->bind(sDiffuse);
+        bindAtlas(atlasRooms);
 
         short4 vp = Core::scissor;
 
@@ -2624,7 +2999,7 @@ struct Level : IGame {
         mesh->dynBegin();
         mesh->transparent = transp;
 
-        atlasObjects->bind(sDiffuse);
+        bindAtlas(atlasObjects);
         for (int i = 0; i < level.entitiesCount; i++) {
             TR::Entity &e = level.entities[i];
             if (!e.controller || e.modelIndex == 0) continue;
@@ -2912,7 +3287,7 @@ struct Level : IGame {
             screen = (waterCache && waterCache->visible) ? waterCache->getScreenTex() : NULL;
 
         // under water the background takes the fog color so the distant geometry doesn't end with a sharp edge
-            Core::setClearColor(camera->isUnderwater() ? vec4(underwaterFogParams.xyz(), 0.0f) : vec4(0.0f));
+            Core::setClearColor(camera->isUnderwater() ? vec4(underwaterFogParams.xyz(), 0.0f) : vec4(levelFogParams.xyz(), 0.0f));
 
             int clearFlags = RT_STORE_COLOR;
 
@@ -3536,8 +3911,11 @@ struct Level : IGame {
 
         #ifdef EARLY_CLEAR
             if (view == 0 && eye <= 0) {
+                if (!invBG) // the distance goes into the haze
+                    Core::setClearColor(vec4((camera && camera->isUnderwater()) ? underwaterFogParams.xyz() : levelFogParams.xyz(), 0.0f));
                 Core::setTarget(NULL, NULL, RT_CLEAR_COLOR | RT_CLEAR_DEPTH | RT_STORE_COLOR | RT_STORE_DEPTH);
                 Core::validateRenderState();
+                Core::setClearColor(vec4(0.0f));
             }
         #endif
     }
@@ -3684,7 +4062,7 @@ struct Level : IGame {
 
         UI::begin(camera->aspect);
 
-        atlasObjects->bind(sDiffuse);
+        bindAtlas(atlasObjects);
         UI::renderPickups();
 
         atlasGlyphs->bind(sDiffuse);
@@ -3768,7 +4146,7 @@ struct Level : IGame {
         }
 
         setupBinding();
-        atlasObjects->bind(sDiffuse);
+        bindAtlas(atlasObjects);
         inventory->render(aspect);
 
         UI::begin(aspect);
