@@ -561,7 +561,12 @@ int main(int argc, char **argv) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 #endif
 
+#if defined(_GAPI_GLES) && !defined(_GAPI_GLES2)
+    // GLES 3 for the 3D textures (the clouds of the sky), the renderer reads the version asked for
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+#else
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+#endif
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
@@ -589,6 +594,12 @@ int main(int argc, char **argv) {
     Core::height = h;
 
     SDL_GLContext context = SDL_GL_CreateContext(sdl_window);
+#if defined(_GAPI_GLES) && !defined(_GAPI_GLES2)
+    if (!context) { // no GLES 3 here, the renderer goes without its features
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+        context = SDL_GL_CreateContext(sdl_window);
+    }
+#endif
 
     SDL_ShowCursor(SDL_DISABLE);
 
