@@ -40,6 +40,7 @@ uniform vec4 uFogParams; // the haze of the level, the sky goes into it at the h
 		#define MIN_HEIGHT  2.0
 		#define MAX_HEIGHT  4.0
 		#define skyWind     uParam.xyz
+		#define skySeam     uParam.w
 		#define skyDown     uLightProj[0].xyz
 		#define skyUp       uLightProj[1].xyz
 		#define sunDir      uLightProj[2].xyz
@@ -104,6 +105,14 @@ uniform vec4 uFogParams; // the haze of the level, the sky goes into it at the h
 			vec3 col = mix(skyDown, skyUp, dir.y);
 		#else
 			vec3 col = texture2D(sDiffuse, vTexCoord).xyz * vColor.xyz;
+			#ifdef SKY_CLOUDS
+				// the TR2 sky: its textured band meets a cap of a flat color with a line, the top of the band goes
+				// into a smooth sky from there up to the zenith
+				if (skySeam > 0.0) {
+					vec3 grad = mix(skyDown, skyUp, smoothstep(skySeam, 1.0, dir.y));
+					col = mix(col, grad, smoothstep(skySeam - 0.15, skySeam, dir.y));
+				}
+			#endif
 		#endif
 
 		#ifdef SKY_CLOUDS

@@ -2413,7 +2413,7 @@ struct Level : IGame {
                 time = (time - int(time)) * SKY_TIME_PERIOD;
             }
 
-            Core::active.shader->setParam(uParam,     vec4(skyParams.wind * time * 2.0f, 1.0));
+            Core::active.shader->setParam(uParam,     vec4(skyParams.wind * time * 2.0f, skyParams.seam));
             Core::active.shader->setParam(uLightProj, *(mat4*)&skyParams);
             Core::active.shader->setParam(uPosScale,  skyParams.cloudDownColor, 2);
 

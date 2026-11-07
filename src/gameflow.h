@@ -1738,12 +1738,14 @@ namespace TR {
         vec4 cloudDownColor;
         vec4 cloudUpColor;
         vec3 wind;
+        float seam; // TR2: the height (sine) where the textured band of the original sky meets its cap of a flat color
     };
 
     #define CLOUD_UP    vec3()
     #define CLOUD_DOWN  vec3()
 
     bool getSkyParams(LevelID id, SkyParams &params) {
+        params.seam = 0.0f;
         switch (id) {
             case LVL_TR1_3A :
                 params.skyDownColor    = vec4(0.8f, 0.8f, 0.7f, 1.0f);
@@ -1768,8 +1770,10 @@ namespace TR {
             case LVL_TR2_WALL     :
             case LVL_TR2_BOAT     :
             case LVL_TR2_PLATFORM : // clear day
-                params.skyDownColor    = vec4(0.8f, 0.8f, 0.7f, 1.0f);
-                params.skyUpColor      = vec4(0.3f, 0.4f, 0.5f, 1.0f);
+                // TR2: the sky from the top of the textured band (skyDown) up to the zenith (skyUp) in place of the flat cap
+                params.skyDownColor    = vec4(100.0f / 255.0f, 154.0f / 255.0f, 171.0f / 255.0f, 1.0f); // the base color of the sky (RGB 74:114:126 as bright as the band below)
+                params.skyUpColor      = params.skyDownColor;
+                params.seam            = (id == LVL_TR2_PLATFORM) ? 0.353f : 0.534f;
                 params.sunDirSize      = vec4(vec3(1.0f, 0.75f, -1.0f).normal(), 0.002f);
                 params.sunColorGlare   = vec4(0.55f, 0.45f, 0.3f, 6.0f);
                 params.cloudDownColor  = vec4(0.4f, 0.45f, 0.55f, 1.0f);
@@ -1780,8 +1784,9 @@ namespace TR {
             case LVL_TR2_MONASTRY :
             case LVL_TR2_CATACOMB :
             case LVL_TR2_ICECAVE  : // cold day of Tibet
-                params.skyDownColor    = vec4(0.8f, 0.8f, 0.7f, 1.0f);
-                params.skyUpColor      = vec4(0.3f, 0.4f, 0.5f, 1.0f);
+                params.skyDownColor    = vec4(100.0f / 255.0f, 154.0f / 255.0f, 171.0f / 255.0f, 1.0f); // the base color of the sky (RGB 74:114:126 as bright as the band below)
+                params.skyUpColor      = params.skyDownColor;
+                params.seam            = 0.534f;
                 params.sunDirSize      = vec4(vec3(1.0f, 0.75f, -1.0f).normal(), 0.002f);
                 params.sunColorGlare   = vec4(0.5f, 0.45f, 0.35f, 6.0f);
                 params.cloudDownColor  = vec4(0.5f, 0.55f, 0.65f, 1.0f);
@@ -1789,8 +1794,9 @@ namespace TR {
                 params.wind            = vec3(0.01f, -0.005f, 0.005f);
                 break;
             case LVL_TR2_VENICE : // overcast
-                params.skyDownColor    = vec4(0.8f, 0.8f, 0.7f, 1.0f);
-                params.skyUpColor      = vec4(0.3f, 0.4f, 0.5f, 1.0f);
+                params.skyDownColor    = vec4(0.58f, 0.64f, 0.7f, 1.0f);
+                params.skyUpColor      = vec4(0.42f, 0.5f, 0.6f, 1.0f);
+                params.seam            = 0.353f;
                 params.sunDirSize      = vec4(vec3(1.0f, 0.75f, -1.0f).normal(), 0.001f);
                 params.sunColorGlare   = vec4(0.15f, 0.15f, 0.15f, 4.0f);
                 params.cloudDownColor  = vec4(0.35f, 0.4f, 0.4f, 1.0f);
