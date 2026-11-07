@@ -655,6 +655,12 @@ struct Level : IGame {
         levelFogParams = vec4(color, 1.0f / (range * 1024.0f));
     }
 
+    // the background above the haze: its color, but black in TR1 as the original shows the open spaces of its levels
+    // (the rooms with no ceiling over them, the sanctuary of the sphinx) whatever the color of their haze
+    vec3 getHazeBackground() const {
+        return (level.version & TR::VER_TR1) ? vec3(0.0f) : levelFogParams.xyz();
+    }
+
     // an atlas of rooms or objects and its normal map
     void bindAtlas(Texture *atlas) {
         atlas->bind(sDiffuse);
@@ -3491,7 +3497,7 @@ struct Level : IGame {
             screen = (waterCache && waterCache->visible) ? waterCache->getScreenTex() : NULL;
 
         // under water the background takes the fog color so the distant geometry doesn't end with a sharp edge
-            Core::setClearColor(camera->isUnderwater() ? vec4(underwaterFogParams.xyz(), 0.0f) : vec4(levelFogParams.xyz(), 0.0f));
+            Core::setClearColor(camera->isUnderwater() ? vec4(underwaterFogParams.xyz(), 0.0f) : vec4(getHazeBackground(), 0.0f));
 
             int clearFlags = RT_STORE_COLOR;
 
@@ -4116,7 +4122,7 @@ struct Level : IGame {
         #ifdef EARLY_CLEAR
             if (view == 0 && eye <= 0) {
                 if (!invBG) // the distance goes into the haze
-                    Core::setClearColor(vec4((camera && camera->isUnderwater()) ? underwaterFogParams.xyz() : levelFogParams.xyz(), 0.0f));
+                    Core::setClearColor(vec4((camera && camera->isUnderwater()) ? underwaterFogParams.xyz() : getHazeBackground(), 0.0f));
                 Core::setTarget(NULL, NULL, RT_CLEAR_COLOR | RT_CLEAR_DEPTH | RT_STORE_COLOR | RT_STORE_DEPTH);
                 Core::validateRenderState();
                 Core::setClearColor(vec4(0.0f));
