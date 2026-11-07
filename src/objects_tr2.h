@@ -1262,7 +1262,11 @@ struct SpeedBoat : Vehicle {
 struct TrapMine : Controller {
     enum { FLAG_SPENT = 1, FLAG_ALL = 2 };
 
-    TrapMine(IGame *game, int entity) : Controller(game, entity) {}
+    // the model has a loop of two frames the original never plays (it shook the mine and later its base on the floor),
+    // the mine keeps its first frame
+    TrapMine(IGame *game, int entity) : Controller(game, entity) {
+        if (getModel()) animation.setAnim(0);
+    }
 
     bool isSpent() const {
         return (flags.unused & FLAG_SPENT) != 0;
@@ -1320,7 +1324,7 @@ struct TrapMine : Controller {
     }
 
     virtual void update() {
-        Controller::update();
+        updateLights(true); // no animation (as in the original)
 
         if (isSpent())
             return;
@@ -1338,6 +1342,7 @@ struct TrapMine : Controller {
 
     virtual void setSaveData(const SaveEntity &data) {
         Controller::setSaveData(data);
+        if (getModel()) animation.setAnim(0); // a game saved while it shook
         if (isSpent()) {
             initMeshOverrides();
             layers[0].mask = 1;
