@@ -1196,8 +1196,15 @@ struct Waterfall : Controller {
         vec2 p = (vec2(randf(), randf()) * 2.0f - 1.0f) * (512.0f - dropRadius);
         vec3 dropPos = pos + vec3(p.x, 0.0f, p.y);
         game->waterDrop(dropPos, dropRadius, dropStrength);
-        if (level->extra.waterSplash > -1)
-            game->addEntity(TR::Entity::WATER_SPLASH, getRoomIndex(), dropPos);
+        if (level->extra.waterSplash > -1) {
+        // the spray thrown up and out from where the water falls
+            Sprite *splash = (Sprite*)game->addEntity(TR::Entity::WATER_SPLASH, getRoomIndex(), dropPos);
+            if (splash) {
+                vec2 out = p.length2() > 1.0f ? p.normal() : vec2(0.0f, 1.0f);
+                float side = randf() * 4.0f + 2.0f;
+                splash->velocity = vec3(out.x * side, -(randf() * 6.0f + 4.0f), out.y * side);
+            }
+        }
     } 
 
     #undef SPLASH_TIMESTEP

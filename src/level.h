@@ -1848,12 +1848,13 @@ struct Level : IGame {
             hdScale = s;
 
             getOriginalTile(orig, i);
-            blendHDTile(data, (Color32*)orig->color, i, s, mix);
+            if (binaryAlpha) // the cut-outs of the original are on or off, they keep its shapes whatever the upscaler made of them
+                for (uint32 k = 0; k < w * h; k++)
+                    data[k].a = ((Color32*)orig->color)[(k / w / s) * 256 + (k % w) / s].a ? 255 : 0;
+            blendHDTile(data, (Color32*)orig->color, i, s, mix, binaryAlpha);
 
             for (uint32 k = 0; k < w * h; k++) {
                 Color32 &c = data[k];
-                if (binaryAlpha) // the cut-outs of the original are on or off, they keep its shapes whatever the upscaler made of them
-                    c.a = ((Color32*)orig->color)[(k / w / s) * 256 + (k % w) / s].a ? 255 : 0;
                 c.r = uint8((uint16(c.r) * c.a) / 255); // premultiplied as the atlas has it
                 c.g = uint8((uint16(c.g) * c.a) / 255);
                 c.b = uint8((uint16(c.b) * c.a) / 255);
@@ -1873,7 +1874,7 @@ struct Level : IGame {
     // a texture takes the original smoothly upscaled and only the fine detail of the upscaler over it (the upscaled less
     // its blur of about a texel of the original, both inside the texture), none of it a texel in from the edges, all of
     // it two texels in
-    void blendHDTile(Color32 *hd, const Color32 *orig, int tile, int s, float mix) {
+    void blendHDTile(Color32 *hd, const Color32 *orig, int tile, int s, float mix, bool binaryAlpha) {
         int size = 256 * s;
         Color32 *out = new Color32[size * size];
         memcpy(out, hd, sizeof(Color32) * size * size);
@@ -1944,6 +1945,12 @@ struct Level : IGame {
                             cb += c.b * w;
                             cw += w;
                         }
+
+                    // the outline of a cut-out (a splash, leaves, a grate) along the smoothly upscaled one of the original,
+                    // still on or off, so it doesn't show the steps of the texels of the original any more
+                        if (binaryAlpha)
+                            out[Y * size + X].a = (cw >= 0.5f) ? 255 : 0;
+
                         if (cw <= 0.0f) continue; // transparent
 
                         cr /= cw;
