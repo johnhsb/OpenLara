@@ -1125,8 +1125,12 @@ struct SpeedBoat : Vehicle {
         roomIndex = room;
         rotZ += tilt;
 
-        if (speed && water == y)
-            doWake();
+        if (speed && water == y) {
+            if (Core::settings.detail.water > Core::Settings::LOW)
+                doRipples(); // the water of the surface itself takes the wake, the sprites of the original are left out
+            else
+                doWake();
+        }
 
         if (driver && control) { // the engine sounds loop, only one of them at a time
             if (speed > 20) {
@@ -1138,6 +1142,40 @@ struct SpeedBoat : Vehicle {
             }
         } else
             stopSounds();
+    }
+
+    // the wake in the water simulation of the surface: the hull pushes the water down at the corners of the stern
+    // and at the bow, each step (30 times a second) and the harder the faster it goes, the waves spread from there
+    // (a V behind it) and the surface shows them in its reflection, its refraction and its caustics
+    void doRipples() {
+        float k = min(1.0f, abs(speed) / float(BOAT_MAX_SPEED));
+        if (k < 0.1f)
+            return;
+
+        static const int points[][4] = { // x, z, radius, strength (1/1000)
+            { -BOAT_SIDE, -BOAT_FRONT, 240, 60 }, // the stern churns the most
+            {  BOAT_SIDE, -BOAT_FRONT, 240, 60 },
+            { -BOAT_SIDE,           0, 128, 28 }, // the sides wash away from the hull
+            {  BOAT_SIDE,           0, 128, 28 },
+            {          0,  BOAT_FRONT, 160, 38 }, // the bow
+        };
+
+        // the boat runs up to 140 units a step, a single drop a step leaves a dotted line: the stern and the bow drop
+        // at the middle of the way of the step too (half as strong each), the sides once
+        int s = tsin(rotY), c = tcos(rotY);
+        int halfX = (speed * s) >> 15, halfZ = (speed * c) >> 15; // half the way of the step
+        for (int i = 0; i < COUNT(points); i++) {
+            int lx = points[i][0], lz = points[i][1];
+            vec3 p = vec3(float(x + ((c * lx + s * lz) >> 14)), float(y), float(z + ((c * lz - s * lx) >> 14)));
+            float radius   = float(points[i][2]);
+            float strength = points[i][3] * 0.001f * k;
+            if (lz == 0) {
+                game->waterDrop(p, radius, strength);
+                continue;
+            }
+            game->waterDrop(p, radius, strength * 0.5f);
+            game->waterDrop(p - vec3(float(halfX), 0.0f, float(halfZ)), radius, strength * 0.5f);
+        }
     }
 
     // three water sprites behind the boat: to the left, back and to the right

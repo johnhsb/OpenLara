@@ -213,11 +213,49 @@ vec3 calcNormal(vec2 tc, float base) {
 	}
 
 #ifdef WATER_COMPOSE
+	float hash12(vec2 p) { // https://www.shadertoy.com/view/4djSRW (no sin, the same on every GPU)
+		vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+		p3 += dot(p3, p3.yzx + 33.33);
+		return fract((p3.x + p3.y) * p3.z);
+	}
+
+	float valueNoise(vec2 p) {
+		vec2 i = floor(p);
+		vec2 f = fract(p);
+		f = f * f * (3.0 - 2.0 * f);
+		return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x),
+				   mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
+	}
+
+	// the white foam on the steepest waves (the wake of the boat, a splash): the most where the water still moves fast
+	// (just behind the boat), less as the waves calm down, in soft patches of a noise fixed in the water
+	float calcFoam(vec3 normal, float speed) {
+		float slope = length(normal.xz);
+		float amount = smoothstep(0.4, 0.85, slope);
+		if (amount <= 0.0)
+			return 0.0;
+		amount *= 0.5 + 0.5 * smoothstep(0.001, 0.006, abs(speed));
+		vec2 p = vCoord.xz;
+		float pattern = valueNoise(p * (1.0 / 32.0)) * 0.6 + valueNoise(p * (1.0 / 14.0)) * 0.4;
+		return amount * smoothstep(0.4, 0.75, pattern + amount * 0.3);
+	}
+
+	// each surface of a room has its own simulation, the waves stop at its sides: they die out over the last half a sector
+	// there, the surface of the next room doesn't meet them with a line
+	float calcEdgeFade() {
+		vec2 uv = vTexCoord / uTexParam.zw;
+		vec2 texels = uTexParam.zw / uTexParam.xy;
+		vec2 d = min(uv, 1.0 - uv) * texels;
+		return clamp(min(d.x, d.y) * (1.0 / 32.0), 0.0, 1.0);
+	}
+
 	vec4 compose() {
 		vec3 viewVec = normalize(vViewVec);
 
 		vec2 value = texture2D(sNormal, vTexCoord).xy;
 		vec3 normal = calcNormal(vTexCoord, value.x);
+		float edge = calcEdgeFade();
+		normal = normalize(vec3(normal.x * edge, normal.y, normal.z * edge));
 
 		vec2 dudv = (uViewProj * vec4(normal.x, 0.0, normal.z, 0.0)).xy;
 
@@ -237,6 +275,8 @@ vec3 calcNormal(vec2 tc, float base) {
 
 		vec4 color = mix(refr, refl, fresnel);
 		color.xyz += spec * 1.5;
+		float luma = dot(color.xyz, vec3(0.299, 0.587, 0.114));
+		color.xyz = mix(color.xyz, vec3(0.8, 0.85, 0.85) * (0.6 + 0.4 * luma), calcFoam(normal, value.y) * 0.6);
 		color.w = texture2D(sMask, vMaskCoord).x;
 		applyFog(color.xyz, vViewVec.y / viewVec.y);
 
