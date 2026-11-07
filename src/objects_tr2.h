@@ -958,6 +958,16 @@ struct SpeedBoat : Vehicle {
         if (height < y - 128) {
             Pos cur = { x, y, z };
             doShift(cur, old);
+
+            // a shift that leaves the middle of the boat in a wall (no floor, no water there) takes it back where it was:
+            // the boat would take the height of no floor up there, where no wall stops it any more
+            room = getRoomIndex();
+            v = vec3(float(x), float(y), float(z));
+            sector = level->getSector(room, v);
+            if (getWaterHeight(room, v) == BOAT_NO_HEIGHT && int(level->getFloor(sector, v)) == BOAT_NO_HEIGHT) {
+                x = old.x;
+                z = old.z;
+            }
         }
 
         extraRot = rot;
@@ -1005,8 +1015,12 @@ struct SpeedBoat : Vehicle {
                 continue;
 
             if (speed < BOAT_MAX_SPEED - 10) {
-                x = sx - int((int64)R2 * dx / dist);
-                z = sz - int((int64)R2 * dz / dist);
+                // out to the edge of the circle round the stern: the original divides by the square of the distance,
+                // which throws a boat deep in the circle (between two gondolas side by side) thousands of units away,
+                // out of the level
+                float len = sqrtf(float(dist));
+                x = sx - int(float(BOAT_RADIUS * 2) * dx / len);
+                z = sz - int(float(BOAT_RADIUS * 2) * dz / len);
             } else if (int(g->pos.y) - y < 2048)
                 g->crash();
         }
