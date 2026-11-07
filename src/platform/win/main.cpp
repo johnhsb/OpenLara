@@ -24,6 +24,94 @@ extern "C" {
 
 #include "game.h"
 
+// a crash writes where it happened to OpenLara.log (the call stack with the names and the lines of the source, from
+// OpenLara.pdb beside the exe) and a minidump to OpenLara.dmp
+#if defined(_M_X64) && !defined(_DEBUG)
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
+
+static LONG WINAPI osCrashHandler(EXCEPTION_POINTERS *ep) {
+    HANDLE process = GetCurrentProcess();
+    HANDLE thread  = GetCurrentThread();
+
+    LOG("\n*** CRASH: exception 0x%08X at %p\n", (unsigned)ep->ExceptionRecord->ExceptionCode, ep->ExceptionRecord->ExceptionAddress);
+    if (ep->ExceptionRecord->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2)
+        LOG("    %s address %p\n", ep->ExceptionRecord->ExceptionInformation[0] ? "writing" : "reading", (void*)ep->ExceptionRecord->ExceptionInformation[1]);
+
+    char exeDir[MAX_PATH];
+    GetModuleFileNameA(NULL, exeDir, MAX_PATH);
+    char *slash = strrchr(exeDir, '\\');
+    if (slash) *slash = 0;
+
+    SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+    SymInitialize(process, exeDir, TRUE);
+
+    CONTEXT ctx = *ep->ContextRecord;
+    STACKFRAME64 frame;
+    memset(&frame, 0, sizeof(frame));
+    frame.AddrPC.Offset    = ctx.Rip;
+    frame.AddrPC.Mode      = AddrModeFlat;
+    frame.AddrFrame.Offset = ctx.Rbp;
+    frame.AddrFrame.Mode   = AddrModeFlat;
+    frame.AddrStack.Offset = ctx.Rsp;
+    frame.AddrStack.Mode   = AddrModeFlat;
+
+    for (int i = 0; i < 48; i++) {
+        if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64, process, thread, &frame, &ctx, NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL))
+            break;
+        DWORD64 addr = frame.AddrPC.Offset;
+        if (!addr)
+            break;
+
+        char buf[sizeof(SYMBOL_INFO) + 256];
+        SYMBOL_INFO *sym = (SYMBOL_INFO*)buf;
+        memset(sym, 0, sizeof(SYMBOL_INFO));
+        sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+        sym->MaxNameLen   = 255;
+        DWORD64 disp = 0;
+        const char *name = SymFromAddr(process, addr, &disp, sym) ? sym->Name : "?";
+
+        IMAGEHLP_LINE64 line;
+        memset(&line, 0, sizeof(line));
+        line.SizeOfStruct = sizeof(line);
+        DWORD lineDisp = 0;
+        if (SymGetLineFromAddr64(process, addr, &lineDisp, &line))
+            LOG("  %2d %s  %s:%lu\n", i, name, line.FileName, line.LineNumber);
+        else
+            LOG("  %2d %s+0x%llx (%p)\n", i, name, (unsigned long long)disp, (void*)addr);
+    }
+
+    char dumpPath[MAX_PATH];
+    sprintf(dumpPath, "%s\\OpenLara.dmp", exeDir);
+    HANDLE file = CreateFileA(dumpPath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file != INVALID_HANDLE_VALUE) {
+        MINIDUMP_EXCEPTION_INFORMATION info;
+        info.ThreadId          = GetCurrentThreadId();
+        info.ExceptionPointers = ep;
+        info.ClientPointers    = FALSE;
+        MiniDumpWriteDump(process, GetCurrentProcessId(), file, MiniDumpNormal, &info, NULL, NULL);
+        CloseHandle(file);
+        LOG("minidump: %s\n", dumpPath);
+    }
+    fflush(stdout);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+// the log of the game (LOG prints to stdout, a window app has none) goes to OpenLara.log beside the exe
+static void osInitLog() {
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    char *slash = strrchr(path, '\\');
+    if (slash) *slash = 0;
+    strcat(path, "\\OpenLara.log");
+    if (freopen(path, "w", stdout))
+        setvbuf(stdout, NULL, _IONBF, 0);
+    SetUnhandledExceptionFilter(osCrashHandler);
+}
+#else
+static void osInitLog() {}
+#endif
+
 #define GetProcAddr(lib, x) (x = lib ? (decltype(x))GetProcAddress(lib, #x + 1) : NULL)
 
 // multi-threading
@@ -998,6 +1086,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
     int argc = (lpCmdLine && strlen(lpCmdLine)) ? 2 : 1;
     const char *argv[] = { "", lpCmdLine };
 #endif
+    osInitLog();
+
     cacheDir[0] = saveDir[0] = contentDir[0] = 0;
 
     strcat(cacheDir, getenv("APPDATA"));
