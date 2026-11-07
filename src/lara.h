@@ -5883,7 +5883,7 @@ struct Lara : Character {
         for (int i = 0; i < room.meshesCount; i++) {
             TR::Room::Mesh &m  = room.meshes[i];
             TR::StaticMesh &sm = level->staticMeshes[m.meshIndex];
-            if (sm.flags != 2) continue;
+            if (!sm.isCollider()) continue;
             Box meshBox;
             sm.getBox(true, m.rotation, meshBox);
             meshBox.translate(vec3(float(m.x), float(m.y), float(m.z)));

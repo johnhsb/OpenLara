@@ -582,7 +582,7 @@ namespace Debug {
 
                     Debug::Draw::box(offset + box.min, offset + box.max, vec4(1, 1, 0, 0.25));
 
-                    if (sm->flags == 2) { // collision box
+                    if (sm->isCollider()) { // collision box
                         sm->getBox(true, m.rotation, box);
                         Debug::Draw::box(offset + box.min - vec3(10.0f), offset + box.max + vec3(10.0f), vec4(1, 0, 0, 0.50));
                     }

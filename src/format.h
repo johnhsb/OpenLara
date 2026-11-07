@@ -2799,6 +2799,12 @@ namespace TR {
         MinMax  cbox;
         uint16  flags;
 
+        // the flags of 2 make it solid, but a box of no size (all its sides at one point, as the cobwebs of the Great Wall
+        // have) blocks nothing: it is no collider at all (as TRX makes it), it would hold Lara back in the middle of a passage
+        bool isCollider() const {
+            return flags == 2 && (cbox.maxX > cbox.minX || cbox.maxY > cbox.minY || cbox.maxZ > cbox.minZ);
+        }
+
         void getBox(bool collision, angle rotation, ::Box &box) {
             int k = rotation.value / 0x4000;
 
