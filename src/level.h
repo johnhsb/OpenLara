@@ -1021,7 +1021,7 @@ struct Level : IGame {
     }
 //==============================
 
-    Level(Stream &stream) : level(stream), waitTrack(false), isEnded(false), bodiesFall(false), cutsceneWaitTimer(0.0f), animTexTimer(0.0f), statsTimeDelta(0.0f), normalRooms(NULL), normalObjects(NULL), hdTiles(NULL), hdScale(1) {
+    Level(Stream &stream) : level(stream), waitTrack(false), isEnded(false), bodiesFall(false), cutsceneWaitTimer(0.0f), animTexTimer(0.0f), statsTimeDelta(0.0f), normalRooms(NULL), normalObjects(NULL), hdTiles(NULL), hdScale(1), headTex(NULL), headRectsCount(0) {
         paused = false;
 
         level.simpleItems = Core::settings.detail.simple == 1;
@@ -1495,6 +1495,198 @@ struct Level : IGame {
     AtlasColor **hdTiles;
     int hdScale;
 
+// a face of Lara of its own: "texture/LARA_HEAD.png" (its layout in "texture/LARA_HEAD.txt") in place of the textures of
+// the head of her model, with the textures at the high detail (the pieces of the png are cut as the textures of the head
+// of the level the layout was made from, the polygons of the head tell which piece goes on which texture in any level)
+    #define HEAD_CLUT 0xFFFF                         // the mark of the copies of the textures the head takes for its own
+
+    struct HeadPiece { int16 w, h, x, y; };          // in texels of the original, where it is in the png
+    struct HeadRect  { uint16 tile; short4 mm; int16 piece; };
+
+    Color32   *headTex;
+    uint32    headTexW, headTexH;
+    int       headScale;                             // texels of the png for a texel of the original
+    HeadPiece headPieces[64];
+    int       headPiecesCount;
+    HeadRect  headRects[64];
+    int       headRectsCount;
+
+    // the numbers of the layout in order, the lines of "#" left out
+    static int readHeadLayout(const char *text, int size, int *values, int maxCount) {
+        int count = 0;
+        const char *p = text, *end = text + size;
+        while (p < end && count < maxCount) {
+            if (*p == '#') {
+                while (p < end && *p != '\n') p++;
+                continue;
+            }
+            if ((*p >= '0' && *p <= '9') || *p == '-') {
+                values[count++] = int(strtol(p, (char**)&p, 10));
+                continue;
+            }
+            p++;
+        }
+        return count;
+    }
+
+    void loadHeadTex() {
+        headTex = NULL;
+        headPiecesCount = headRectsCount = 0;
+
+        if (Core::settings.detail.filter < Core::Settings::HIGH)
+            return;
+
+        char path[512];
+        sprintf(path, "%stexture/LARA_HEAD.txt", contentDir);
+        if (!Stream::exists(path))
+            return;
+        sprintf(path, "%stexture/LARA_HEAD.png", contentDir);
+        if (!Stream::exists(path))
+            return;
+
+        int modelIndex = -1;
+        for (int i = 0; i < level.modelsCount; i++)
+            if (level.models[i].type == TR::Entity::LARA) {
+                modelIndex = i;
+                break;
+            }
+        if (modelIndex < 0 || level.models[modelIndex].mCount <= 14)
+            return;
+        const TR::Mesh &mesh = level.meshes[level.meshOffsets[level.models[modelIndex].mStart + 14]];
+
+        int *values = new int[4096];
+        int count = 0;
+        {
+            Stream stream("texture/LARA_HEAD.txt");
+            char *text = new char[stream.size];
+            stream.raw(text, stream.size);
+            count = readHeadLayout(text, stream.size, values, 4096);
+            delete[] text;
+        }
+
+        int pieces = count >= 3 ? values[1] : 0;
+        int polys  = count >= 3 ? values[2] : 0;
+        if (count < 3 + pieces * 4 + polys * 2 || pieces > COUNT(headPieces) || polys != mesh.fCount) {
+            LOG("! texture/LARA_HEAD.txt: %d polygons in the layout, %d in the head of Lara\n", polys, mesh.fCount);
+            delete[] values;
+            return;
+        }
+
+        headScale = values[0];
+        headPiecesCount = pieces;
+        for (int i = 0; i < pieces; i++) {
+            int *v = values + 3 + i * 4;
+            headPieces[i].w = v[0];
+            headPieces[i].h = v[1];
+            headPieces[i].x = v[2];
+            headPieces[i].y = v[3];
+        }
+
+        // the head takes copies of its textures of its own (the body shares some of them, its skin keeps the original),
+        // the copies marked by their clut (no TR2 PC texture has one)
+        {
+            TR::Mesh &head = level.meshes[level.meshOffsets[level.models[modelIndex].mStart + 14]];
+            TR::TextureInfo *copies = new TR::TextureInfo[head.fCount];
+            int16 *copyOf = new int16[head.fCount];
+            int copiesCount = 0;
+            for (int i = 0; i < head.fCount; i++) {
+                TR::Face &f = head.faces[i];
+                if (f.colored || f.flags.texture >= level.objectTexturesCount || level.objectTextures[f.flags.texture].clut == HEAD_CLUT)
+                    continue;
+                int k = 0;
+                while (k < copiesCount && copyOf[k] != f.flags.texture) k++;
+                if (k == copiesCount) {
+                    copies[k] = level.objectTextures[f.flags.texture];
+                    copies[k].clut = HEAD_CLUT;
+                    copyOf[k] = f.flags.texture;
+                    copiesCount++;
+                }
+                f.flags.texture = level.objectTexturesCount + k;
+            }
+            delete[] copyOf;
+            int32 count = copiesCount;
+            if (count)
+                level.appendObjectTex(copies, count);
+            else
+                delete[] copies;
+        }
+
+        // the faces of the mesh are its rectangles, then its triangles, as in the layout
+        int *poly = values + 3 + pieces * 4;
+        int rects = 0;
+        for (int i = 0; i < polys; i++)
+            if (!poly[i * 2]) rects++;
+        int rectIndex = 0, triIndex = 0;
+        for (int i = 0; i < mesh.fCount; i++) {
+            const TR::Face &f = mesh.faces[i];
+            int k = f.triangle ? (rects + triIndex++) : rectIndex++;
+            int piece = poly[k * 2 + 1];
+            if (f.colored || piece < 0 || piece >= pieces || f.flags.texture >= level.objectTexturesCount)
+                continue;
+
+            const TR::TextureInfo &t = level.objectTextures[f.flags.texture];
+            short4 mm = t.getMinMax();
+            bool found = false;
+            for (int j = 0; j < headRectsCount; j++)
+                if (headRects[j].tile == t.tile && sameRect(headRects[j].mm, mm))
+                    found = true;
+            if (found || headRectsCount == COUNT(headRects))
+                continue;
+            headRects[headRectsCount].tile  = t.tile;
+            headRects[headRectsCount].mm    = mm;
+            headRects[headRectsCount].piece = piece;
+            headRectsCount++;
+        }
+        delete[] values;
+
+        Stream stream("texture/LARA_HEAD.png");
+        headTex = (Color32*)Texture::LoadPNG(stream, headTexW, headTexH);
+        if (!headTex) {
+            headRectsCount = 0;
+            return;
+        }
+        LOG("Lara head texture: %d pieces x%d\n", headRectsCount, headScale);
+    }
+
+    void freeHeadTex() {
+        delete[] headTex;
+        headTex = NULL;
+        headRectsCount = 0;
+    }
+
+    static bool sameRect(const short4 &a, const short4 &b) {
+        return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+    }
+
+    int getHeadPiece(uint16 tile, const short4 &mm) const {
+        for (int i = 0; i < headRectsCount; i++)
+            if (headRects[i].tile == tile && sameRect(headRects[i].mm, mm))
+                return headRects[i].piece;
+        return -1;
+    }
+
+    // a texel of the atlas (x, y of w, h) of a texture of the head from its piece of the png, the area it covers there
+    // averaged, as opaque as the texel of the original
+    void getHeadTexel(int index, int x, int y, int w, int h, Color32 &c) const {
+        const HeadPiece &p = headPieces[index];
+        int x0 = p.x + x * p.w * headScale / w;
+        int y0 = p.y + y * p.h * headScale / h;
+        int x1 = max(x0 + 1, p.x + (x + 1) * p.w * headScale / w);
+        int y1 = max(y0 + 1, p.y + (y + 1) * p.h * headScale / h);
+        x0 = clamp(x0, 0, int(headTexW) - 1); x1 = clamp(x1, x0 + 1, int(headTexW));
+        y0 = clamp(y0, 0, int(headTexH) - 1); y1 = clamp(y1, y0 + 1, int(headTexH));
+
+        uint32 r = 0, g = 0, b = 0, n = 0;
+        for (int ty = y0; ty < y1; ty++)
+            for (int tx = x0; tx < x1; tx++) {
+                const Color32 &t = headTex[ty * headTexW + tx];
+                r += t.r; g += t.g; b += t.b; n++;
+            }
+        c.r = uint8(r / n * c.a / 255);
+        c.g = uint8(g / n * c.a / 255);
+        c.b = uint8(b / n * c.a / 255);
+    }
+
     void getTileName(char *buf, const char *dir, int index, const char *ext = "png") {
         sprintf(buf, "texture/%s%s_%d.%s", dir, TR::LEVEL_INFO[level.id].name, index, ext);
     }
@@ -1830,10 +2022,12 @@ struct Level : IGame {
 
         bool isSprite = false;
         int  hdTile   = -1;     // the tile of the texture pack to take it from
+        int  headPiece = -1;    // the piece of the face of Lara of its own to take it from
 
         if (id < level->objectTexturesCount) { // textures
             TR::TextureInfo &t = level->objectTextures[id];
             mm      = t.getMinMax();
+            headPiece = (owner->headTex && t.clut == HEAD_CLUT) ? owner->getHeadPiece(t.tile, mm) : -1;
             src     = owner->tileData->color;
             uv      = t.texCoordAtlas;
             uvCount = 4;
@@ -1948,6 +2142,9 @@ struct Level : IGame {
                     } else {
                         dst[x + bx] = src[(mm.y + sy / scale) * stride + mm.x + sx / scale];
                     }
+
+                    if (headPiece >= 0 && !isSprite)
+                        owner->getHeadTexel(headPiece, sx, sy, w, h, dst[x + bx]);
                 }
                 dst += atlasWidth;
             }
@@ -2107,6 +2304,7 @@ struct Level : IGame {
         }
     #endif
         loadHDTiles();
+        loadHeadTex();
 
     // the largest atlas the GPU takes, kept to 8192 texels a side for the memory of the texture pack
         int maxSize = 8192;
@@ -2208,6 +2406,7 @@ struct Level : IGame {
         delete[] tileData;
         tileData = NULL;
         freeHDTiles();
+        freeHeadTex();
 
         delete[] glyphsRU;
         delete[] glyphsJA;
