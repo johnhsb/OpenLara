@@ -953,6 +953,14 @@ struct Lara : Character {
         climbGoal  = -1;
         ladderJump = false;
 
+        // off a vehicle she rides (the fly cheat on the boat): it lets her go and she takes back her own model,
+        // the model of the ride has none of her animations
+        bool ownModel = extraAnim || boat || skidoo;
+        if (boat)
+            boat->dismount();
+        if (skidoo)
+            skidoo->dismount();
+
         keyHole = NULL;
         keyItem = NULL;
         zipline = NULL;
@@ -960,10 +968,9 @@ struct Lara : Character {
         skidoo  = NULL;
         detonator = NULL;
         airlock   = NULL;
-        if (extraAnim) {
-            extraAnim = false;
+        extraAnim = false;
+        if (ownModel)
             animation.setModel(getModel());
-        }
 
         if (room == TR::NO_ROOM) {
             stand = STAND_AIR;
@@ -3891,6 +3898,8 @@ struct Lara : Character {
     void updateBoat() {
         lastInput = input;
         input = getInput();
+        if (!boat) // the fly cheat (O key) took her off it in getInput
+            return;
 
         int s = animation.state;
         bool mounting = animation.index == SpeedBoat::ANIM_MOUNT_LEFT || animation.index == SpeedBoat::ANIM_MOUNT_RIGHT || animation.index == SpeedBoat::ANIM_MOUNT_JUMP;
@@ -4091,6 +4100,8 @@ struct Lara : Character {
     void updateSkidoo() {
         lastInput = input;
         input = getInput();
+        if (!skidoo) // the fly cheat (O key) took her off it in getInput
+            return;
 
         Snowmobile *sk = skidoo;
         int s = animation.state;
