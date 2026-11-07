@@ -159,6 +159,10 @@ varying vec4 vTexCoord; // xy - atlas coords, zw - trapezoidal correction
 		#ifdef TYPE_SPRITE
 			vDiffuse *= aLight.w;
 		#endif
+
+		#ifdef TYPE_ROOM
+			vDiffuse *= uMaterial.w; // the next frame of the animated textures over the one shown
+		#endif
 	}
 
 	void _lighting(vec3 coord) {
@@ -487,13 +491,13 @@ varying vec4 vTexCoord; // xy - atlas coords, zw - trapezoidal correction
 					float fog = clamp(1.0 / exp(dist * WATER_FOG_DIST * uwSign), 0.0, 1.0);
 					dist += vCoord.y - uParam.y;
 					color.xyz *= mix(vec3(1.0), UNDERWATER_COLOR, clamp(dist * WATER_COLOR_DIST * uwSign, 0.0, 2.0));
-					color.xyz = mix(UNDERWATER_COLOR * 0.2, color.xyz, fog);
+					color.xyz = mix(UNDERWATER_COLOR * 0.2 * color.w, color.xyz, fog);
 				#else
 					color.xyz = mix(color.xyz, color.xyz * UNDERWATER_COLOR, uwSign);
-					color.xyz = mix(UNDERWATER_COLOR * 0.2, color.xyz, vNormal.w);
+					color.xyz = mix(UNDERWATER_COLOR * 0.2 * color.w, color.xyz, vNormal.w);
 				#endif
 			#else
-				color.xyz = mix(uFogParams.xyz, color.xyz, vNormal.w);
+				color.xyz = mix(uFogParams.xyz * color.w, color.xyz, vNormal.w); // premultiplied as the color
 			#endif
 		#endif
 

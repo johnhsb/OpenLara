@@ -3085,6 +3085,8 @@ struct Level : IGame {
                     level.shiftAnimTex();
                     animTexTimer -= timeStep;
                 }
+                if (mesh)
+                    mesh->animTexFrac = clamp(animTexTimer / timeStep, 0.0f, 1.0f);
 
                 updateEffect();
                 updateBodies();

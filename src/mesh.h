@@ -98,6 +98,9 @@ struct MeshBuilder {
     Texture   *atlas;
     TR::Level *level;
 
+    uint16    *animTexNext; // the next frame of an animated texture, 0xFFFF for the others
+    float     animTexFrac;  // how far the animated textures are to their next frame, 0..1
+
 // level
     struct Geometry {
         int       count;
@@ -187,7 +190,21 @@ struct MeshBuilder {
         BLEND_ADD   = 4,
     };
 
-    MeshBuilder(TR::Level *level, Texture *atlas) : atlas(atlas), level(level) {
+    MeshBuilder(TR::Level *level, Texture *atlas) : atlas(atlas), level(level), animTexNext(NULL), animTexFrac(0.0f) {
+    // the texture each animated one shows next (the one after it in its range)
+        if (level->animTexturesCount && level->objectTexturesCount) {
+            animTexNext = new uint16[level->objectTexturesCount];
+            memset(animTexNext, 0xFF, sizeof(uint16) * level->objectTexturesCount);
+            for (int i = 0; i < level->animTexturesCount; i++) {
+                TR::AnimTexture &animTex = level->animTextures[i];
+                for (int j = 0; j < animTex.count; j++) {
+                    int a = animTex.textures[j], b = animTex.textures[(j + 1) % animTex.count];
+                    if (a < level->objectTexturesCount && b < level->objectTexturesCount)
+                        animTexNext[a] = b;
+                }
+            }
+        }
+
         dynMesh = new Mesh(NULL, COUNT(dynIndices), NULL, COUNT(dynVertices), 1, true);
         dynRange.vStart = 0;
         dynRange.iStart = 0;
@@ -648,6 +665,8 @@ struct MeshBuilder {
     }
 
     ~MeshBuilder() {
+        delete[] animTexNext;
+
         for (int i = 0; i < level->roomsCount; i++)
             for (int j = 0; j < COUNT(rooms[i].dynamic); j++)
                 delete[] rooms[i].dynamic[j].faces;
@@ -1431,6 +1450,26 @@ struct MeshBuilder {
 
         Dynamic &dyn = rooms[roomIndex].dynamic[transparent];
         if (dyn.count) {
+            renderDynamic(roomIndex, dyn, false);
+
+        // the frames of the animated textures (waterfalls, lava) shift a few times a second, the next one over this
+        // one more and more till it shifts, so they flow instead of stepping (not the additive ones, as they would add
+        // up both)
+            if (animTexNext && animTexFrac > 0.0f && transparent != 2) {
+                vec4 m = Core::active.material;
+                int32 state = Core::renderState;
+                Core::setBlendMode(bmPremult);
+                Core::setDepthWrite(false);
+                Core::setMaterial(m.x, m.y, m.z, m.w * animTexFrac);
+                renderDynamic(roomIndex, dyn, true);
+                Core::setMaterial(m.x, m.y, m.z, m.w);
+                Core::renderState = state;
+            }
+        }
+    }
+
+    void renderDynamic(int roomIndex, Dynamic &dyn, bool next) {
+        {
         #ifdef SPLIT_BY_TILE
             uint16 tile = 0xFFFF, clut = 0xFFFF;
         #endif
@@ -1439,7 +1478,12 @@ struct MeshBuilder {
             const TR::Room::Data &d = level->rooms[roomIndex].data;
             for (int i = 0; i < dyn.count; i++) {
                 TR::Face        &f = d.faces[dyn.faces[i]];
-                TR::TextureInfo &t = level->objectTextures[f.flags.texture];
+                int texture = f.flags.texture;
+                if (next) {
+                    texture = animTexNext[texture];
+                    if (texture == 0xFFFF) continue;
+                }
+                TR::TextureInfo &t = level->objectTextures[texture];
 
             #ifdef SPLIT_BY_TILE
                 if (iCount) {
