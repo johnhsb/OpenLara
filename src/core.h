@@ -352,6 +352,7 @@ namespace Core {
         bool shadowSampler;
         bool discardFrame;
         bool derivatives;
+        bool waterNoHigh; // the water of the high quality (caustics) stalls this driver
         bool texNPOT;
         bool tex3D;
         bool texRG;
@@ -417,7 +418,7 @@ namespace Core {
             #else
                 if (value > LOW && !(support.texFloat || support.texHalf))
                     value = LOW;
-                if (value > MEDIUM && !support.derivatives)
+                if (value > MEDIUM && (!support.derivatives || support.waterNoHigh))
                     value = MEDIUM;
                 water = value;
             #endif

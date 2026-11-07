@@ -1337,6 +1337,13 @@ namespace GAPI {
             support.derivatives = true; 
             support.tex3D       = glTexImage3D != NULL;
         #endif
+    #if defined(__SDL2__) && defined(__linux__)
+        { // the Mesa d3d12 driver of WSL freezes the GPU (and the desktop of Windows) on the caustics of the high water
+            const char *renderer = (const char*)glGetString(GL_RENDERER);
+            support.waterNoHigh = renderer && strstr(renderer, "D3D12") != NULL;
+            if (support.waterNoHigh) LOG("D3D12 of WSL: the water quality goes up to medium only\n");
+        }
+    #endif
         support.texBorder      = extSupport("_texture_border_clamp");
         support.maxAniso       = extSupport("_texture_filter_anisotropic");
         support.colorFloat     = extSupport("_color_buffer_float");
