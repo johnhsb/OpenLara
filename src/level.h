@@ -1566,8 +1566,11 @@ struct Level : IGame {
 
         int pieces = count >= 3 ? values[1] : 0;
         int polys  = count >= 3 ? values[2] : 0;
-        if (count < 3 + pieces * 4 + polys * 2 || pieces > COUNT(headPieces) || polys != mesh.fCount) {
-            LOG("! texture/LARA_HEAD.txt: %d polygons in the layout, %d in the head of Lara\n", polys, mesh.fCount);
+        int textured = 0; // the layout has the textured faces only (the head of TR1 has colored ones too)
+        for (int i = 0; i < mesh.fCount; i++)
+            if (!mesh.faces[i].colored) textured++;
+        if (count < 3 + pieces * 4 + polys * 2 || pieces > COUNT(headPieces) || polys != textured) {
+            LOG("! texture/LARA_HEAD.txt: %d polygons in the layout, %d in the head of Lara\n", polys, textured);
             delete[] values;
             return;
         }
@@ -1619,9 +1622,11 @@ struct Level : IGame {
         int rectIndex = 0, triIndex = 0;
         for (int i = 0; i < mesh.fCount; i++) {
             const TR::Face &f = mesh.faces[i];
+            if (f.colored)
+                continue;
             int k = f.triangle ? (rects + triIndex++) : rectIndex++;
             int piece = poly[k * 2 + 1];
-            if (f.colored || piece < 0 || piece >= pieces || f.flags.texture >= level.objectTexturesCount)
+            if (piece < 0 || piece >= pieces || f.flags.texture >= level.objectTexturesCount)
                 continue;
 
             const TR::TextureInfo &t = level.objectTextures[f.flags.texture];
