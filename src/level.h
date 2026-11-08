@@ -2156,7 +2156,26 @@ struct Level : IGame {
                     if (isSprite && (y < 0 || y >= h || x < 0 || x >= w)) {
                         dst[x + bx].value = 0;
                     } else if (hd) {
-                        dst[x + bx] = hd[(mm.y * scale + sy) * (256 * scale) + mm.x * scale + sx];
+                    // the tiles of the pack are at its own scale, the atlas at a smaller one when the GPU doesn't take
+                    // it (a box of the pack for a texel of the atlas)
+                        int hs   = owner->hdScale;
+                        int k    = hs / scale;
+                        int hx   = (mm.x * scale + sx) * k;
+                        int hy   = (mm.y * scale + sy) * k;
+                        if (k == 1) {
+                            dst[x + bx] = hd[hy * (256 * hs) + hx];
+                        } else {
+                            uint32 r = 0, g = 0, b = 0, a = 0;
+                            for (int j = 0; j < k; j++) {
+                                for (int i = 0; i < k; i++) {
+                                    const AtlasColor &c = hd[(hy + j) * (256 * hs) + hx + i];
+                                    r += c.r; g += c.g; b += c.b; a += c.a;
+                                }
+                            }
+                            int n = k * k;
+                            AtlasColor &c = dst[x + bx];
+                            c.r = uint8(r / n); c.g = uint8(g / n); c.b = uint8(b / n); c.a = uint8(a / n);
+                        }
                     } else {
                         dst[x + bx] = src[(mm.y + sy / scale) * stride + mm.x + sx / scale];
                     }
