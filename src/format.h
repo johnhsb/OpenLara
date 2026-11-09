@@ -4764,6 +4764,10 @@ namespace TR {
             objectTextures       = newObjectTextures;
             objectTexturesCount += count;
 
+        // the faces sort by their textures through these, they must not keep the array just freed
+            gObjectTextures      = objectTextures;
+            gObjectTexturesCount = objectTexturesCount;
+
             delete[] objTex;
             objTex = NULL;
             count  = 0;
