@@ -813,6 +813,7 @@ struct Vehicle : Controller {
 
 #define BOAT_RADIUS         500
 #define BOAT_SIDE           300
+#define BOAT_GET_OFF_DIST   1024
 #define BOAT_FRONT          750
 #define BOAT_TIP            (BOAT_FRONT + 250)
 #define BOAT_MIN_SPEED      20
@@ -1220,6 +1221,25 @@ struct SpeedBoat : Vehicle {
         control = false;
         stopSounds();
         animation.setAnim(0);
+    }
+
+    // Lara can jump off to that side (as in the original): the floor a block off is at most two clicks above the boat
+    // (lower is the water or a floor she drops to), with the room for her to stand there; a wall, or a building that
+    // rises from the side of the canal, takes no one
+    bool canGetOff(bool left) {
+        float a = angle.y + (left ? -PI * 0.5f : PI * 0.5f);
+        vec3 p = pos + vec3(sinf(a), 0.0f, cosf(a)) * float(BOAT_GET_OFF_DIST);
+
+        int16 room = getRoomIndex();
+        TR::Room::Sector *sector = level->getSector(room, p);
+        float floor   = level->getFloor(sector, p);
+        float ceiling = level->getCeiling(sector, p);
+
+        if (floor == TR::NO_FLOOR * 256.0f || floor - pos.y < -512.0f)
+            return false;
+        if (ceiling - pos.y > -762.0f || floor - ceiling < 762.0f)
+            return false;
+        return true;
     }
 
     virtual void setSaveData(const SaveEntity &data) {

@@ -3919,9 +3919,9 @@ struct Lara : Character {
             switch (s) {
                 case SpeedBoat::STATE_STILL  :
                 case SpeedBoat::STATE_MOVING :
-                    if ((input & JUMP) && (input & RIGHT))
+                    if ((input & JUMP) && (input & RIGHT) && boat->canGetOff(false))
                         animation.setState(SpeedBoat::STATE_JUMP_R);
-                    else if ((input & JUMP) && (input & LEFT))
+                    else if ((input & JUMP) && (input & LEFT) && boat->canGetOff(true))
                         animation.setState(SpeedBoat::STATE_JUMP_L);
                     else
                         animation.setState(boat->speed > 0 ? SpeedBoat::STATE_MOVING : SpeedBoat::STATE_STILL);
