@@ -1072,6 +1072,51 @@ void vrCompose() {}
 
 #endif // #ifdef VR_SUPPORT
 
+// the level to start with (the first argument that is no option) and the testing options of the command line:
+// --pos=room,x,y,z,angle puts Lara there in the first level, --give=item[,item...] puts keys or puzzle items
+// (KEY_ITEM_2, PUZZLE_1...) into the inventory, --activate=index[,index...] triggers entities a second in
+static const char* parseCommandLine(int argc, char **argv) {
+    const char *levelName = NULL;
+    for (int i = 1; i < argc; i++) {
+        const char *arg = argv[i];
+        if (strncmp(arg, "--", 2) != 0) {
+            if (!levelName)
+                levelName = arg;
+            continue;
+        }
+        if (strncmp(arg, "--pos=", 6) == 0) {
+            LaraStartPos &p = laraStartPos;
+            p.set = sscanf(arg + 6, "%d,%f,%f,%f,%f", &p.room, &p.pos.x, &p.pos.y, &p.pos.z, &p.angle) == 5;
+            if (!p.set)
+                LOG("! --pos=room,x,y,z,angle expected: %s\n", arg);
+        }
+        if (strncmp(arg, "--activate=", 11) == 0) {
+            int count = 0;
+            for (const char *v = arg + 11; *v && count < COUNT(laraStartPos.activate) - 1; ) {
+                laraStartPos.activate[count++] = atoi(v);
+                while (*v && *v != ',') v++;
+                if (*v == ',') v++;
+            }
+            laraStartPos.activate[count] = -1;
+        }
+        if (strncmp(arg, "--give=", 7) == 0) {
+            int count = 0;
+            for (const char *v = arg + 7; *v && count < COUNT(laraStartPos.give) - 1; ) {
+                char name[64];
+                int len = 0;
+                while (*v && *v != ',' && len < int(sizeof(name)) - 1) name[len++] = *v++;
+                name[len] = 0;
+                if (*v == ',') v++;
+                laraStartPos.give[count++] = laraStartItem(name);
+            }
+            laraStartPos.give[count] = TR::Entity::NONE;
+        }
+    }
+    if (laraStartPos.set)
+        LOG("start: room %d at %d %d %d angle %d\n", laraStartPos.room, int(laraStartPos.pos.x), int(laraStartPos.pos.y), int(laraStartPos.pos.z), int(laraStartPos.angle));
+    return levelName;
+}
+
 #ifdef _DEBUG
 int main(int argc, char** argv) {
     _CrtMemState _msBegin, _msEnd, _msDiff;
@@ -1083,8 +1128,8 @@ int main(int argc, char** argv) {
 int main(int argc, char** argv) {
 #else
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    int argc = (lpCmdLine && strlen(lpCmdLine)) ? 2 : 1;
-    const char *argv[] = { "", lpCmdLine };
+    int argc = __argc; // the command line split by the runtime (quotes kept together)
+    char **argv = __argv;
 #endif
     osInitLog();
 
@@ -1176,7 +1221,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
     Core::defLang = checkLanguage();
 
-    Game::init((argc > 1 && strstr(argv[1], "--") != argv[1]) ? argv[1] : NULL);
+    Game::init(parseCommandLine(argc, argv));
 
     if (Core::isQuit) {
         MessageBoxA(hWnd, "Please check the readme file first!", "Game resources not found", MB_ICONHAND);
