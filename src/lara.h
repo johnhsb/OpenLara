@@ -3077,16 +3077,20 @@ struct Lara : Character {
 
                     if (info.trigger == TR::Level::Trigger::SWITCH)
                         flags.active ^= info.trigInfo.mask;
-                    else if (info.trigger == TR::Level::Trigger::ANTIPAD || info.trigger == TR::Level::Trigger::ANTITRIGGER)
+                    else if (info.trigger == TR::Level::Trigger::ANTIPAD || info.trigger == TR::Level::Trigger::ANTITRIGGER) {
                         flags.active &= ~info.trigInfo.mask;
-                    else
+                    // a one-shot antitrigger of TR1 and TR2 turns the item off for good (as in the original, see
+                    // Item_Trigger of TRX), the blade statues of Bartoli's Hideout stay still once passed
+                        if (info.trigInfo.once && (level->version & (TR::VER_TR1 | TR::VER_TR2)))
+                            flags.once = 1;
+                    } else
                         flags.active |= info.trigInfo.mask;
 
                     if (flags.active != TR::ACTIVE)
                         break;
 
                     flags.once |= info.trigInfo.once;
-                    
+
                     controller->activate();
                     break;
                 }
