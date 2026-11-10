@@ -82,7 +82,9 @@ namespace Game {
             playVideo = !saveSlots[loadSlot].isCheckpoint();
 
         delete level;
+        loadTimeLast = Core::getTime();
         level = new Level(*lvl);
+        loadTime("level");
 
         bool playLogo = level->level.isTitle() && id == TR::LVL_MAX;
         playVideo = playVideo && (id != level->level.id);
@@ -91,6 +93,7 @@ namespace Game {
             playVideo = false;
 
         level->init(playLogo, playVideo);
+        loadTime("init");
 
         UI::game = level;
         #if !defined(INV_GAMEPAD_ONLY)

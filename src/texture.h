@@ -892,17 +892,21 @@ struct Atlas {
         if (!root)
             layout();
 
+        int t0 = Core::getTime();
         AtlasColor *data = new AtlasColor[width * height];
         memset(data, 0, width * height * sizeof(data[0]));
         fill(root, data);
         fillInstances();
+        int t1 = Core::getTime();
 
         Texture *atlas = new Texture(width, height, 1, ATLAS_FORMAT, opt, data);
+        int t2 = Core::getTime();
 
         //Texture::SaveBMP("atlas", (char*)data, width, height);
 
         if (makeNormals)
             normals = makeNormalMap(data, opt);
+        LOG("load:   atlas %dx%d: fill %d ms, upload %d ms, normal map %d ms\n", width, height, t1 - t0, t2 - t1, Core::getTime() - t2);
 
         delete[] data;
         return atlas;
@@ -920,36 +924,38 @@ struct Atlas {
             const AtlasColor &c = data[i];
             t[i] = (c.r * 0.299f + c.g * 0.587f + c.b * 0.114f) / 255.0f;
         }
-        for (int y = 0; y < height; y++) // smoothed, the noise of the texels makes no bumps
-            for (int x = 0; x < width; x++) {
+        int W = width, H = height;
+        parallelFor(H, [&](int y) { // smoothed, the noise of the texels makes no bumps (a row on its own)
+            for (int x = 0; x < W; x++) {
                 float sum = 0.0f;
                 for (int dy = -1; dy <= 1; dy++)
                     for (int dx = -1; dx <= 1; dx++)
-                        sum += t[clamp(y + dy, 0, height - 1) * width + clamp(x + dx, 0, width - 1)];
-                h[y * width + x] = sum / 9.0f;
+                        sum += t[clamp(y + dy, 0, H - 1) * W + clamp(x + dx, 0, W - 1)];
+                h[y * W + x] = sum / 9.0f;
             }
+        });
         delete[] t;
 
         // the slopes of the texels of the original, a texture pack has scale texels for one
         float k = 0.5f * scale;
 
         AtlasColor *n = new AtlasColor[width * height];
-        for (int y = 0; y < height; y++) {
-            int y0 = max(y - 1, 0), y1 = min(y + 1, height - 1);
-            for (int x = 0; x < width; x++) {
-                int x0 = max(x - 1, 0), x1 = min(x + 1, width - 1);
-                #define H(px, py) h[(py) * width + (px)]
+        parallelFor(H, [&](int y) {
+            int y0 = max(y - 1, 0), y1 = min(y + 1, H - 1);
+            for (int x = 0; x < W; x++) {
+                int x0 = max(x - 1, 0), x1 = min(x + 1, W - 1);
+                #define H(px, py) h[(py) * W + (px)]
                 float dx = (H(x1, y0) + 2.0f * H(x1, y) + H(x1, y1)) - (H(x0, y0) + 2.0f * H(x0, y) + H(x0, y1));
                 float dy = (H(x0, y1) + 2.0f * H(x, y1) + H(x1, y1)) - (H(x0, y0) + 2.0f * H(x, y0) + H(x1, y0));
                 #undef H
                 vec3 v = vec3(-dx * k, -dy * k, 1.0f).normal();
-                AtlasColor &c = n[y * width + x];
+                AtlasColor &c = n[y * W + x];
                 c.r = uint8(clamp(int(v.x * 127.5f + 128.0f), 0, 255));
                 c.g = uint8(clamp(int(v.y * 127.5f + 128.0f), 0, 255));
                 c.b = uint8(clamp(int(v.z * 127.5f + 128.0f), 0, 255));
                 c.a = 255;
             }
-        }
+        });
         delete[] h;
 
         Texture *tex = new Texture(width, height, 1, ATLAS_FORMAT, opt, n);

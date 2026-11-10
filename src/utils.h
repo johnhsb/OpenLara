@@ -2734,4 +2734,36 @@ struct FixedStr {
 
 typedef FixedStr<16> str16;
 
+// the work of a level load (a texture pack, normal maps) on all the cores of a desktop, f(i) for i in 0..count-1 in
+// any order on any thread; elsewhere one by one
+#if defined(_OS_WIN) || defined(__SDL2__) || defined(_OS_MAC) || (defined(_OS_LINUX) && !defined(_OS_BITTBOY))
+    #define USE_PARALLEL_FOR
+    #include <thread>
+    #include <atomic>
+#endif
+
+template <class F>
+void parallelFor(int count, const F &f) {
+#ifdef USE_PARALLEL_FOR
+    int threads = int(std::thread::hardware_concurrency());
+    if (threads > 16) threads = 16;
+    if (threads > count) threads = count;
+    if (threads > 1) {
+        std::atomic<int> next(0);
+        std::thread pool[16];
+        for (int t = 0; t < threads; t++)
+            pool[t] = std::thread([&]() {
+                int i;
+                while ((i = next++) < count)
+                    f(i);
+            });
+        for (int t = 0; t < threads; t++)
+            pool[t].join();
+        return;
+    }
+#endif
+    for (int i = 0; i < count; i++)
+        f(i);
+}
+
 #endif

@@ -35,6 +35,14 @@ extern Array<SaveSlot> saveSlots;
 extern SaveResult saveResult;
 extern int loadSlot;
 
+// the time the steps of a level load take, in the log
+static int loadTimeLast;
+static void loadTime(const char *step) {
+    int t = Core::getTime();
+    LOG("load: %-24s %5d ms\n", step, t - loadTimeLast);
+    loadTimeLast = t;
+}
+
 struct Level : IGame {
 
     TR::Level   level;
@@ -1059,11 +1067,14 @@ struct Level : IGame {
             saveStats.level = level.id;
         }
 
+        loadTime("level file");
         initTextures();
         mesh = new MeshBuilder(&level, atlasRooms);
+        loadTime("mesh builder");
         initEntities();
 
         shadow[0] = shadow[1] = NULL;
+        loadTime("entities");
         scaleTex     = NULL;
         camera       = NULL;
         ambientCache = NULL;
@@ -1856,7 +1867,6 @@ struct Level : IGame {
         memset(hdTiles, 0, sizeof(AtlasColor*) * level.tilesCount);
 
         bool binaryAlpha = (level.version & (TR::VER_TR1 | TR::VER_TR2 | TR::VER_TR3)) != 0;
-        AtlasTile *orig = new AtlasTile();
 
     // how much of the detail of the upscaler shows over the smooth original, OL_TEXTURE_PACK_MIX=0..1
         float mix = 1.0f;
@@ -1864,6 +1874,8 @@ struct Level : IGame {
         if (mixEnv)
             mix = clamp(float(atof(mixEnv)), 0.0f, 1.0f);
 
+    // the tiles read one by one, then blended with the original on all the cores, a tile on its own
+        int tDecode = Core::getTime();
         for (int i = 0; i < level.tilesCount; i++) {
             char name[256];
             uint32 w, h;
@@ -1877,12 +1889,24 @@ struct Level : IGame {
                 continue;
             }
             hdScale = s;
+            hdTiles[i] = (AtlasColor*)data;
+        }
+        tDecode = Core::getTime() - tDecode;
 
+        int tBlend = Core::getTime();
+        int s = hdScale;
+        parallelFor(level.tilesCount, [&](int i) {
+            Color32 *data = (Color32*)hdTiles[i];
+            if (!data) return;
+            uint32 w = 256 * s, h = 256 * s;
+
+            AtlasTile *orig = new AtlasTile();
             getOriginalTile(orig, i);
             if (binaryAlpha) // the cut-outs of the original are on or off, they keep its shapes whatever the upscaler made of them
                 for (uint32 k = 0; k < w * h; k++)
                     data[k].a = ((Color32*)orig->color)[(k / w / s) * 256 + (k % w) / s].a ? 255 : 0;
             blendHDTile(data, (Color32*)orig->color, i, s, mix, binaryAlpha);
+            delete orig;
 
             for (uint32 k = 0; k < w * h; k++) {
                 Color32 &c = data[k];
@@ -1890,14 +1914,11 @@ struct Level : IGame {
                 c.g = uint8((uint16(c.g) * c.a) / 255);
                 c.b = uint8((uint16(c.b) * c.a) / 255);
             }
-
-            hdTiles[i] = (AtlasColor*)data;
-        }
-
-        delete orig;
+        });
+        tBlend = Core::getTime() - tBlend;
 
         if (hdScale > 1)
-            LOG("texture pack x%d\n", hdScale);
+            LOG("texture pack x%d (decode %d ms, blend %d ms)\n", hdScale, tDecode, tBlend);
     }
 
     // the upscaler sees a whole tile and blends the textures next to each other in it into their edges, so the textures
@@ -1913,6 +1934,9 @@ struct Level : IGame {
         float *tmp = new float[size * size * 3];
         float *low = new float[size * size * 3];
 
+    // the rects of the textures of the tile, each once (many textures share one: flipped, the frames of an animation)
+        short4 *rects = new short4[level.objectTexturesCount + level.spriteTexturesCount];
+        int rectsCount = 0;
         for (int pass = 0; pass < 2; pass++) {
             int count = pass ? level.spriteTexturesCount : level.objectTexturesCount;
             for (int j = 0; j < count; j++) {
@@ -1920,6 +1944,16 @@ struct Level : IGame {
                 if (t.tile != tile) continue;
                 short4 r = t.getMinMax(); // the texels of the texture: x..z, y..w
                 if (r.z < r.x || r.w < r.y) continue;
+                int k = 0;
+                while (k < rectsCount && !sameRect(rects[k], r)) k++;
+                if (k == rectsCount)
+                    rects[rectsCount++] = r;
+            }
+        }
+
+        {
+            for (int j = 0; j < rectsCount; j++) {
+                short4 r = rects[j];
 
                 int X0 = r.x * s, X1 = (r.z + 1) * s;
                 int Y0 = r.y * s, Y1 = (r.w + 1) * s;
@@ -2000,6 +2034,7 @@ struct Level : IGame {
             }
         }
 
+        delete[] rects;
         memcpy(hd, out, sizeof(Color32) * size * size);
         delete[] low;
         delete[] tmp;
@@ -2372,7 +2407,9 @@ struct Level : IGame {
         }
     #endif
         loadHDTiles();
+        loadTime("texture pack");
         loadHeadTex();
+        loadTime("face texture");
 
     // the largest atlas the GPU takes, kept to 8192 texels a side for the memory of the texture pack
         int maxSize = 8192;
@@ -2459,10 +2496,13 @@ struct Level : IGame {
         tileData = new AtlasTile();
         
         atlasRooms   = rAtlas->pack(OPT_MIPMAPS | OPT_VRAM_3DS);
+        loadTime("atlas rooms");
         atlasObjects = oAtlas->pack(OPT_MIPMAPS);
+        loadTime("atlas objects");
         normalRooms   = rAtlas->normals;
         normalObjects = oAtlas->normals;
         atlasSprites = sAtlas->pack(OPT_MIPMAPS);
+        loadTime("atlas sprites");
         atlasGlyphs  = gAtlas->pack(0);
 
     #ifdef _OS_3DS

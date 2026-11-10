@@ -26,6 +26,7 @@ struct ShaderCache {
         memset(shaders, 0, sizeof(shaders));
 
         LOG("shader: cache warm-up...\n");
+        int t0 = Core::getTime();
         prepareCompose(FX_NONE);
         prepareAmbient(FX_NONE);
 
@@ -40,8 +41,8 @@ struct ShaderCache {
         prepareFilter(FX_NONE);
         prepareGUI(FX_NONE);
 
+        LOG("shader: cache is ready (%d ms)\n", Core::getTime() - t0);
         Core::resetTime();
-        LOG("shader: cache is ready\n");
     }
 
     ~ShaderCache() {
