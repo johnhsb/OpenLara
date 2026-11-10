@@ -112,7 +112,13 @@ struct Character : Controller {
 
     uint16* getZones() {
         TR::Zone &zones = level->zones[level->state.flags.flipped];
-        return (flying || stand == STAND_UNDERWATER || stand == STAND_ONWATER) ? zones.fly : (stepHeight == 256 ? zones.ground1 : zones.ground2);
+        if (flying || stand == STAND_UNDERWATER || stand == STAND_ONWATER)
+            return zones.fly;
+        if (stepHeight == 256)
+            return zones.ground1;
+    // the levels of TR2 and later have the zones of the climbers of a block (club thugs, yetis) of their own, the last
+    // ground ones, TR1 has two ground zones only
+        return (stepHeight >= 1024 && zones.ground4) ? zones.ground4 : zones.ground2;
     }
 
     void rotateY(float delta) {
