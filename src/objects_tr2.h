@@ -1315,6 +1315,8 @@ struct SpeedBoat : Vehicle {
 #define SND_TR2_CURTAIN         191
 #define SND_TR2_CHAIN_PULLEY    278
 #define SND_TR2_STAGE_BACKDROP  330
+#define SND_TR2_STONE_DOOR_SLIDE 331
+#define SND_TR2_BOILER          338
 
 // the mines in the Venice canal: a boat coming over one blows up with Lara on it, then all of them go off
 struct TrapMine : Controller {

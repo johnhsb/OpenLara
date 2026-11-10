@@ -35,6 +35,12 @@ extern Array<SaveSlot> saveSlots;
 extern SaveResult saveResult;
 extern int loadSlot;
 
+// the sounds of the TR1 effects OpenLara had none of (the samples of TR1, as TRX numbers them)
+#define SND_TR1_RAISING_BLOCK   117
+#define SND_TR1_SAND            118
+#define SND_TR1_POWER_UP        155
+#define SND_TR1_TRAPDOOR_OPEN   161
+
 // the time the steps of a level load take, in the log
 static int loadTimeLast;
 static void loadTime(const char *step) {
@@ -87,6 +93,7 @@ struct Level : IGame {
 
     TR::Effect::Type effect;
     float      effectTimer;
+    vec3       effectPos;   // where the looped sound of an effect (TR2 flood, chandelier) plays, its sample known by it
     int        effectIdx;
     float      cutsceneWaitTimer;
     float      animTexTimer;
@@ -778,9 +785,23 @@ struct Level : IGame {
         mesh->transparent = 0;
     }
     
+    // the TR1 effects not in the list of OpenLara (as TRX has them): a rising block, sand pouring from the ceiling,
+    // the power up of Natla's machines, the chain block (its number is the one of drawing the left gun in TR2)
+    bool isTR1Effect(TR::Effect::Type effect, TR::Effect::Type tr1) const {
+        return (level.version & TR::VER_TR1) && effect == tr1;
+    }
+
+    bool isTimedEffect(TR::Effect::Type effect) const {
+        return effect >= TR::Effect::TR2_FLOOD ||
+               isTR1Effect(effect, TR::Effect::UNK3) || isTR1Effect(effect, TR::Effect::UNK4) ||
+               isTR1Effect(effect, TR::Effect::DRAW_LEFTGUN);
+    }
+
     virtual void setEffect(Controller *controller, TR::Effect::Type effect) {
-        if (effect >= TR::Effect::TR2_FLOOD && this->effect == effect)
+        if (isTimedEffect(effect) && this->effect == effect)
             return; // still going (the trigger is stood on)
+
+        stopEffectSound(); // another effect takes the place of one with a looped sound, it stops
 
         this->effect      = effect;
         this->effectTimer = 0.0f;
@@ -819,7 +840,19 @@ struct Level : IGame {
             case TR::Effect::TR2_SET_CHANGE :
                 playSound(SND_TR2_STAGE_BACKDROP);
                 break;
-            default : ;
+            case TR::Effect::STATUE_FX : // the stone of a statue sliding (TR2)
+                playSound(SND_TR2_STONE_DOOR_SLIDE);
+                break;
+            case TR::Effect::BOILER_FX :
+                playSound(SND_TR2_BOILER);
+                break;
+            default :
+                if (isTR1Effect(effect, TR::Effect::UNK1)) // a block rising
+                    playSound(SND_TR1_RAISING_BLOCK);
+                if (isTR1Effect(effect, TR::Effect::UNK3)) // a trapdoor opens and the sand pours (updateEffect)
+                    playSound(SND_TR1_TRAPDOOR_OPEN);
+                if (isTR1Effect(effect, TR::Effect::DRAW_LEFTGUN)) // the chain block: the sound of a secret, a splash after
+                    playSound(TR::SND_SECRET);
         }
     }
 
@@ -3247,6 +3280,19 @@ struct Level : IGame {
     #endif
     }
 
+    // the looped sound of an effect: the original stops a looped sound not played again in a frame, here it's stopped
+    // as the effect ends (one sample, as the position it goes by stays the same)
+    void stopEffectSound() {
+        if (effect == TR::Effect::TR2_FLOOD)
+            Sound::stop(SND_TR2_FLOOD, &effectPos);
+        if (effect == TR::Effect::TR2_CHANDELIER)
+            Sound::stop(SND_TR2_CHAIN_PULLEY, &effectPos);
+        if (isTR1Effect(effect, TR::Effect::UNK3))
+            Sound::stop(SND_TR1_SAND, &effectPos);
+        if (isTR1Effect(effect, TR::Effect::UNK4))
+            Sound::stop(SND_TR1_POWER_UP, &effectPos);
+    }
+
     void updateEffect() {
         if (effect == TR::Effect::NONE)
             return;
@@ -3280,22 +3326,47 @@ struct Level : IGame {
             }
             case TR::Effect::TR2_FLOOD : { // the rush of water around Lara for 4 seconds
                 if (effectTimer > 4.0f) {
+                    stopEffectSound();
                     effect = TR::Effect::NONE;
                     break;
                 }
-                vec3 p = players[0]->pos;
-                p.y = camera->target.pos.y;
-                playSound(SND_TR2_FLOOD, p, Sound::PAN | Sound::UNIQUE);
+                effectPos = players[0]->pos;
+                effectPos.y = camera->target.pos.y;
+                playSound(SND_TR2_FLOOD, effectPos, Sound::PAN | Sound::UNIQUE);
                 break;
             }
             case TR::Effect::TR2_CHANDELIER : // the chain of the chandelier for a second
                 if (effectTimer > 1.0f) {
+                    stopEffectSound();
                     effect = TR::Effect::NONE;
                     break;
                 }
-                playSound(SND_TR2_CHAIN_PULLEY, vec3(0.0f), Sound::UNIQUE);
+                effectPos = vec3(0.0f);
+                playSound(SND_TR2_CHAIN_PULLEY, effectPos, Sound::UNIQUE);
                 break;
-            default : effect = TR::Effect::NONE; return;
+            default :
+            // TR1: sand pouring and the power up for 4 seconds, going down from where the camera looks, the splash
+            // of the chain block 54 frames in
+                if (isTR1Effect(effect, TR::Effect::UNK3) || isTR1Effect(effect, TR::Effect::UNK4)) {
+                    if (effectTimer > 4.0f) {
+                        stopEffectSound();
+                        effect = TR::Effect::NONE;
+                        break;
+                    }
+                    effectPos = camera->target.pos;
+                    effectPos.y += effectTimer * 30.0f * 100.0f;
+                    playSound(isTR1Effect(effect, TR::Effect::UNK3) ? SND_TR1_SAND : SND_TR1_POWER_UP, effectPos, Sound::PAN | Sound::UNIQUE);
+                    break;
+                }
+                if (isTR1Effect(effect, TR::Effect::DRAW_LEFTGUN)) {
+                    if (effectTimer >= 54.0f / 30.0f) {
+                        playSound(TR::SND_WATER_SPLASH);
+                        effect = TR::Effect::NONE;
+                    }
+                    break;
+                }
+                effect = TR::Effect::NONE;
+                return;
         }
     }
 
