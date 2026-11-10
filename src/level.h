@@ -1027,7 +1027,8 @@ struct Level : IGame {
     }
 //==============================
 
-    Level(Stream &stream) : level(stream), waitTrack(false), isEnded(false), bodiesFall(false), cutsceneWaitTimer(0.0f), animTexTimer(0.0f), statsTimeDelta(0.0f), normalRooms(NULL), normalObjects(NULL), hdTiles(NULL), hdScale(1), headTex(NULL), headRectsCount(0) {
+    Level(Stream &stream) : level(stream), waitTrack(false), isEnded(false), bodiesFall(false), cutsceneWaitTimer(0.0f), animTexTimer(0.0f), statsTimeDelta(0.0f), normalRooms(NULL), normalObjects(NULL), hdTiles(NULL), hdScale(1), headRectsCount(0) {
+        headTex[0] = headTex[1] = NULL;
         paused = false;
 
         level.simpleItems = Core::settings.detail.simple == 1;
@@ -1507,14 +1508,14 @@ struct Level : IGame {
     #define HEAD_CLUT 0xFFFF                         // the mark of the copies of the textures the head takes for its own
 
     struct HeadPiece { int16 w, h, x, y; };          // in texels of the original, where it is in the png
-    struct HeadRect  { uint16 tile; short4 mm; int16 piece; };
+    struct HeadRect  { uint16 tile; short4 mm; int16 piece; int16 image; }; // image: 0 the head, 1 the angry one
 
-    Color32   *headTex;
-    uint32    headTexW, headTexH;
+    Color32   *headTex[2];                           // the head, the angry head (while firing)
+    uint32    headTexW[2], headTexH[2];
     int       headScale;                             // texels of the png for a texel of the original
     HeadPiece headPieces[64];
     int       headPiecesCount;
-    HeadRect  headRects[64];
+    HeadRect  headRects[128];                        // the textures of both heads
     int       headRectsCount;
 
     // the numbers of the layout in order, the lines of "#" left out
@@ -1536,7 +1537,7 @@ struct Level : IGame {
     }
 
     void loadHeadTex() {
-        headTex = NULL;
+        headTex[0] = headTex[1] = NULL;
         headPiecesCount = headRectsCount = 0;
 
         if (Core::settings.detail.filter < Core::Settings::HIGH)
@@ -1591,10 +1592,46 @@ struct Level : IGame {
             headPieces[i].y = v[3];
         }
 
-        // the head takes copies of its textures of its own (the body shares some of them, its skin keeps the original),
-        // the copies marked by their clut (no TR2 PC texture has one)
+        int *poly = values + 3 + pieces * 4;
+        addHeadMesh(level.models[modelIndex].mStart + 14, poly, polys, pieces, 0);
+        headTex[0] = loadHeadImage("texture/LARA_HEAD.png", headTexW[0], headTexH[0]);
+
+        // the angry head she takes while firing (the head of the model of the uzis): the same mesh with its own
+        // textures, the same layout, its own png
+        int uzis = level.extra.weapons[TR::Entity::UZIS];
+        sprintf(path, "%stexture/LARA_HEAD_ANGRY.png", contentDir);
+        if (headTex[0] && uzis >= 0 && level.models[uzis].mCount > 14 && Stream::exists(path)) {
+            int index = level.models[uzis].mStart + 14;
+            int textured = 0;
+            const TR::Mesh &angry = level.meshes[level.meshOffsets[index]];
+            for (int i = 0; i < angry.fCount; i++)
+                if (!angry.faces[i].colored) textured++;
+            if (level.meshOffsets[index] != level.meshOffsets[level.models[modelIndex].mStart + 14] && textured == polys) {
+                headTex[1] = loadHeadImage("texture/LARA_HEAD_ANGRY.png", headTexW[1], headTexH[1]);
+                if (headTex[1])
+                    addHeadMesh(index, poly, polys, pieces, 1);
+            } else
+                LOG("! texture/LARA_HEAD_ANGRY.png: %d polygons in the angry head, %d in the layout\n", textured, polys);
+        }
+        delete[] values;
+
+        if (!headTex[0]) {
+            headRectsCount = 0;
+            return;
+        }
+        LOG("Lara head texture: %d textures x%d%s\n", headRectsCount, headScale, headTex[1] ? ", angry too" : "");
+    }
+
+    Color32* loadHeadImage(const char *name, uint32 &w, uint32 &h) {
+        Stream stream(name);
+        return (Color32*)Texture::LoadPNG(stream, w, h);
+    }
+
+    // a head (a mesh of a model) takes copies of its textures of its own (the body shares some of them, its skin keeps
+    // the original), the copies marked by their clut (no TR2 PC texture has one), and the copies its pieces of an image
+    void addHeadMesh(int meshIndex, const int *poly, int polys, int pieces, int image) {
+        TR::Mesh &head = level.meshes[level.meshOffsets[meshIndex]];
         {
-            TR::Mesh &head = level.meshes[level.meshOffsets[level.models[modelIndex].mStart + 14]];
             TR::TextureInfo *copies = new TR::TextureInfo[head.fCount];
             int16 *copyOf = new int16[head.fCount];
             int copiesCount = 0;
@@ -1621,13 +1658,12 @@ struct Level : IGame {
         }
 
         // the faces of the mesh are its rectangles, then its triangles, as in the layout
-        int *poly = values + 3 + pieces * 4;
         int rects = 0;
         for (int i = 0; i < polys; i++)
             if (!poly[i * 2]) rects++;
         int rectIndex = 0, triIndex = 0;
-        for (int i = 0; i < mesh.fCount; i++) {
-            const TR::Face &f = mesh.faces[i];
+        for (int i = 0; i < head.fCount; i++) {
+            const TR::Face &f = head.faces[i];
             if (f.colored)
                 continue;
             int k = f.triangle ? (rects + triIndex++) : rectIndex++;
@@ -1646,22 +1682,15 @@ struct Level : IGame {
             headRects[headRectsCount].tile  = t.tile;
             headRects[headRectsCount].mm    = mm;
             headRects[headRectsCount].piece = piece;
+            headRects[headRectsCount].image = image;
             headRectsCount++;
         }
-        delete[] values;
-
-        Stream stream("texture/LARA_HEAD.png");
-        headTex = (Color32*)Texture::LoadPNG(stream, headTexW, headTexH);
-        if (!headTex) {
-            headRectsCount = 0;
-            return;
-        }
-        LOG("Lara head texture: %d pieces x%d\n", headRectsCount, headScale);
     }
 
     void freeHeadTex() {
-        delete[] headTex;
-        headTex = NULL;
+        delete[] headTex[0];
+        delete[] headTex[1];
+        headTex[0] = headTex[1] = NULL;
         headRectsCount = 0;
     }
 
@@ -1672,14 +1701,16 @@ struct Level : IGame {
     int getHeadPiece(uint16 tile, const short4 &mm) const {
         for (int i = 0; i < headRectsCount; i++)
             if (headRects[i].tile == tile && sameRect(headRects[i].mm, mm))
-                return headRects[i].piece;
+                return i;
         return -1;
     }
 
     // a texel of the atlas (x, y of w, h) of a texture of the head from its piece of the png, the area it covers there
     // averaged, as opaque as the texel of the original
     void getHeadTexel(int index, int x, int y, int w, int h, Color32 &c) const {
-        const HeadPiece &p = headPieces[index];
+        const HeadPiece &p = headPieces[headRects[index].piece];
+        const Color32 *img = headTex[headRects[index].image];
+        uint32 headTexW = this->headTexW[headRects[index].image], headTexH = this->headTexH[headRects[index].image];
         int x0 = p.x + x * p.w * headScale / w;
         int y0 = p.y + y * p.h * headScale / h;
         int x1 = max(x0 + 1, p.x + (x + 1) * p.w * headScale / w);
@@ -1690,7 +1721,7 @@ struct Level : IGame {
         uint32 r = 0, g = 0, b = 0, n = 0;
         for (int ty = y0; ty < y1; ty++)
             for (int tx = x0; tx < x1; tx++) {
-                const Color32 &t = headTex[ty * headTexW + tx];
+                const Color32 &t = img[ty * headTexW + tx];
                 r += t.r; g += t.g; b += t.b; n++;
             }
         c.r = uint8(r / n * c.a / 255);
@@ -2045,7 +2076,7 @@ struct Level : IGame {
         if (id < level->objectTexturesCount) { // textures
             TR::TextureInfo &t = level->objectTextures[id];
             mm      = t.getMinMax();
-            headPiece = (owner->headTex && t.clut == HEAD_CLUT) ? owner->getHeadPiece(t.tile, mm) : -1;
+            headPiece = (owner->headTex[0] && t.clut == HEAD_CLUT) ? owner->getHeadPiece(t.tile, mm) : -1;
             src     = owner->tileData->color;
             uv      = t.texCoordAtlas;
             uvCount = 4;
