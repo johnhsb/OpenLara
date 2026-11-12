@@ -379,7 +379,7 @@ struct MeshBuilder {
                     int y = m.y;
                     int z = m.z - room.info.z;
                     int d = m.rotation.value / 0x4000;
-                    buildMesh(geom, blendMask, mesh, level, indices, vertices, iCount, vCount, vStartRoom, 0, x, y, z, d, m.color, true, false);
+                    buildMesh(geom, blendMask, mesh, level, indices, vertices, iCount, vCount, vStartRoom, 0, x, y, z, d, getStaticColor(i, m), true, false);
                 }
 
                 geom.finish(iCount);
@@ -1054,6 +1054,16 @@ struct MeshBuilder {
                 geom.getNextRange(vStart, iCount, t.tile, t.clut);
 
             ADD_ROOM_FACE(indices, iCount, vCount, vStart, vertices, f, t);
+
+            if (isMidasPalmFace(room, f)) {
+                for (int k = vCount - (f.triangle ? 3 : 4); k < vCount; k++) {
+                    ubyte4 &l = vertices[k].light;
+                    // the level shades the foot of the block nearly black, the shade is kept
+                    l.x = uint8(min(255, l.x * 3 / 2 + 24));
+                    l.y = uint8(min(255, l.y * 3 / 2 + 24));
+                    l.z = uint8(min(255, l.z * 3 / 2 + 24));
+                }
+            }
         }
 
     // if room has non-static polygons, fill the list of dynamic faces
@@ -1073,6 +1083,44 @@ struct MeshBuilder {
                     dyn->faces[dyn->count++] = j;
             }
         }
+    }
+
+    // the giant hand of Palace Midas is made of the static meshes around the MIDAS_HAND entity (a small mesh inside the
+    // palm), lit up a fixed step like the other things Lara can use (the statics are baked into the room, they can't pulse)
+    Color32 getStaticColor(int roomIndex, const TR::Room::Mesh &m) {
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.type != TR::Entity::MIDAS_HAND || e.room != roomIndex)
+                continue;
+            if (abs(m.x - e.x) > 1536 || abs(m.z - e.z) > 1536 || abs(m.y - e.y) > 1024)
+                continue;
+            Color32 c = m.color;
+            c.r = uint8(min(255, c.r * 3 / 2 + 24));
+            c.g = uint8(min(255, c.g * 3 / 2 + 24));
+            c.b = uint8(min(255, c.b * 3 / 2 + 24));
+            return c;
+        }
+        return m.color;
+    }
+
+    // the palm of that hand is no static but the raised floor block of the sector of the entity, it takes the same light
+    bool isMidasPalmFace(const TR::Room &room, const TR::Face &f) {
+        for (int i = 0; i < level->entitiesBaseCount; i++) {
+            const TR::Entity &e = level->entities[i];
+            if (e.type != TR::Entity::MIDAS_HAND || &level->rooms[e.room] != &room)
+                continue;
+            int x0 = (e.x / 1024) * 1024, z0 = (e.z / 1024) * 1024;
+            bool inside = true;
+            for (int k = 0; k < (f.triangle ? 3 : 4) && inside; k++) {
+                const TR::Room::Data::Vertex &v = room.data.vertices[f.vertices[k]];
+                int x = v.pos.x + room.info.x;
+                int z = v.pos.z + room.info.z;
+                inside = x >= x0 && x <= x0 + 1024 && z >= z0 && z <= z0 + 1024 && v.pos.y >= e.y - 256 && v.pos.y <= e.y + 512;
+            }
+            if (inside)
+                return true;
+        }
+        return false;
     }
 
     bool buildMesh(Geometry &geom, int blendMask, const TR::Mesh &mesh, TR::Level *level, Index *indices, Vertex *vertices, int &iCount, int &vCount, int vStart, int16 joint, int x, int y, int z, int dir, const Color32 &light, bool useRoomTex, bool forceOpaque) {

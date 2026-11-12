@@ -2933,6 +2933,35 @@ struct Level : IGame {
         Core::setBlendMode(bmNone);
     }
 
+    // the things Lara can use (switches, key and puzzle holes, the detonator, the Midas hand) light up and pulse a little so they stand out
+    // from the walls around them; a hole or the detonator goes back to the room light once it has been used
+    float getInteractGlow(const TR::Entity &entity, Controller *controller) {
+        switch (entity.type) {
+            case TR::Entity::SWITCH        :
+            case TR::Entity::SWITCH_WATER  :
+            case TR::Entity::SWITCH_BUTTON :
+            case TR::Entity::SWITCH_BIG    :
+            case TR::Entity::WHEEL_KNOB    :
+            case TR::Entity::MIDAS_HAND    : // takes the lead bar in Palace Midas
+                break;
+            case TR::Entity::KEY_HOLE_1    :
+            case TR::Entity::KEY_HOLE_2    :
+            case TR::Entity::KEY_HOLE_3    :
+            case TR::Entity::KEY_HOLE_4    :
+            case TR::Entity::PUZZLE_HOLE_1 :
+            case TR::Entity::PUZZLE_HOLE_2 :
+            case TR::Entity::PUZZLE_HOLE_3 :
+            case TR::Entity::PUZZLE_HOLE_4 :
+            case TR::Entity::DETONATOR     :
+                if (controller->flags.state != TR::Entity::asNone)
+                    return 0.0f;
+                break;
+            default : return 0.0f;
+        }
+        float t = float(Core::getTime() % 1500) / 1500.0f;
+        return 0.6f + 0.12f * sinf(t * PI * 2.0f);
+    }
+
     void renderEntity(const TR::Entity &entity) {
         //if (entity.room != lara->getRoomIndex()) return;
         if (Core::pass == Core::passShadow && !entity.castShadow()) return;
@@ -2970,11 +2999,17 @@ struct Level : IGame {
         if (isModel) { // model
             ASSERT(controller->intensity >= 0.0f);
 
+            float glow = getInteractGlow(entity, controller);
+
             setMainLight(level.isCutsceneLevel() ? player : controller);
-            setRoomParams(roomIndex, type, 1.0f, controller->intensity, controller->specular, 1.0f, mesh->transparent == 1);
+            setRoomParams(roomIndex, type, 1.0f + glow * 0.35f, max(controller->intensity, glow), controller->specular, 1.0f, mesh->transparent == 1);
 
             vec3 pos = controller->getPos();
             if (ambientCache) {
+                if (glow > 0.0f) {
+                    for (int i = 0; i < 6; i++)
+                        controller->ambient[i] = vec4(glow);
+                } else
                 if (!entity.isDoor() && !entity.isBlock() && !entity.isPickup()) { // no advanced ambient lighting for secret (all) doors and blocks
                     AmbientCache::Cube cube;
                     ambientCache->getAmbient(roomIndex, pos, cube);
