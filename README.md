@@ -12,7 +12,7 @@ The detailed change list below is in Korean.*
 
 - **다운로드**: [Releases](https://github.com/johnhsb/OpenLara/releases) (Windows x64, Linux x64)
 - **변경 사항 전체**: [docs/CHANGES.md](docs/CHANGES.md)
-- **TR2 이식 기록과 유의사항**: [docs/TR2_PLAN.md](docs/TR2_PLAN.md)
+- **개발 지원 문서** (빌드, 테스트 위치, 크래시 분석, 시행착오): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 
 게임 데이터는 포함되어 있지 않습니다. 정식으로 구입한 Tomb Raider 1 / 2 PC판의 데이터가 필요합니다.
 
