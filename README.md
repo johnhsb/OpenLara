@@ -34,6 +34,7 @@ The detailed change list below is in Korean.*
 | ![텍스처 팩과 물](docs/screenshots/tr1-cistern-water.jpg) 텍스처 팩과 물 표현 (TR1) | ![하늘](docs/screenshots/tr1-vilcabamba-sky.jpg) 하늘과 원경 안개 (TR1) |
 | ![Lost Valley](docs/screenshots/tr1-lost-valley-textures.jpg) 업스케일 텍스처와 노멀 맵 (TR1) | ![폭포](docs/screenshots/tr1-valley-waterfall.jpg) 폭포와 하늘 (TR1) |
 | ![물 커스틱](docs/screenshots/tr1-caustics.jpg) 물 커스틱 (TR1) | ![마이다스의 손](docs/screenshots/tr1-midas-hand.jpg) 강조 표시된 마이다스의 손 (TR1) |
+| ![스피드보트](docs/screenshots/tr2-venice-speedboat.jpg) 스피드보트와 항적 (TR2) | ![FPS 표시](docs/screenshots/tr2-venice-room-fps.jpg) 그림자와 FPS 표시 (TR2) |
 | ![베니스](docs/screenshots/tr2-venice-goon.jpg) 베니스의 적 (TR2) | ![베니스 지붕](docs/screenshots/tr2-venice-roofs.jpg) 바르톨리의 은신처 지붕 (TR2) |
 
 ## 실행
