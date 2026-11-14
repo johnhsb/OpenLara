@@ -3228,6 +3228,13 @@ struct Lara : Character {
         specular = LARA_WET_SPECULAR;
     }
 
+    // the animation ends with the jump command: the take-off of a jump, still on the ground
+    bool isTakeOff() {
+        vec3 jump(0.0f);
+        animation.getCommand(animation, 0, NULL, &jump, NULL);
+        return jump.y != 0.0f;
+    }
+
     virtual Stand getStand() {
         if (dozy) return STAND_UNDERWATER;
 
@@ -3348,6 +3355,12 @@ struct Lara : Character {
                 return STAND_SLIDE;
             }
         }
+
+    // the take-off of a jump (the animation that ends with the jump command) stays on the ground though its run takes
+    // her past an edge: the original turns the gravity on with that command only. Falling through it she started
+    // the jump lower (28 off a standing jump forward) and missed the ledges that jump just reaches
+        if (stand == STAND_GROUND && health > 0.0f && isTakeOff())
+            return STAND_GROUND;
 
         int extra = (stand != STAND_AIR && stand != STAND_SLIDE) ? 256 : 0;
 
@@ -6220,7 +6233,7 @@ struct Lara : Character {
                 default : ;// no smash animation
             }
         } else {
-            if (stand == STAND_GROUND) {
+            if (stand == STAND_GROUND && !isTakeOff()) { // the take-off keeps its height past an edge (as in the original)
                 float floor = collision.info[Collision::NONE].floor;
                 float h = floor - opos.y;
 
