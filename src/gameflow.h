@@ -1109,7 +1109,11 @@ namespace TR {
             strcat(dst, LEVEL_INFO[id].name);
 
             #ifdef _OS_WEB
-                 strcat(dst, ".PSX");
+                #ifdef WEB_PC_DATA // the levels of the PC versions served next to the page
+                    strcat(dst, (version & VER_TR2) ? ".TR2" : ".PHD");
+                #else
+                    strcat(dst, ".PSX");
+                #endif
             #else
                 switch (version) {
                     case VER_TR1_PC  : strcat(dst, ".PHD"); break;
@@ -1338,9 +1342,11 @@ namespace TR {
                             sprintf(title, "audio/1/track_%02d.ogg", track);
                         }
                     }
-                #ifndef _OS_WEB
+                #if !defined(_OS_WEB) || defined(WEB_PC_DATA) // the web can't look for a file, it takes the PC tracks at once
+                    #ifndef _OS_WEB
                     if (Stream::existsContent(title))
                         break;
+                    #endif
                     track = remapTrack(version, track);
                     sprintf(title, "audio/1/%03d.ogg", track);
                 #endif

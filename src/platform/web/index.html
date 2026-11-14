@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="viewport-fit=cover, user-scalable=no, width=device-width, initial-scale=1, maximum-scale=1">
+<title>OpenLara</title>
+<style>
+    html, body { margin: 0; background: #111; color: #ccc; font-family: sans-serif; touch-action: none; }
+    #canvas { display: block; margin: 0 auto; width: 100%; max-width: 1280px; aspect-ratio: 16 / 9; background: #000; }
+    #bar { max-width: 1280px; margin: 8px auto; padding: 0 8px; }
+    #bar a { color: #9cf; margin-right: 12px; }
+</style>
+</head>
+<body>
+<canvas id="canvas" width="1280" height="720" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
+<div id="bar">
+    <span id="status">Starting...</span><br><br>
+    <button id="goFS">Fullscreen</button>
+    <input type="file" id="browseFile" style="display:none" accept=".phd,.psx,.tr2,.tr4">
+    <button onclick="document.getElementById('browseFile').click()">Browse Level</button> (.PHD, .PSX, .TR2)<br><br>
+    <a href="?">Title (TR1)</a>
+    <a href="?level=level/1/LEVEL1.PHD">TR1 Caves</a>
+    <a href="?level=level/2/TITLE.TR2">Title (TR2)</a>
+    <a href="?level=level/2/WALL.TR2">TR2 Great Wall</a>
+    <a href="?level=level/2/BOAT.TR2">TR2 Venice</a>
+</div>
+<script>
+    var statusElement = document.getElementById('status');
+    var canvasElement = document.getElementById('canvas');
+    var proc;
+
+    var Module = {
+        print:    function(text) { console.log(text); },
+        printErr: function(text) { console.error(text); },
+        canvas:   canvasElement,
+        setStatus: function(text) { statusElement.textContent = text; },
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+            this.totalDependencies = Math.max(this.totalDependencies, left);
+            Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : '');
+        }
+    };
+
+    canvasElement.addEventListener('webglcontextlost', function(e) { Module.setStatus('WebGL context lost, reload the page'); e.preventDefault(); }, false);
+    document.getElementById('goFS').addEventListener('click', function() { Module.ccall('change_fs_mode', 'null', [], []); canvasElement.focus(); }, false);
+    window.onload = function() { canvasElement.focus(); };
+
+    // called by the game
+    var audioContext = null;
+
+    function snd_init() {
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        audioContext = new AudioContext();
+        var count  = 4096;
+        var rate   = 44100 / audioContext.sampleRate;
+        var framesCount = Math.ceil(count * rate);
+        var frames = Module._malloc(framesCount * 4); // interleaved short L, R
+        proc = audioContext.createScriptProcessor(count, 2, 2);
+        proc.onaudioprocess = function(e) {
+            var L = e.outputBuffer.getChannelData(0),
+                R = e.outputBuffer.getChannelData(1);
+            Module.ccall('snd_fill', 'null', ['number', 'number'], [frames, framesCount]);
+            for (var i = 0; i < count; i++) {
+                var index = frames + Math.floor(i * rate) * 4;
+                L[i] = Module.getValue(index    , 'i16') / 0x8000;
+                R[i] = Module.getValue(index + 2, 'i16') / 0x8000;
+            }
+        };
+        proc.connect(audioContext.destination);
+    }
+
+    function getLanguage() {
+        var lang = (navigator.languages && navigator.languages[0] || navigator.language || '').substring(0, 2);
+        var ids = { fr: 1, de: 2, es: 3, it: 4, pl: 5, pt: 6, ru: 7, be: 7, uk: 7, ja: 8, gr: 9, fi: 10, cs: 11, zh: 12, hu: 13, sv: 14 };
+        Module.ccall('set_def_lang', 'null', ['number'], [ids[lang] || 0]);
+    }
+
+    // the browser lets the sound start after the first click or key only
+    function userAction() {
+        if (audioContext && audioContext.state == 'suspended')
+            audioContext.resume();
+    }
+    window.addEventListener('touchstart', userAction, false);
+    window.addEventListener('click', userAction, false);
+    window.addEventListener('keydown', userAction, false);
+
+    document.getElementById('browseFile').addEventListener('change', function(event) {
+        var reader = new FileReader();
+        reader.onload = function() {
+            var size = reader.result.byteLength;
+            var data = Module._malloc(size);
+            Module.writeArrayToMemory(new Uint8Array(reader.result), data);
+            Module.ccall('game_level_load', 'null', ['number', 'number'], [data, size]);
+            canvasElement.focus();
+        };
+        reader.readAsArrayBuffer(event.target.files[0]);
+    });
+
+    window.onerror = function(message, source, line, column, error) {
+        Module.setStatus('Exception thrown, see the JavaScript console: ' + message);
+        if (error && error.stack) console.error(error.stack);
+    };
+    window.addEventListener('unhandledrejection', function(e) { if (e.reason && e.reason.stack) console.error(e.reason.stack); });
+</script>
+<script src="OpenLara.js"></script>
+</body>
+</html>

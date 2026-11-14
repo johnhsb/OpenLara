@@ -16,6 +16,8 @@
 
 #ifdef _WIN32
     #include <direct.h> // _mkdir
+#else
+    #include <sys/stat.h> // mkdir
 #endif
 
 #if defined(_DEBUG) && defined(_GAPI_GL) && !defined(_GAPI_GLES)

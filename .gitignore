@@ -12,3 +12,6 @@ DerivedData/
 
 # SDL2 build output
 src/platform/sdl2/OpenLara
+
+# Web build output
+src/platform/web/out/

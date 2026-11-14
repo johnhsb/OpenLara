@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <cstring>
 #include <pthread.h>
+#include <sys/stat.h>
 
 #include "game.h"
 
@@ -120,6 +121,7 @@ void osJoyVibrate(int index, float L, float R) {
 }
 
 void joyUpdate() {
+    if (emscripten_sample_gamepad_data() != EMSCRIPTEN_RESULT_SUCCESS) return;
     int count = min(emscripten_get_num_gamepads(), INPUT_JOY_COUNT);
     for (int j = 0; j < count; j++) {
         EmscriptenGamepadEvent state;
@@ -144,7 +146,30 @@ void joyUpdate() {
     }
 }
 
+EM_BOOL resize();
+
+bool gameReady = false;
+
+// the first level is in the files by now (downloaded), the game opens it at once as on the other platforms
+void startGame(Stream *stream, void *userData) {
+    if (!stream) {
+        LOG("! can't load the level to start with\n");
+        EM_ASM(Module.setStatus('Level file not found'));
+        return;
+    }
+    char name[256];
+    strcpy(name, stream->name);
+    delete stream;
+
+    Game::init(name);
+    emscripten_run_script("snd_init()");
+    resize();
+    gameReady = true;
+}
+
 void main_loop() {
+    if (!gameReady) return;
+
     joyUpdate();
 
     if (Game::update()) {
@@ -168,10 +193,10 @@ bool initGL() {
     attrs.premultipliedAlpha        = false;
     attrs.majorVersion              = 2;
 
-    context = emscripten_webgl_create_context(0, &attrs);
+    context = emscripten_webgl_create_context("#canvas", &attrs);
     if (!context) {
         attrs.majorVersion = 1;
-        context = emscripten_webgl_create_context(0, &attrs);
+        context = emscripten_webgl_create_context("#canvas", &attrs);
     }
 
     if (!context) {
@@ -206,10 +231,10 @@ void freeGL() {
 
 EM_BOOL resize() {
     double w, h;
-    emscripten_get_element_css_size(NULL, &w, &h);
+    emscripten_get_element_css_size("#canvas", &w, &h);
     Core::width  = int(w);
     Core::height = int(h);
-    emscripten_set_canvas_size(Core::width, Core::height);
+    emscripten_set_canvas_element_size("#canvas", Core::width, Core::height);
     LOG("resize %d %d\n", Core::width, Core::height);
     return 1;
 }
@@ -251,7 +276,7 @@ extern "C" {
             s.canvasResolutionScaleMode = EMSCRIPTEN_FULLSCREEN_CANVAS_SCALE_HIDEF;
             s.filteringMode             = EMSCRIPTEN_FULLSCREEN_FILTERING_DEFAULT;
             s.canvasResizedCallback     = fullscreenCallback;
-            emscripten_request_fullscreen_strategy(NULL, 0, &s);
+            emscripten_request_fullscreen_strategy("#canvas", 0, &s);
         } else {
             LOG("exit fs\n");
             emscripten_exit_fullscreen();
@@ -327,23 +352,39 @@ int main() {
     }
     cacheDir[0] = saveDir[0] = contentDir[0] = 0;
 
-    emscripten_set_keydown_callback(0, 0, 1, keyCallback);
-    emscripten_set_keyup_callback(0, 0, 1, keyCallback);
-    emscripten_set_resize_callback(0, 0, 0, resizeCallback);
+    // the folders the downloaded files are kept in
+    const char *dirs[] = { "level", "level/1", "level/2", "level/3", "audio", "audio/1", "audio/2", "audio/3", "texture", "video", "video/1", "video/2", "video/3" };
+    for (int i = 0; i < COUNT(dirs); i++)
+        mkdir(dirs[i], 0777);
 
-    emscripten_set_touchstart_callback(0, 0, 0, touchCallback);
-    emscripten_set_touchend_callback(0, 0, 0, touchCallback);
-    emscripten_set_touchmove_callback(0, 0, 0, touchCallback);
-    emscripten_set_touchcancel_callback(0, 0, 0, touchCallback);
+    emscripten_set_keydown_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, keyCallback);
+    emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 1, keyCallback);
+    emscripten_set_resize_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, 0, 0, resizeCallback);
 
-    emscripten_set_mousedown_callback(0, 0, 1, mouseCallback);
-    emscripten_set_mouseup_callback(0, 0, 1, mouseCallback);
-    emscripten_set_mousemove_callback(0, 0, 1, mouseCallback);
+    emscripten_set_touchstart_callback("#canvas", 0, 0, touchCallback);
+    emscripten_set_touchend_callback("#canvas", 0, 0, touchCallback);
+    emscripten_set_touchmove_callback("#canvas", 0, 0, touchCallback);
+    emscripten_set_touchcancel_callback("#canvas", 0, 0, touchCallback);
+
+    emscripten_set_mousedown_callback("#canvas", 0, 1, mouseCallback);
+    emscripten_set_mouseup_callback("#canvas", 0, 1, mouseCallback);
+    emscripten_set_mousemove_callback("#canvas", 0, 1, mouseCallback);
     
     emscripten_run_script("getLanguage()");
-    Game::init();
+    // ?level=level/2/WALL.TR2 in the address starts with that level instead of the title
+    char *lvlName = (char*)EM_ASM_PTR({
+        var name = new URLSearchParams(location.search).get('level');
+        return name ? stringToNewUTF8(name) : 0;
+    });
+
+#ifdef WEB_PC_DATA
+    new Stream(lvlName ? lvlName : "level/1/TITLE.PHD", startGame);
+#else // the title is preloaded with the page
+    Game::init(lvlName);
     emscripten_run_script("snd_init()");
     resize();
+    gameReady = true;
+#endif
 
     emscripten_set_main_loop(main_loop, 0, true);
 
