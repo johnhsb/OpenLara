@@ -3405,7 +3405,9 @@ struct Lara : Character {
 
             Box bounds = animation.getBoundingBox(pos, 0);
 
-            vec3 p = vec3(pos.x, bounds.min.y, pos.z);
+            // falling, the ledge is caught right after the hands pass under its edge: it is looked for from where they
+            // were a frame ago, above it (from under its top, inside the wall, the ledge is not seen)
+            vec3 p = vec3(pos.x, bounds.min.y - (velocity.y > 0.0f ? (velocity.y + 1.0f) : 0.0f), pos.z);
 
             Collision c = Collision(this, getRoomIndex(), p, getDir() * 128.0f, vec3(0.0f), LARA_RADIUS, angleExt, 0, 0, 0, 0);
 
