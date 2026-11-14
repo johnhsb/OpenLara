@@ -3416,7 +3416,13 @@ struct Lara : Character {
             float ceiling = c.info[Collision::FRONT].ceiling;
             float hands   = bounds.min.y;
 
-            if (fabsf(floor - hands) < 64 && int(floor) != int(ceiling)) {
+            // the ledge is caught as in the original (Lara_Col_TestEdgeCatch): only on the frame the hands pass its
+            // edge, on the way up or down. They don't snap to a ledge still above them (it was caught from up to 64 below)
+            bool catchEdge = false;
+            if (fabsf(floor - hands) < 256 && int(floor) != int(ceiling)) {
+                vec3  opos   = pos;
+                float oangle = angle.y;
+
                 alignToWall(-LARA_RADIUS);
 
             // the floor above was sampled deeper inside the ledge, re-sample it at the edge so hands match slanted ledges
@@ -3427,6 +3433,17 @@ struct Lara : Character {
                         floor = info.floor;
                 }
 
+                float h1 = floor - hands;                                                    // > 0 with the hands above the edge
+                float h2 = h1 + (velocity.y < 0.0f ? min(velocity.y, -1.0f) : max(velocity.y, 1.0f)); // a frame (1/30 s) on
+                catchEdge = !((h1 < 0.0f && h2 < 0.0f) || (h1 > 0.0f && h2 > 0.0f));
+
+                if (!catchEdge) {
+                    pos     = opos;
+                    angle.y = oangle;
+                }
+            }
+
+            if (catchEdge) {
                 pos.y = float(floor + LARA_HANG_OFFSET);
                 stand = STAND_HANG;
 
@@ -6068,6 +6085,17 @@ struct Lara : Character {
         }
 
         vec3 vel = (velocity + flowVelocity) * Core::deltaTime * 30.0f + collisionOffset;
+
+    // the original adds the gravity of a whole frame (1/30 s) before it moves, so a jump rises 954 from a start at
+    // -110, where the fall integrated over shorter frames rises up to 1008 (and reaches ledges out of reach in the
+    // original, as the roof of Bartoli's Hideout before the blast). The step is corrected to the path of the
+    // original at any frame rate: none at 30 FPS, half the gravity of a frame less at high ones
+        if (stand == STAND_AIR) {
+            float h = Core::deltaTime * 30.0f;
+            float g = (velocity.y < 128.0f) ? GRAVITY : 1.0f;
+            vel.y += g * (1.0f - h) * 0.5f * h;
+        }
+
         vec3 opos(pos), offset(0.0f);
 
         float radius   = stand == STAND_UNDERWATER ? LARA_RADIUS_WATER : LARA_RADIUS;
