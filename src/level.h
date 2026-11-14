@@ -2959,7 +2959,7 @@ struct Level : IGame {
             default : return 0.0f;
         }
         float t = float(Core::getTime() % 1500) / 1500.0f;
-        return 0.6f + 0.12f * sinf(t * PI * 2.0f);
+        return 0.3f + 0.06f * sinf(t * PI * 2.0f);
     }
 
     void renderEntity(const TR::Entity &entity) {
@@ -3006,10 +3006,6 @@ struct Level : IGame {
 
             vec3 pos = controller->getPos();
             if (ambientCache) {
-                if (glow > 0.0f) {
-                    for (int i = 0; i < 6; i++)
-                        controller->ambient[i] = vec4(glow);
-                } else
                 if (!entity.isDoor() && !entity.isBlock() && !entity.isPickup()) { // no advanced ambient lighting for secret (all) doors and blocks
                     AmbientCache::Cube cube;
                     ambientCache->getAmbient(roomIndex, pos, cube);
@@ -3031,6 +3027,14 @@ struct Level : IGame {
                         controller->ambient[3] =
                         controller->ambient[4] =
                         controller->ambient[5] = vec4(Core::active.material.y);
+                    }
+                }
+                if (glow > 0.0f) { // lifted to the glow where the room is darker, never below the light of the room
+                    for (int i = 0; i < 6; i++) {
+                        vec4 &c = controller->ambient[i];
+                        c.x = max(c.x, glow);
+                        c.y = max(c.y, glow);
+                        c.z = max(c.z, glow);
                     }
                 }
                 Core::active.shader->setParam(uAmbient, controller->ambient[0], 6);

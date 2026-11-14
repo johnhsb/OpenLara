@@ -1059,9 +1059,9 @@ struct MeshBuilder {
                 for (int k = vCount - (f.triangle ? 3 : 4); k < vCount; k++) {
                     ubyte4 &l = vertices[k].light;
                     // the level shades the foot of the block nearly black, the shade is kept
-                    l.x = uint8(min(255, l.x * 3 / 2 + 24));
-                    l.y = uint8(min(255, l.y * 3 / 2 + 24));
-                    l.z = uint8(min(255, l.z * 3 / 2 + 24));
+                    l.x = uint8(min(255, l.x * 5 / 4 + 12));
+                    l.y = uint8(min(255, l.y * 5 / 4 + 12));
+                    l.z = uint8(min(255, l.z * 5 / 4 + 12));
                 }
             }
         }
@@ -1095,9 +1095,9 @@ struct MeshBuilder {
             if (abs(m.x - e.x) > 1536 || abs(m.z - e.z) > 1536 || abs(m.y - e.y) > 1024)
                 continue;
             Color32 c = m.color;
-            c.r = uint8(min(255, c.r * 3 / 2 + 24));
-            c.g = uint8(min(255, c.g * 3 / 2 + 24));
-            c.b = uint8(min(255, c.b * 3 / 2 + 24));
+            c.r = uint8(min(255, c.r * 5 / 4 + 12));
+            c.g = uint8(min(255, c.g * 5 / 4 + 12));
+            c.b = uint8(min(255, c.b * 5 / 4 + 12));
             return c;
         }
         return m.color;
