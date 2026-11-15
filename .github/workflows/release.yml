@@ -1,0 +1,73 @@
+# Builds the versions that the local Windows and WSL builds do not make (macOS, Linux ARM64) and adds them to a release.
+# It runs for a new version tag, or by hand for the tag of an existing release.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'tag of the release to add the builds to (empty: build only)'
+        required: false
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+
+jobs:
+  linux-arm64:
+    runs-on: ubuntu-22.04-arm   # the glibc of 22.04, for Debian 12 (Raspberry Pi OS) and newer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libsdl2-dev libgles2-mesa-dev libegl1-mesa-dev libasound2-dev libudev-dev
+      - name: Build
+        run: |
+          cd src/platform/sdl2
+          ./build.sh
+          file OpenLara
+      - name: Pack
+        run: |
+          NAME=OpenLara-${TAG:-build}-linux-arm64.tar.gz
+          mkdir pack && cp src/platform/sdl2/OpenLara LICENSE pack/
+          tar czf $NAME -C pack OpenLara LICENSE
+          echo "NAME=$NAME" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: ${{ env.NAME }}
+      - name: Add to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$NAME" --clobber
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          src/platform/osx/build.sh
+          lipo -archs src/platform/osx/build/Build/Products/Release/OpenLara.app/Contents/MacOS/OpenLara
+      - name: Pack
+        run: |
+          NAME=OpenLara-${TAG:-build}-macos.zip
+          mkdir pack && cp -R src/platform/osx/build/Build/Products/Release/OpenLara.app pack/ && cp LICENSE pack/
+          codesign --force --deep --sign - pack/OpenLara.app   # ad-hoc, it is not notarized
+          ditto -c -k pack $NAME
+          echo "NAME=$NAME" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: ${{ env.NAME }}
+      - name: Add to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$NAME" --clobber
