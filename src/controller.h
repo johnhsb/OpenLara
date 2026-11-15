@@ -277,6 +277,7 @@ struct Controller {
             if (sAbove != sBelow) {
                 TR::Level::FloorInfo tmpInfo;
                 tmpInfo.ceiling = float(256 * sAbove->ceiling);
+                tmpInfo.roomNext = TR::NO_ROOM;
                 parseFloorData(tmpInfo, sAbove->floorIndex, dx, dz);
                 info.ceiling = tmpInfo.ceiling;
             }
@@ -432,7 +433,9 @@ struct Controller {
             switch (cmd.func) {
 
                 case TR::FloorData::PORTAL  :
-                    info.roomNext = (*fd++).value;
+                    if (info.roomNext == TR::NO_ROOM) // the first one counts (as in the original), a sector of TR3 may have more
+                        info.roomNext = (*fd).value;
+                    fd++;
                     break;
 
                 case TR::FloorData::FLOOR                 :
