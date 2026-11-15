@@ -80,7 +80,7 @@ python3 serve.py --tr1 <Tomb Raider 1 폴더> --tr2 <Tomb Raider 2 폴더>
 |---|---|
 | Windows x64 | `src\platform\win\build_msvc.bat` (Visual Studio) |
 | Linux / WSL | `src/platform/sdl2/build.sh` (SDL2, GLES3) |
-| macOS | `src/platform/osx/build.sh` (`-d`는 디버그) |
+| macOS | `src/platform/osx/build.sh` (`-d`는 디버그, `-u`는 인텔 겸용) |
 | 웹 (WebAssembly) | `src/platform/web/build.sh` (Emscripten) |
 
 macOS와 Linux ARM64 릴리즈는 GitHub Actions(`.github/workflows/release.yml`)가 버전 태그를 올릴 때 빌드해 릴리즈에 추가합니다.

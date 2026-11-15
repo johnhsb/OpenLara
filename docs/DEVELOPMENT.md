@@ -35,7 +35,7 @@ OpenLara 포크(TR1·TR2)를 고치고 확인할 때 필요한 정보입니다: 
 | Windows x64 | 소스 트리를 Windows 쪽 임시 폴더(예: `%TEMP%\olbuild`)에 복사한 뒤 `src\platform\win\build_msvc.bat` | `OpenLara.exe`, `OpenLara.pdb` |
 | Linux / WSL | `src/platform/sdl2/build.sh` (SDL2, GLES3) | `src/platform/sdl2/OpenLara` |
 | 웹 | `src/platform/web/build.sh [TR1 폴더] [TR2 폴더]` (Emscripten) | `src/platform/web/out/` |
-| macOS | `src/platform/osx/build.sh` (`-d`는 디버그) | `OpenLara.app` |
+| macOS | `src/platform/osx/build.sh` (`-d`는 디버그, `-u`는 인텔 겸용) | `OpenLara.app` |
 
 Windows 빌드를 WSL에서 돌리는 순서:
 
@@ -52,7 +52,7 @@ cd "$WINTMP" && /mnt/c/Windows/System32/cmd.exe /c '%TEMP%\olbuild\src\platform\
 **릴리즈**
 
 - Windows, Linux x64, 웹 묶음은 로컬에서 만들어 `gh release create <태그>`로 올립니다. 웹 묶음에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`가 들어갑니다.
-- 태그가 올라가면 `.github/workflows/release.yml`이 macOS(Apple Silicon)와 Linux ARM64를 빌드해 같은 릴리즈에 추가합니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
+- 태그가 올라가면 `.github/workflows/release.yml`이 macOS(Apple Silicon·인텔 겸용, `build.sh --universal`)와 Linux ARM64를 빌드해 같은 릴리즈에 추가합니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
 - 러너 이름은 GitHub가 주기적으로 없앱니다(`macos-14`가 없어져 작업이 시작도 못 하고 취소된 적이 있음). 작업이 단계 없이 취소되면 러너 이름부터 확인합니다.
 
 ## 3. 실행 옵션과 환경 변수
