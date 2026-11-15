@@ -474,6 +474,7 @@ struct Lara : Character {
     float       damageTime;
     float       hitTime;
     int         hitDir;
+    bool        hitTouch;   // a creature pushes her, the sound of it comes once till they part
     vec3        collisionOffset;
     vec3        flowVelocity;
     float       statsDistDelta;
@@ -704,6 +705,7 @@ struct Lara : Character {
         keepDucked = false;
         swampFall  = 0.0f;
         hitDir     = -1;
+        hitTouch   = false;
         damageTime = LARA_DAMAGE_TIME;
         hitTime    = 0.0f;
 
@@ -6308,18 +6310,27 @@ struct Lara : Character {
                 return true;
 
             if (canHitAnim()) { // TODO: check enemy type and health here
-            // get hit dir
-                if (hitDir == -1) {
+            // a creature no taller than a step doesn't make her flinch (as in the original)
+                if (level->version & TR::VER_TR3) {
+                    Box b = controller->getBoundingBoxLocal();
+                    if (b.max.y - b.min.y <= 256.0f)
+                        return true;
+                }
+            // get hit dir, the sound comes once for as long as they touch (the direction is kept in TR1 only)
+                if (hitDir == -1 && !hitTouch) {
                     if (health > 0)
                         game->playSound(TR::SND_HIT, pos, Sound::PAN);
                     hitTime = 0.0f;
                 }
+                hitTouch = true;
 
                 if (level->version & TR::VER_TR1) // TODO: check hit animation indices for TR2 and TR3
                     hitDir = angleQuadrant(dir.rotateY(angle.y + PI * 0.5f).angleY(), 0.25f);
                 return true;
             }
         };
+
+        hitTouch = false;
 
         if (lightning && lightning->flash && !lightning->armed) {
             if (hitDir == -1)
