@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build
         run: |
-          src/platform/osx/build.sh
+          src/platform/osx/build.sh --universal
           lipo -archs src/platform/osx/build/Build/Products/Release/OpenLara.app/Contents/MacOS/OpenLara
       - name: Pack
         run: |

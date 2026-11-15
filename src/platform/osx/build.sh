@@ -12,6 +12,7 @@ usage() {
     echo "Usage: $0 [options]"
     echo "  -d, --debug     Debug 빌드 (기본값: Release)"
     echo "  -c, --clean     빌드 전 clean 실행"
+    echo "  -u, --universal Apple Silicon과 인텔 맥 겸용 빌드 (arm64 + x86_64)"
     echo "  -r, --run       빌드 후 앱 실행"
     echo "  -h, --help      도움말"
     exit 0
@@ -19,11 +20,13 @@ usage() {
 
 RUN=0
 CLEAN=0
+UNIVERSAL=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -d|--debug)   CONFIG="Debug"; shift ;;
         -c|--clean)   CLEAN=1; shift ;;
+        -u|--universal) UNIVERSAL=1; shift ;;
         -r|--run)     RUN=1; shift ;;
         -h|--help)    usage ;;
         *) echo "알 수 없는 옵션: $1"; usage ;;
@@ -62,6 +65,10 @@ BUILD_CMD=(xcodebuild
     -derivedDataPath "$BUILD_DIR"
     MACOSX_DEPLOYMENT_TARGET=12.0
     build)
+
+if [[ $UNIVERSAL -eq 1 ]]; then
+    BUILD_CMD+=(ONLY_ACTIVE_ARCH=NO "ARCHS=arm64 x86_64")
+fi
 
 if command -v xcpretty >/dev/null 2>&1; then
     set -o pipefail
