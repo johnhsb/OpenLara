@@ -413,6 +413,16 @@ struct Enemy : Character {
         return true;
     }
 
+    // where it heads for and what its ranges are measured to: its target, or a thing of the level for one sent to it
+    // (the markers and the pickups of the monkeys of TR3)
+    virtual vec3 goalPos() {
+        return target->pos;
+    }
+
+    virtual int goalBox() {
+        return target->box;
+    }
+
     // the nearest active creature of the given types, NULL for none
     Character* nearestOf(const TR::Entity::Type *types, int count) {
         Character *best = NULL;
@@ -450,9 +460,12 @@ struct Enemy : Character {
 
     // Lara's zone in the zone table of this enemy (it depends on how the enemy can move)
     int targetZone() {
-        if (!target || target->box == TR::NO_BOX)
+        if (!target)
             return -1;
-        return getZones()[target->box];
+        int b = goalBox();
+        if (b == TR::NO_BOX)
+            return -1;
+        return getZones()[b];
     }
 
     Mood getMoodFixed() {
@@ -504,7 +517,7 @@ struct Enemy : Character {
 
         bool tr2 = (level->version & (TR::VER_TR2 | TR::VER_TR3)) != 0;
 
-        vec3 targetVec  = target->pos - pos - getDir() * length;
+        vec3 targetVec  = goalPos() - pos - getDir() * length;
         targetDist      = tr2 ? sqrtf(SQR(targetVec.x) + SQR(targetVec.z)) : targetVec.length(); // TR2 ranges are horizontal
         targetAngle     = clampAngle(atan2f(targetVec.x, targetVec.z) - angle.y);
         targetDead      = target->health <= 0;
@@ -575,7 +588,7 @@ struct Enemy : Character {
         }
 
         if (targetBox == TR::NO_BOX)
-            gotoBox(target->box);
+            gotoBox(goalBox());
 
         // off its path it looks for a new one, a flyer passes the point to the next box high over the floor, where the
         // box under it may still be the one it comes from
@@ -598,14 +611,24 @@ struct Enemy : Character {
 
         // the waypoint is reached when close to it or inside the box it leads to (a fast runner may circle around the point),
         // a flyer keeps its own height over the floor of the point
-            if ((fabsf(d.x) < 512 && (flying || fabsf(d.y) < 512) && fabsf(d.z) < 512) || (path->index > 0 && path->index < path->count && box == path->boxes[path->index]))
+            bool inNext = path->index > 0 && path->index < path->count && box == path->boxes[path->index];
+        // the boxes of TR3 lie over each other, the sector under it may name another box than the one of the path it
+        // is in already (it would turn back for the point where the path enters that box, and circle there for ever)
+            if (!inNext && (level->version & TR::VER_TR3) && path->index > 0 && path->index < path->count) {
+                const TR::Box &b = level->boxes[path->boxes[path->index]];
+                inNext = int(pos.x) >= int(b.minX) && int(pos.x) <= int(b.maxX) && int(pos.z) >= int(b.minZ) && int(pos.z) <= int(b.maxZ) && fabsf(pos.y - float(b.floor)) < 512.0f;
+            }
+            if ((fabsf(d.x) < 512 && (flying || fabsf(d.y) < 512) && fabsf(d.z) < 512) || inNext)
                 nextWaypoint();
         }
 
         if (tr2) {
         // attacking, it heads for Lara herself every frame once on her box or the last leg of the path to it
-            if (mood == MOOD_ATTACK && targetBox != TR::NO_BOX && targetBox == target->box && (box == targetBox || !path || path->index >= path->count - 1))
-                waypoint = target->pos;
+        // (in TR3 not on the last leg: its boxes lie over each other and the straight way from the one before may cut a
+        // corner it can't enter, the point where the path enters the last box comes first)
+            bool lastLeg = path && path->index >= path->count - 1 && !(level->version & TR::VER_TR3);
+            if (mood == MOOD_ATTACK && targetBox != TR::NO_BOX && targetBox == goalBox() && (box == targetBox || !path || lastLeg))
+                waypoint = goalPos();
         // only the moment of a hit may scare it away
             wound = false;
         }
@@ -644,7 +667,7 @@ struct Enemy : Character {
 
     void nextWaypoint() {
         if (!path->getNextPoint(level, waypoint))
-            waypoint = target->pos;
+            waypoint = goalPos();
     }
 
     uint16 getRandomZoneBox() {

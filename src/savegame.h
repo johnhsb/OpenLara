@@ -72,6 +72,13 @@ struct SaveEntity {
                 uint16 value;
             } spec;
         } enemy;
+        struct { // an enemy with more to keep, the head is the one of an enemy
+            float  health;
+            uint16 targetBox;
+            uint16 spec;
+            uint16 held;    // the pickup it carries, its entity + 1
+            uint16 ai;
+        } monkey;
     } extra;
 };
 
