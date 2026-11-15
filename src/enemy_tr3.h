@@ -5,22 +5,20 @@
 
 #include "enemy.h"
 
-// TR3 monkeys of India: they sit about, eat and scratch, and leave Lara alone till she hurts them. A hurt one comes
-// at her with a low or a high swipe or a jump, it climbs up to a block and drops from one
-// TODO the monkeys that take the medipacks and the keys (MONKEY_MEDIPACK, MONKEY_KEY) and the AI objects
+// TR3 monkeys of India: they sit about, eat and scratch, and leave Lara alone till she hurts one. That one comes at
+// her from then on with a low or a high bite or a jump, it climbs up to a block and drops from one
+// TODO the monkeys that take the medipacks and the keys and the AI objects
 #define MONKEY_DAMAGE         40
+#define MONKEY_DAMAGE_JUMP    50
+#define MONKEY_TOUCH          0x2400
+#define MONKEY_DIST_ROLL      1024
 #define MONKEY_WALK_TURN      (DEG2RAD * 7 * 30)
 #define MONKEY_RUN_TURN       (DEG2RAD * 11 * 30)
 #define MONKEY_VAULT_SHIFT    128
 #define MONKEY_DIST_ATTACK    341
 #define MONKEY_DIST_JUMP      682
 #define MONKEY_DIST_CALM      1024
-#define MONKEY_WALK_CHANCE    0x100
-#define MONKEY_EAT_CHANCE     0x200
-#define MONKEY_SCRATCH_CHANCE 0x300
 #define MONKEY_SIT_CHANCE     0x100
-#define MONKEY_ROLL_CHANCE    0x100
-#define MONKEY_ANGRY_CHANCE   0x200
 
 struct Monkey : Enemy {
 
@@ -58,74 +56,92 @@ struct Monkey : Enemy {
         STATE_FALL_2,
     };
 
-    Monkey(IGame *game, int entity) : Enemy(game, entity, 8, 102, 0.0f, 1.0f) {
+    bool hurtByLara; // it is at peace with her till then (not saved, as the damage of the monks of TR2)
+
+    Monkey(IGame *game, int entity) : Enemy(game, entity, 8, 102, 0.0f, 1.0f), hurtByLara(false) {
+        ai         = AI_FIXED; // once it turned on her it comes for her wherever it can reach her
         stepHeight =  1024;
         dropHeight = -1024;
         jointChest = -1;
         jointHead  = -1;
     }
 
-    void swipe() {
-        if (flags.unused || !touching())
+    virtual bool hasEnemy() {
+        return hurtByLara;
+    }
+
+    virtual void hit(float damage, Controller *enemy = NULL, TR::HitType hitType = TR::HIT_DEFAULT) {
+        if (enemy && enemy->getEntity().isLara() && damage > 0.0f)
+            hurtByLara = true;
+        Enemy::hit(damage, enemy, hitType);
+    }
+
+    void swipe(float damage) {
+        if (flags.unused || !(touching() & MONKEY_TOUCH))
             return;
-        bite(-1, vec3(0.0f), MONKEY_DAMAGE);
+        bite(13, vec3(10.0f, 10.0f, 11.0f), damage);
         flags.unused = 1;
     }
 
     virtual int getStateGround() {
-        if (!think(false))
+        if (!think(true))
             return state;
 
-        bool angry = wound; // hurt by Lara
-        if (!angry)
-            mood = MOOD_SLEEP;
-        bool nearLara = targetInView && targetDist < MONKEY_DIST_CALM; // a calm one doesn't walk into her
+        bool bored  = !hurtByLara || mood == MOOD_SLEEP;
+        bool escape = hurtByLara && mood == MOOD_ESCAPE;
+        bool canBite = hurtByLara && targetCanAttack;
+        // a calm one has no target, so it doesn't walk into her on its way
+        bool nearLara = !hurtByLara && target && (target->pos - pos).length2() < SQR(float(MONKEY_DIST_CALM));
 
         switch (state) {
             case STATE_SIT :
-                if (angry)
+                flags.unused = 0;
+                if (escape)
                     return STATE_STAND;
-                {
-                    int r = randControl();
-                    if (r < MONKEY_WALK_CHANCE && !nearLara) return STATE_WALK;
-                    if (r < MONKEY_EAT_CHANCE)     return STATE_EAT;
-                    if (r < MONKEY_SCRATCH_CHANCE) return STATE_SCRATCH;
+                if (bored) {
+                    if (!(randControl() & 0xF) && !nearLara) return STATE_WALK;
+                    if (!(randControl() & 0xF)) return (randControl() & 1) ? STATE_SCRATCH : STATE_EAT;
+                    break;
                 }
-                break;
+                return STATE_STAND;
             case STATE_WALK :
-                if (angry)
+                if (escape)
                     return STATE_RUN;
-                if (nearLara || randControl() < MONKEY_SIT_CHANCE)
-                    return STATE_SIT;
-                break;
+                if (bored) {
+                    if (nearLara || randControl() < MONKEY_SIT_CHANCE)
+                        return STATE_SIT;
+                    break;
+                }
+                return STATE_STAND;
             case STATE_STAND :
                 flags.unused = 0;
-                if (!angry)
-                    return (nearLara || randControl() < 0x4000) ? STATE_SIT : STATE_WALK;
-                if (mood == MOOD_ESCAPE)
+                if (escape)
                     return STATE_RUN;
-                if (targetInView && targetDist < MONKEY_DIST_ATTACK)
-                    return (randControl() < 0x4000) ? STATE_ATTACK_LOW : STATE_ATTACK_HIGH;
-                if (targetInView && targetDist < MONKEY_DIST_JUMP)
+                if (bored) {
+                    if (!(randControl() & 0xF) && !nearLara) return STATE_WALK;
+                    if (!(randControl() & 0xF)) return (randControl() & 1) ? STATE_ANGRY : STATE_SIT;
+                    break;
+                }
+                if (canBite && targetDist < MONKEY_DIST_ATTACK)
+                    return (target->pos.y < pos.y) ? STATE_ATTACK_HIGH : STATE_ATTACK_LOW;
+                if (canBite && targetDist < MONKEY_DIST_JUMP)
                     return STATE_ATTACK_JUMP;
-                if (randControl() < MONKEY_ANGRY_CHANCE)
-                    return STATE_ANGRY;
+                if (canBite && targetDist < MONKEY_DIST_ROLL)
+                    return STATE_ROLL;
                 return STATE_RUN;
             case STATE_RUN :
-                if (!angry)
-                    return STATE_STAND;
-                if (mood == MOOD_ESCAPE)
+                if (escape)
                     break;
-                if (targetInView && targetDist < MONKEY_DIST_JUMP)
+                if (bored)
+                    return STATE_ROLL;
+                if (targetDist < MONKEY_DIST_JUMP)
                     return STATE_STAND;
-                if (randControl() < MONKEY_ROLL_CHANCE)
+                if (canBite && targetDist < MONKEY_DIST_ROLL)
                     return STATE_ROLL;
                 break;
             case STATE_ATTACK_LOW  :
-            case STATE_ATTACK_HIGH :
-            case STATE_ATTACK_JUMP :
-                swipe();
-                break;
+            case STATE_ATTACK_HIGH : swipe(MONKEY_DAMAGE);      break;
+            case STATE_ATTACK_JUMP : swipe(MONKEY_DAMAGE_JUMP); break;
         }
         return state;
     }
