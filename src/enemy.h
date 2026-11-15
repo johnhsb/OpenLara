@@ -502,7 +502,7 @@ struct Enemy : Character {
 
         target = chooseTarget();
 
-        bool tr2 = (level->version & TR::VER_TR2) != 0;
+        bool tr2 = (level->version & (TR::VER_TR2 | TR::VER_TR3)) != 0;
 
         vec3 targetVec  = target->pos - pos - getDir() * length;
         targetDist      = tr2 ? sqrtf(SQR(targetVec.x) + SQR(targetVec.z)) : targetVec.length(); // TR2 ranges are horizontal
@@ -1101,5 +1101,6 @@ struct Human : Enemy {
 
 #include "enemy_tr1.h"
 #include "enemy_tr2.h"
+#include "enemy_tr3.h"
 
 #endif

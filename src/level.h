@@ -1412,8 +1412,8 @@ struct Level : IGame {
             case TR::Entity::EXPLOSION             : return new Explosion(this, index);
             case TR::Entity::GRENADE_BULLET        :
             case TR::Entity::HARPOON_BULLET        : return new Projectile(this, index);
+            case TR::Entity::BLOOD                 : if (level.version & TR::VER_TR3) return new BloodSpray(this, index); // fall through
             case TR::Entity::WATER_SPLASH          :
-            case TR::Entity::BLOOD                 :
             case TR::Entity::SMOKE                 :
             case TR::Entity::SPARKLES              : return new Sprite(this, index, true, Sprite::FRAME_ANIMATED);
             case TR::Entity::RICOCHET              : return new Sprite(this, index, true, Sprite::FRAME_RANDOM);
@@ -1468,6 +1468,7 @@ struct Level : IGame {
             case TR::Entity::ENEMY_MONK_1           :
             case TR::Entity::ENEMY_MONK_2           : return new Monk(this, index);
             case TR::Entity::ENEMY_WINSTON          : return new Winston(this, index);
+            case TR::Entity::ENEMY_MONKEY           : return new Monkey(this, index);
 
             case TR::Entity::CRYSTAL_PICKUP         : return new CrystalPickup(this, index);
             case TR::Entity::STONE_ITEM_1           :
@@ -2128,6 +2129,8 @@ struct Level : IGame {
                 { 0xFFFFFFFF },
             // white sprite
                 { 0xFFFFFFFF },
+            // white fx
+                { 0xFFFFFFFF },
             };
 
         int stride = 256, uvCount;
@@ -2211,9 +2214,10 @@ struct Level : IGame {
                     case CTEX_WHITE_ROOM   :
                     case CTEX_WHITE_OBJECT :
                     case CTEX_WHITE_SPRITE :
+                    case CTEX_WHITE_FX     :
                         src = owner->tileData->color;
                         tex = &CommonTex[id];
-                        if (id != CTEX_WHITE_ROOM && id != CTEX_WHITE_OBJECT && id != CTEX_WHITE_SPRITE) {
+                        if (id != CTEX_WHITE_ROOM && id != CTEX_WHITE_OBJECT && id != CTEX_WHITE_SPRITE && id != CTEX_WHITE_FX) {
                             mm.w = 4; // height - 1
                             if (id == CTEX_OPTION) {
                                 stride = 5;
@@ -2508,12 +2512,12 @@ struct Level : IGame {
                 sAtlas->add(level.objectTexturesCount + i, uv, &t);
             }
             // add common textures
-            const short2 CommonTexOffset[] = { short2(1, 5), short2(1, 5), short2(1, 5), short2(5, 5), short2(1, 1), short2(1, 1), short2(1, 1) };
+            const short2 CommonTexOffset[] = { short2(1, 5), short2(1, 5), short2(1, 5), short2(5, 5), short2(1, 1), short2(1, 1), short2(1, 1), short2(1, 1) };
             ASSERT(COUNT(CommonTexOffset) == CTEX_MAX);
             memset(CommonTex, 0, sizeof(CommonTex));
             for (int i = 0; i < CTEX_MAX; i++) {
                 CommonTex[i].type = CommonTex[i].dataType = TR::TEX_TYPE_SPRITE;
-                Atlas *dst = (i == CTEX_FLASH || i == CTEX_WHITE_OBJECT) ? oAtlas : ((i == CTEX_WHITE_ROOM) ? rAtlas : gAtlas);
+                Atlas *dst = (i == CTEX_FLASH || i == CTEX_WHITE_OBJECT) ? oAtlas : ((i == CTEX_WHITE_ROOM) ? rAtlas : ((i == CTEX_WHITE_FX) ? sAtlas : gAtlas));
                 dst->add(level.objectTexturesCount + level.spriteTexturesCount + i, short4(i * 32, ATLAS_PAGE_BARS, i * 32 + CommonTexOffset[i].x, ATLAS_PAGE_BARS + CommonTexOffset[i].y), &CommonTex[i]);
             }
 
@@ -4508,8 +4512,13 @@ struct Level : IGame {
             else
                 pos = vec2(UI::width - 32 - size.x, 32);
 
-            if (!player->dozy && (player->stand == Lara::STAND_ONWATER || player->stand == Character::STAND_UNDERWATER)) {
+            if (!player->dozy && (player->stand == Lara::STAND_ONWATER || player->stand == Character::STAND_UNDERWATER || (player->stand == Character::STAND_WADE && player->oxygen < LARA_MAX_OXYGEN && player->inSwamp()))) {
                 UI::renderBar(CTEX_OXYGEN, pos, size, oxygen);
+                pos.y += 16.0f;
+            }
+
+            if (!player->dozy && player->dash < LARA_DASH_TIME && player->health > 0.0f) { // TR3 sprint
+                UI::renderBar(CTEX_OPTION, pos, size, player->dash / LARA_DASH_TIME);
                 pos.y += 16.0f;
             }
 

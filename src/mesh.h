@@ -12,6 +12,7 @@ enum CommonTexType {
     CTEX_WHITE_ROOM,
     CTEX_WHITE_OBJECT,
     CTEX_WHITE_SPRITE,
+    CTEX_WHITE_FX,
     CTEX_MAX,
 };
 
@@ -19,6 +20,7 @@ TR::TextureInfo CommonTex[CTEX_MAX];
 TR::TextureInfo &whiteRoom   = CommonTex[CTEX_WHITE_ROOM];
 TR::TextureInfo &whiteObject = CommonTex[CTEX_WHITE_OBJECT];
 TR::TextureInfo &whiteSprite = CommonTex[CTEX_WHITE_SPRITE];
+TR::TextureInfo &whiteFX     = CommonTex[CTEX_WHITE_FX]; // in the atlas of the sprites
 
 #define PLANE_DETAIL 48
 #define CIRCLE_SEGS  16
@@ -1608,6 +1610,17 @@ struct MeshBuilder {
         #endif
 
         addSprite(dynIndices, dynVertices, dynICount, dynVCount, 0, center.x, center.y, center.z, invertX, invertY, sprite, tColor, bColor, expand);
+    }
+
+    void addDynFlat(const short3 &center, int16 size, const Color32 &color) { // flat colored billboard
+        dynCheck(1 * 6);
+
+        TR::TextureInfo sprite = whiteFX;
+        sprite.texCoordAtlas[1] = sprite.texCoordAtlas[0];
+        sprite.l = sprite.t = -size;
+        sprite.r = sprite.b = size;
+
+        addSprite(dynIndices, dynVertices, dynICount, dynVCount, 0, center.x, center.y, center.z, false, false, sprite, color, color);
     }
 
     void renderRoomSprites(int roomIndex) {

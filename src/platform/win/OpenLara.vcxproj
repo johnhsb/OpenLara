@@ -125,6 +125,7 @@
     <ClInclude Include="..\..\enemy.h" />
     <ClInclude Include="..\..\enemy_tr1.h" />
     <ClInclude Include="..\..\enemy_tr2.h" />
+    <ClInclude Include="..\..\enemy_tr3.h" />
     <ClInclude Include="..\..\frustum.h" />
     <ClInclude Include="..\..\game.h" />
     <ClInclude Include="..\..\gameflow.h" />

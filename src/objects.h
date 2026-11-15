@@ -1004,6 +1004,10 @@ struct Crystal : Controller {
 
 #define CRYSTAL_PICKUP_LIGHT_COLOR  vec4(0.1f, 0.5f, 0.1f, 1.0f / CRYSTAL_LIGHT_RADIUS)
 
+#define CRYSTAL_PICKUP_RANGE   256.0f
+#define CRYSTAL_PICKUP_HEALTH  500.0f
+#define CRYSTAL_PICKUP_MAX     1000.0f
+
 struct CrystalPickup : Controller {
 
     CrystalPickup(IGame *game, int entity) : Controller(game, entity) {
@@ -1019,6 +1023,17 @@ struct CrystalPickup : Controller {
         updateAnimation(false);
         vec3 lightPos = getJoint(0).pos;
         getRoom().addDynLight(entity, vec4(lightPos, 0.0f), CRYSTAL_PICKUP_LIGHT_COLOR);
+
+        // the PC version has no saves at crystals: touched it gives health and is gone
+        if (level->version == TR::VER_TR3_PC) {
+            Character *lara = (Character*)game->getLara(pos);
+            vec3 d = lara->pos - pos;
+            if (lara->health > 0.0f && fabsf(d.x) < CRYSTAL_PICKUP_RANGE && fabsf(d.z) < CRYSTAL_PICKUP_RANGE && d.y > -CRYSTAL_PICKUP_RANGE && d.y < 768.0f + CRYSTAL_PICKUP_RANGE) {
+                lara->health = min(CRYSTAL_PICKUP_MAX, lara->health + CRYSTAL_PICKUP_HEALTH);
+                flags.invisible = true;
+                deactivate(true);
+            }
+        }
     }
 };
 

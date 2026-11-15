@@ -357,6 +357,28 @@ struct Camera : ICamera {
         }
     }
 
+    // TR3: the camera and the point it looks at stay a block over the mud of a swamp (as in the original), true if lifted
+    bool liftOverSwamp(TR::Location &loc) {
+        if (!(level->version & TR::VER_TR3))
+            return false;
+
+        int16 room = loc.room;
+        TR::Room::Sector *sector = level->getSector(room, loc.pos + vec3(0.0f, 256.0f, 0.0f));
+        if (!level->rooms[room].flags.swamp)
+            return false;
+
+        int x = int(loc.pos.x), z = int(loc.pos.z);
+        while (sector->roomAbove != TR::NO_ROOM && level->rooms[sector->roomAbove].flags.swamp) {
+            TR::Room &r = level->rooms[sector->roomAbove];
+            sector = r.getSector((x - r.info.x) / 1024, (z - r.info.z) / 1024);
+        }
+
+        loc.pos.y = sector->ceiling * 256.0f - 256.0f;
+        loc.room  = room;
+        level->getSector(loc.room, loc.pos);
+        return true;
+    }
+
     void move(const TR::Location &to) {
         float t = (smooth && speed) ? (30.0f / speed * Core::deltaTime) : 1.0f;
         if (mode == MODE_LOOK)
@@ -382,6 +404,8 @@ struct Camera : ICamera {
 
         if (eye.pos.y > floor)   eye.pos.y = floor;
         if (eye.pos.y < ceiling) eye.pos.y = ceiling;
+
+        liftOverSwamp(eye);
     }
 
     // Lara falling into a room with nothing to see (the empty rooms under the Floating Islands)
@@ -563,6 +587,8 @@ struct Camera : ICamera {
                     else
                         target.pos.y = p.y;
 
+                    liftOverSwamp(target);
+
                     float offset;
                     if (mode == MODE_LOOK)
                         offset = CAM_OFFSET_LOOK;
@@ -576,6 +602,7 @@ struct Camera : ICamera {
                     to.room = target.room;
 
                     traceClip(offset, to);
+                    liftOverSwamp(to);
                 }
 
                 move(to);

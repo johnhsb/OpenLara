@@ -32,7 +32,9 @@ struct Character : Controller {
         ACTION      = 1 << 7,
         WEAPON      = 1 << 8,
         LOOK        = 1 << 9,
-        DEATH       = 1 << 10
+        DEATH       = 1 << 10,
+        DUCK        = 1 << 11,
+        DASH        = 1 << 12
     };
 
     Controller  *viewTarget;
@@ -227,6 +229,8 @@ struct Character : Controller {
             if (p != pos) {
                 if (updateZone())
                     updateLights();
+                else if (getEntity().isLara() && (level->version & TR::VER_TR3))
+                    updateLights(); // the steep slopes of TR3 have no box, she slides down them (her box stays the last one)
                 else
                     pos = p;
             }

@@ -59,6 +59,18 @@ static TR::Entity::Type laraStartItem(const char *name) {
 #define LARA_HANG_OFFSET    724
 #define LARA_HEIGHT         762
 #define LARA_HEIGHT_WATER   400
+#define LARA_HEIGHT_DUCK    400     // ducking and on all fours (TR3)
+#define LARA_CRAWL_ASCENT   127
+#define LARA_CRAWL_DESCENT  255
+#define LARA_DASH_TIME      4.0f    // seconds of the sprint (120 frames of the original)
+#define LARA_TURN_CRAWL     (DEG2RAD * 45.0f)
+// TR3 swamp (the rules of the original): she wades at half the speed and sinks to the floor, with the head under
+// (775 deep) the air runs out in 10 seconds and the mud hurts
+#define LARA_SWAMP_SINK     2.0f    // per frame (1/30 s)
+#define LARA_SWAMP_FALL_MIN 4.0f
+#define LARA_SWAMP_HEAD     775.0f
+#define LARA_SWAMP_AIR      6.0f    // times as fast as the air under the water (60 s)
+#define LARA_SWAMP_DAMAGE   300.0f  // per second
 #define LARA_RADIUS         100.0f
 #define LARA_RADIUS_WATER   300.0f
 
@@ -244,6 +256,9 @@ struct Lara : Character {
         ANIM_LADDER_DOWN_HANG   = 188,
         ANIM_ZIPLINE_GRAB       = 215,
         ANIM_ZIPLINE_FALL       = 217,
+    // TR3
+        ANIM_DUCK               = 222,
+        ANIM_ALL4S              = 263,
     };
 
     // http://www.tombraiderforums.com/showthread.php?t=211681
@@ -319,6 +334,25 @@ struct Lara : Character {
         STATE_ROLL_AIR,
         STATE_UNUSED_5,
         STATE_DEATH_SLIDE,
+    // TR3
+        STATE_DUCK,
+        STATE_DUCK_ROLL,
+        STATE_DASH,
+        STATE_DASH_DIVE,
+        STATE_MONKEY_HANG,
+        STATE_MONKEY_SWING,
+        STATE_MONKEY_LEFT,
+        STATE_MONKEY_RIGHT,
+        STATE_MONKEY_180,
+        STATE_ALL4S,
+        STATE_CRAWL,
+        STATE_HANG_TURN_LEFT,
+        STATE_HANG_TURN_RIGHT,
+        STATE_ALL4_TURN_LEFT,
+        STATE_ALL4_TURN_RIGHT,
+        STATE_CRAWL_BACK,
+        STATE_HANG_TO_DUCK,
+        STATE_CRAWL_TO_HANG,
 
         STATE_MAX };
 
@@ -434,6 +468,9 @@ struct Lara : Character {
     vec2              rotFactor;
 
     float       oxygen;
+    float       dash;        // TR3: time of the sprint left
+    bool        keepDucked;  // TR3: no room to stand up
+    float       swampFall;   // TR3: the speed she falls into the mud with, it dies away
     float       damageTime;
     float       hitTime;
     int         hitDir;
@@ -518,13 +555,16 @@ struct Lara : Character {
 
             DAMPING = 1.0f / (1.0f + DAMPING * TIMESTEP); // Pade approximation
 
+            // it floats up to the surface of the water, or of the mud of a TR3 swamp she wades in
+            float surface = lara->inSwamp() ? lara->getSwampLevel() : lara->waterLevel;
+
             for (int i = 1; i < jointsCount; i++) {
                 Joint &j = joints[i];
                 vec3 delta = j.pos - j.posPrev;
                 delta = delta.normal() * (min(delta.length(), 2048.0f * Core::deltaTime) * DAMPING); // speed limit
                 j.posPrev  = j.pos;
                 j.pos     += delta;
-                if ((lara->stand == STAND_WADE || lara->stand == STAND_ONWATER || lara->stand == STAND_UNDERWATER) && (j.pos.y > lara->waterLevel))
+                if ((lara->stand == STAND_WADE || lara->stand == STAND_ONWATER || lara->stand == STAND_UNDERWATER) && (j.pos.y > surface))
                     j.pos.y -= ACCEL;
                 else
                     j.pos.y += ACCEL;
@@ -660,6 +700,9 @@ struct Lara : Character {
         statsDistDelta = 0.0f;
 
         oxygen     = LARA_MAX_OXYGEN;
+        dash       = LARA_DASH_TIME;
+        keepDucked = false;
+        swampFall  = 0.0f;
         hitDir     = -1;
         damageTime = LARA_DAMAGE_TIME;
         hitTime    = 0.0f;
@@ -949,6 +992,8 @@ struct Lara : Character {
         visibleMask = 0xFFFFFFFF;
         health = LARA_MAX_HEALTH;
         oxygen = LARA_MAX_OXYGEN;
+        dash   = LARA_DASH_TIME;
+        keepDucked = false;
         dozy   = false;
         climbGoal  = -1;
         ladderJump = false;
@@ -1119,6 +1164,33 @@ struct Lara : Character {
         wpnState = wState;
     }
 
+    // TR3: her middle is in the mud of a swamp
+    bool inSwamp() {
+        return (level->version & TR::VER_TR3) && getRoom().flags.swamp && !dozy;
+    }
+
+    // the surface of the swamp over her
+    float getSwampLevel() {
+        int x = int(pos.x), z = int(pos.z);
+        TR::Room *room = &level->rooms[getRoomIndex()];
+        TR::Room::Sector *sector = room->getSector((x - room->info.x) / 1024, (z - room->info.z) / 1024);
+        while (sector->roomAbove != TR::NO_ROOM && level->rooms[sector->roomAbove].flags.swamp) {
+            room   = &level->rooms[sector->roomAbove];
+            sector = room->getSector((x - room->info.x) / 1024, (z - room->info.z) / 1024);
+        }
+        return sector->ceiling * 256.0f;
+    }
+
+    // TR3: ducking or on all fours, she is 400 high
+    bool isCrouchState() const {
+        return state == STATE_DUCK || state == STATE_DUCK_ROLL || isCrawlState();
+    }
+
+    bool isCrawlState() const {
+        return state == STATE_ALL4S || state == STATE_CRAWL || state == STATE_CRAWL_BACK ||
+               state == STATE_ALL4_TURN_LEFT || state == STATE_ALL4_TURN_RIGHT;
+    }
+
     bool emptyHands() {
         return wpnCurrent == TR::Entity::NONE || arms[0].anim == Weapon::Anim::NONE;
     }
@@ -1172,7 +1244,12 @@ struct Lara : Character {
                && state != STATE_SURF_LEFT
                && state != STATE_SURF_RIGHT
                && state != STATE_HANDSTAND
-               && state != STATE_WATER_OUT;
+               && state != STATE_WATER_OUT
+               && !isCrawlState()
+               && state != STATE_DUCK_ROLL
+               && state != STATE_DASH_DIVE
+               && state != STATE_HANG_TO_DUCK
+               && state != STATE_CRAWL_TO_HANG;
     }
 
     bool canHitAnim() {
@@ -3271,6 +3348,36 @@ struct Lara : Character {
         if (state == STATE_HANDSTAND || (state == STATE_HANG_UP && animation.index != ANIM_CLIMB_JUMP))
             return STAND_HANG;
 
+        // in the mud of a swamp she neither falls nor swims nor slides: she wades and sinks slowly down to the floor
+        if (inSwamp() && stand != STAND_HANG) {
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), pos, info);
+            float h = Core::deltaTime * 30.0f;
+
+            if (stand != STAND_WADE) {
+                swampFall = (stand == STAND_AIR) ? max(0.0f, velocity.y) : 0.0f;
+                stopScreaming();
+                if (health > 0.0f && state != STATE_WADE)
+                    animation.setAnim(ANIM_WADE);
+                velocity = vec3(0.0f);
+            }
+
+            if (swampFall > 128.0f)
+                swampFall *= 0.5f;
+            if (swampFall > 0.0f) {
+                swampFall *= powf(0.75f, h);
+                if (swampFall < LARA_SWAMP_FALL_MIN)
+                    swampFall = 0.0f;
+            }
+
+            if (pos.y < info.floor)
+                pos.y = min(info.floor, pos.y + max(LARA_SWAMP_SINK, swampFall) * h);
+            else
+                pos.y = info.floor;
+            updateRoom();
+            return STAND_WADE;
+        }
+
         if (getRoom().flags.water) {
             if (waterDepth > LARA_WADE_MAX_DEPTH || (waterLevel == 0.0f && waterDepth == 0.0f)) {
                 if (stand == STAND_GROUND)
@@ -3397,6 +3504,8 @@ struct Lara : Character {
     }
 
     virtual int getHeight() {
+        if (stand == STAND_GROUND && isCrouchState())
+            return LARA_HEIGHT_DUCK;
         if (stand == STAND_GROUND || stand == STAND_AIR)
             return 768;
         return 0;
@@ -3507,7 +3616,7 @@ struct Lara : Character {
                 if ((input & (JUMP | FORTH | WALK)) == (JUMP | FORTH | WALK)) return STATE_SWAN_DIVE;
             }
         } else
-            if (state != STATE_FALL && state != STATE_FALL_BACK && state != STATE_SWAN_DIVE && state != STATE_FAST_DIVE && state != STATE_REACH && state != STATE_UP_JUMP && state != STATE_BACK_JUMP && state != STATE_LEFT_JUMP && state != STATE_RIGHT_JUMP)
+            if (state != STATE_FALL && state != STATE_FALL_BACK && state != STATE_SWAN_DIVE && state != STATE_FAST_DIVE && state != STATE_REACH && state != STATE_UP_JUMP && state != STATE_BACK_JUMP && state != STATE_LEFT_JUMP && state != STATE_RIGHT_JUMP && state != STATE_DASH_DIVE)
                 return animation.setAnim(ANIM_FALL_FORTH);// (state == STATE_FAST_BACK || state == STATE_SLIDE_BACK || state == STATE_ROLL_2) ? ANIM_FALL_BACK :  ANIM_FALL_FORTH);
 
         if (state == STATE_SWAN_DIVE)
@@ -4775,6 +4884,120 @@ struct Lara : Character {
         return false;
     }
 
+    // TR3: no room to stand up at her place (the body of the stance is as wide as she is)
+    bool testKeepDucked() {
+        for (int i = 0; i < 5; i++) {
+            vec3 p = pos;
+            if (i == 1) p.x -= LARA_RADIUS;
+            if (i == 2) p.x += LARA_RADIUS;
+            if (i == 3) p.z -= LARA_RADIUS;
+            if (i == 4) p.z += LARA_RADIUS;
+            TR::Level::FloorInfo info;
+            getFloorInfo(getRoomIndex(), p, info);
+            if (info.floor - info.ceiling < LARA_HEIGHT && info.floor - pos.y < 256.0f && info.floor - pos.y > -256.0f)
+                return true;
+        }
+        return false;
+    }
+
+    // the way on all fours is free: a step of up to 127 up and 255 down, 400 of height
+    bool testCrawl(bool back) {
+        vec3 p = pos;
+        collision = Collision(this, getRoomIndex(), p, vec3(0.0f), vec3(0.0f), LARA_RADIUS * 1.1f, angle.y + (back ? PI : 0.0f), 0, LARA_HEIGHT_DUCK, LARA_CRAWL_ASCENT, LARA_CRAWL_DESCENT);
+        return collision.side != Collision::FRONT;
+    }
+
+    // TR3: the states of ducking, crawling and the sprint, -1 for the others
+    int getStateGroundTR3() {
+        bool duck    = (input & DUCK) != 0;
+        bool canDuck = (emptyHands() || !wpnIsRifle()) && !inSwamp();
+
+        #define TRY_STATE(s) if (animation.canSetState(s)) return s
+
+        switch (state) {
+            case STATE_STOP :
+                if (duck && canDuck && animation.canSetState(STATE_DUCK))
+                    return STATE_DUCK;
+                break;
+            case STATE_RUN :
+                if (duck && canDuck && animation.canSetState(STATE_DUCK))
+                    return STATE_DUCK;
+                if ((input & DASH) && (input & FORTH) && !(input & (JUMP | WALK)) && dash >= LARA_DASH_TIME && animation.canSetState(STATE_DASH))
+                    return STATE_DASH;
+                break;
+            case STATE_DASH :
+                if (dash <= 0.0f || !(input & DASH))
+                    return STATE_RUN;
+                if (duck && canDuck) {
+                    TRY_STATE(STATE_DUCK);
+                    return state;
+                }
+                if (input & JUMP) {
+                    TRY_STATE(STATE_DASH_DIVE);
+                    return state;
+                }
+                if (input & FORTH)
+                    return (input & WALK) ? STATE_WALK : STATE_DASH;
+                if (!(input & (LEFT | RIGHT)))
+                    return STATE_STOP;
+                return state;
+            case STATE_DASH_DIVE    :
+            case STATE_DUCK_ROLL    :
+            case STATE_HANG_TO_DUCK :
+            case STATE_CRAWL_TO_HANG :
+                return state;
+            case STATE_DUCK :
+                if ((input & (FORTH | BACK)) && (duck || keepDucked)) {
+                    if (!emptyHands())
+                        wpnHide();
+                    else
+                        TRY_STATE(STATE_ALL4S);
+                    return state;
+                }
+                if (!duck && !keepDucked)
+                    TRY_STATE(STATE_STOP);
+                return state;
+            case STATE_ALL4S :
+                if (!duck && !keepDucked) {
+                    TRY_STATE(STATE_DUCK);
+                    return state;
+                }
+                if ((input & FORTH) && !(input & BACK)) {
+                    if (testCrawl(false)) TRY_STATE(STATE_CRAWL);
+                } else if (input & BACK) {
+                    if (!(input & FORTH) && testCrawl(true)) TRY_STATE(STATE_CRAWL_BACK);
+                } else if (input & LEFT) {
+                    TRY_STATE(STATE_ALL4_TURN_LEFT);
+                } else if (input & RIGHT) {
+                    TRY_STATE(STATE_ALL4_TURN_RIGHT);
+                }
+                return state;
+            case STATE_CRAWL :
+                if ((input & FORTH) && !(input & BACK) && (duck || keepDucked))
+                    return state;
+                TRY_STATE(STATE_ALL4S);
+                return state;
+            case STATE_CRAWL_BACK :
+                if ((input & BACK) && !(input & FORTH))
+                    return state;
+                TRY_STATE(STATE_ALL4S);
+                return state;
+            case STATE_ALL4_TURN_LEFT :
+                if (input & LEFT)
+                    return state;
+                TRY_STATE(STATE_ALL4S);
+                return state;
+            case STATE_ALL4_TURN_RIGHT :
+                if (input & RIGHT)
+                    return state;
+                TRY_STATE(STATE_ALL4S);
+                return state;
+        }
+
+        #undef TRY_STATE
+        return -1;
+    }
+
     virtual int getStateGround() {
         int res = STATE_STOP;
         angle.x = 0.0f;
@@ -4782,8 +5005,14 @@ struct Lara : Character {
         if (waterDepth > 0.0f && !(animation.frameIndex % 4))
             game->waterDrop(getJoint(jointChest).pos + vec3(randf(), 0.0f, randf()) * 64.0f, 96.0f, 0.02f);
 
-        if ((input == ACTION) && (state == STATE_STOP) && emptyHands() && doPickUp())
+        if ((input == ACTION || input == (ACTION | DUCK)) && (state == STATE_STOP || state == STATE_DUCK || state == STATE_ALL4S) && emptyHands() && doPickUp())
             return state;
+
+        if (level->version & TR::VER_TR3) {
+            int s = getStateGroundTR3();
+            if (s != -1)
+                return s;
+        }
 
         if (checkClimb())
             return state;
@@ -5117,7 +5346,9 @@ struct Lara : Character {
         if (checkClimb())
             return state;
 
-        if (input & JUMP) {
+        bool swamp = inSwamp(); // no jumps and no steps aside in the mud
+
+        if ((input & JUMP) && !swamp) {
             return STATE_COMPRESS;
         }
 
@@ -5156,7 +5387,7 @@ struct Lara : Character {
         }
 
         // walk button is pressed
-        if ((input & WALK) && (input & (LEFT | RIGHT)) && animation.index != ANIM_RUN_START) {
+        if ((input & WALK) && (input & (LEFT | RIGHT)) && animation.index != ANIM_RUN_START && !swamp) {
             int res;
 
             float ext = angle.y;
@@ -5180,6 +5411,9 @@ struct Lara : Character {
             return res;
         }
 
+        if ((input & (LEFT | RIGHT)) && swamp) // no fast turn in the mud
+            return (input & LEFT) ? STATE_TURN_LEFT : STATE_TURN_RIGHT;
+
         if (input & (LEFT | RIGHT))
             return getTurn();
 
@@ -5198,6 +5432,7 @@ struct Lara : Character {
 
     virtual int getStateDefault() {
         if (isLadderState()) return state;
+        if (stand == STAND_GROUND && (isCrouchState() || state == STATE_DASH_DIVE || state == STATE_HANG_TO_DUCK || state == STATE_CRAWL_TO_HANG)) return state;
         if (state == STATE_DIVE || (state == STATE_RUN && (input & JUMP)) ) return state;
         switch (stand) {
             case STAND_GROUND     : return STATE_STOP;
@@ -5341,6 +5576,10 @@ struct Lara : Character {
         if (Input::state[pid][cWalk])      input |= WALK;
         if (Input::state[pid][cAction])    input |= ACTION;
         if (Input::state[pid][cWeapon])    input |= WEAPON;
+        if (level->version & TR::VER_TR3) {
+            if (Input::state[pid][cDuck])  input |= DUCK;
+            if (Input::state[pid][cDash])  input |= DASH;
+        }
         if (Input::state[pid][cLook] && canLookAt()) input = LOOK;
         //if (Input::state[pid][cStepRight]) input  = WALK  | RIGHT;
         //if (Input::state[pid][cStepLeft])  input  = WALK  | LEFT;
@@ -5657,9 +5896,25 @@ struct Lara : Character {
                 oxygen -= Core::deltaTime;
             else
                 hit(Core::deltaTime * 150.0f);
+        } else if (stand == STAND_WADE && inSwamp() && pos.y - getSwampLevel() > LARA_SWAMP_HEAD) { // the head is under the mud
+            if (health > 0.0f) {
+                if (oxygen > 0.0f)
+                    oxygen = max(0.0f, oxygen - Core::deltaTime * LARA_SWAMP_AIR);
+                else
+                    hit(Core::deltaTime * LARA_SWAMP_DAMAGE);
+            }
         } else
             if (oxygen < LARA_MAX_OXYGEN && health > 0.0f)
                 oxygen = min(LARA_MAX_OXYGEN, oxygen + Core::deltaTime * 10.0f);
+
+        if (level->version & TR::VER_TR3) {
+            // the sprint runs out in 4 seconds and comes back as fast, it starts with all of it only (as in the original)
+            if (state == STATE_DASH)
+                dash = max(0.0f, dash - Core::deltaTime);
+            else
+                dash = min(LARA_DASH_TIME, dash + Core::deltaTime);
+            keepDucked = stand == STAND_GROUND && isCrouchState() && testKeepDucked();
+        }
 
         usedItem = TR::Entity::NONE;
 
@@ -5751,7 +6006,9 @@ struct Lara : Character {
             w *= TURN_WATER_FAST;
         else if (state == STATE_TREAD || state == STATE_SURF_TREAD || state == STATE_SURF_SWIM || state == STATE_SURF_BACK)
             w *= TURN_WATER_FAST;
-        else if (state == STATE_RUN) {
+        else if (state == STATE_CRAWL || state == STATE_CRAWL_BACK || state == STATE_ALL4_TURN_LEFT || state == STATE_ALL4_TURN_RIGHT)
+            w *= (state == STATE_CRAWL_BACK) ? -LARA_TURN_CRAWL : LARA_TURN_CRAWL;
+        else if (state == STATE_RUN || state == STATE_DASH) {
             if (Core::settings.detail.stereo == Core::Settings::STEREO_VR)
                 w *= TURN_FAST;
             else
@@ -5782,6 +6039,7 @@ struct Lara : Character {
             case STATE_FAST_BACK  :
             case STATE_SLIDE_BACK :
             case STATE_ROLL_END   :
+            case STATE_CRAWL_BACK :
                 angleExt += PI;
                 break;
             case STATE_LEFT_JUMP  :
@@ -5827,6 +6085,10 @@ struct Lara : Character {
                         break;
                     default :
                         speed = animation.getSpeed();
+                        if (state == STATE_CRAWL_BACK)
+                            speed = fabsf(speed); // these animations go back by their speed, the others by their direction
+                        if (stand == STAND_WADE && inSwamp())
+                            speed *= 0.5f;
                 }
 
                 if (stand == STAND_ONWATER || isLadderState()) {
@@ -5883,7 +6145,7 @@ struct Lara : Character {
             vTilt *= 2.0f;
         vTilt *= rotFactor.y;
         bool VR = (Core::settings.detail.stereo == Core::Settings::STEREO_VR) && camera->firstPerson;
-        updateTilt((input & WALK) == 0 && (state == STATE_RUN || (state == STATE_STOP && animation.index == ANIM_LANDING) || stand == STAND_UNDERWATER) && !VR, vTilt.x, vTilt.y);
+        updateTilt((input & WALK) == 0 && (state == STATE_RUN || state == STATE_DASH || (state == STATE_STOP && animation.index == ANIM_LANDING) || stand == STAND_UNDERWATER) && !VR, vTilt.x, vTilt.y);
 
         collisionOffset = vec3(0.0f);
 
@@ -6028,7 +6290,7 @@ struct Lara : Character {
         // push Lara out of objects and walking enemies (flying ones and the dead don't block, except the huge T-Rex body as in the original)
             if (!e.isEnemy() || (!((Character*)controller)->flying && (((Character*)controller)->health > 0.0f || e.type == TR::Entity::ENEMY_REX || dragon))) {
                 Box pushBox = box;
-                if (e.isEnemy() && (level->version & TR::VER_TR2)) { // out of the bounds of the creature alone (no big push), she may stand at its jaws
+                if (e.isEnemy() && (level->version & (TR::VER_TR2 | TR::VER_TR3))) { // out of the bounds of the creature alone (no big push), she may stand at its jaws
                     pushBox = controller->getBoundingBoxLocal();
                     pushBox.max.y += LARA_HEIGHT;
                 }
@@ -6123,6 +6385,13 @@ struct Lara : Character {
 
         if (state == STATE_WALK || state == STATE_BACK)
             maxDescent = maxAscent;
+        if (stand == STAND_GROUND && isCrouchState()) {
+            maxHeight = LARA_HEIGHT_DUCK;
+            if (isCrawlState()) {
+                maxAscent  = LARA_CRAWL_ASCENT;
+                maxDescent = LARA_CRAWL_DESCENT;
+            }
+        }
         if (state == STATE_STEP_LEFT || state == STATE_STEP_RIGHT)
             maxAscent = maxDescent = 64;
         if (stand == STAND_ONWATER) {
@@ -6206,7 +6475,7 @@ struct Lara : Character {
                 case STAND_GROUND :
                 case STAND_HANG   :
                 case STAND_WADE   :
-                    if (opos.y - floor > (256 * 3 - 128) && state == STATE_RUN) {
+                    if (opos.y - floor > (256 * 3 - 128) && (state == STATE_RUN || state == STATE_DASH)) {
                         if (input & ACTION) {
                             animation.setAnim(isLeftFoot ? ANIM_STAND_LEFT : ANIM_STAND_RIGHT);
                         } else {
@@ -6220,6 +6489,9 @@ struct Lara : Character {
                     } else if (stand == STAND_HANG) {
                     // climbing up onto the ledge goes on as in the original, the room may be still the one below it
                     // (a ledge on the room border), so the sector under the ledge is taken for a low ceiling
+                    } else if (isCrouchState()) {
+                        if (state == STATE_CRAWL || state == STATE_CRAWL_BACK)
+                            animation.setAnim(ANIM_ALL4S);
                     } else if (state != STATE_ROLL_START && state != STATE_ROLL_END)
                         animation.setAnim((state == STATE_RUN || state == STATE_WALK) ? (isLeftFoot ? ANIM_STAND_LEFT : ANIM_STAND_RIGHT) : ANIM_STAND);
                     velocity.x = velocity.z = 0.0f;
@@ -6245,7 +6517,7 @@ struct Lara : Character {
                     pos.y = min(float(floor), pos.y + DESCENT_SPEED * Core::deltaTime);
                 } else if (h > -128) {
                     pos.y = float(floor);
-                } else if (h >= -(256 + 128) && (state == STATE_RUN || state == STATE_WALK)) { // ascend
+                } else if (h >= -(256 + 128) && (state == STATE_RUN || state == STATE_WALK) && !isCrouchState()) { // ascend
                     if (state == STATE_RUN)  animation.setAnim(isLeftFoot ? ANIM_RUN_ASCEND_LEFT  : ANIM_RUN_ASCEND_RIGHT);
                     if (state == STATE_WALK) animation.setAnim(isLeftFoot ? ANIM_WALK_ASCEND_LEFT : ANIM_WALK_ASCEND_RIGHT);
                     pos.y = float(floor);

@@ -1856,7 +1856,7 @@ namespace TR {
         int16   alternateRoom;
         union {
             struct {
-                uint16 water:1, :2, sky:1, :1, wind:1, unused:9, visible:1;
+                uint16 water:1, :2, sky:1, :1, wind:1, :1, swamp:1, unused:7, visible:1; // swamp - TR3 only
             };
             uint16 value;
         } flags;
@@ -2448,7 +2448,8 @@ namespace TR {
         bool isEnemy() const {
             return (type >= ENEMY_DOPPELGANGER && type <= ENEMY_GIANT_MUTANT) || type == SCION_TARGET ||
                    (type >= ENEMY_DOG && type <= ENEMY_DRAGON_BACK) ||
-                   (type >= ENEMY_SHARK && type <= ENEMY_MONK_2 && type != VEHICLE_SNOWMOBILE_BLACK);
+                   (type >= ENEMY_SHARK && type <= ENEMY_MONK_2 && type != VEHICLE_SNOWMOBILE_BLACK) ||
+                   type == ENEMY_MONKEY; // TR3, as they get their controllers
         }
 
         bool isBigEnemy() const {
@@ -5563,9 +5564,8 @@ namespace TR {
                 } else {
                     s.material = s.boxIndex & 0x0F; 
                     s.boxIndex = s.boxIndex >> 4;
-                    if (s.boxIndex == 2047) {
-                        s.boxIndex = 0; // TODO TR3 slide box indices
-                    }
+                    if (s.boxIndex == 0x7FF)
+                        s.boxIndex = NO_BOX;
                 }
             }
 
