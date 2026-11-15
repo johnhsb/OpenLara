@@ -967,9 +967,26 @@ struct Controller {
         vec3 to   = c->pos;
         from.y = getBoundingBox().center().y;
         to.y   = c->getBoundingBox().center().y;
-        int room;
-        vec3 d = trace(getRoomIndex(), from, to, room, false);
-        return (d - from).length() < (to - from).length() - 32.0f;
+
+        vec3  d    = to - from;
+        float dist = d.length();
+        if (dist < 1.0f)
+            return false;
+
+    // the floor under each step of the way counts, not the one at the middle of its sector: a low body on a slope is
+    // over the floor where it stands and under the one at the middle
+        int steps = int(dist / 32.0f) + 1;
+        int room  = getRoomIndex();
+        TR::Level::FloorInfo info;
+        for (int i = 0; i < steps; i++) {
+            vec3 p = from + d * (float(i) / float(steps));
+            getFloorInfo(room, p, info);
+            if (info.roomNext != TR::NO_ROOM)
+                room = info.roomNext;
+            if (p.y > info.floor || p.y < info.ceiling)
+                return true;
+        }
+        return false;
     }
 
     vec3 trace(int fromRoom, const vec3 &from, const vec3 &to, int &room, bool isCamera) { // TODO: use Bresenham
