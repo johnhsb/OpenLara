@@ -10,7 +10,7 @@ The detailed change list below is in Korean.*
 
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
 
-- **다운로드**: [Releases](https://github.com/johnhsb/OpenLara/releases) (Windows x64, Linux x64)
+- **다운로드**: [Releases](https://github.com/johnhsb/OpenLara/releases) (Windows x64, Linux x64, 웹)
 - **변경 사항 전체**: [docs/CHANGES.md](docs/CHANGES.md)
 - **개발 지원 문서** (빌드, 테스트 위치, 크래시 분석, 시행착오): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 
@@ -57,6 +57,17 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 
 세이브와 설정은 게임별 폴더에 저장됩니다 (Windows: `%APPDATA%\OpenLara\tr1`, `tr2`; Linux: `~/.openlara/tr1`, `tr2`).
 
+### 웹 버전
+
+릴리즈의 웹 묶음(`OpenLara-…-web.zip`)을 풀고, 게임 폴더를 지정해 이 컴퓨터에서 서버를 띄웁니다. Python 3이 필요합니다.
+
+```
+python3 serve.py --tr1 <Tomb Raider 1 폴더> --tr2 <Tomb Raider 2 폴더>
+```
+
+출력된 주소(`http://127.0.0.1:8000/`)를 브라우저로 엽니다. 게임 파일은 복사하지 않고 지정한 폴더에서 바로 읽으며,
+서버는 이 컴퓨터에서만 접속할 수 있습니다. 한 게임만 지정해도 됩니다. 웹 버전에는 텍스처 팩이 적용되지 않습니다.
+
 ### 텍스처 팩
 
 데이터 폴더의 `texture/`에 `<LEVEL>_<tile>.png|jpg`를 두면 레벨의 타일을 대신합니다.
@@ -70,6 +81,7 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 | Windows x64 | `src\platform\win\build_msvc.bat` (Visual Studio) |
 | Linux / WSL | `src/platform/sdl2/build.sh` (SDL2, GLES3) |
 | macOS | `src/platform/osx/build.sh` (`-d`는 디버그) |
+| 웹 (WebAssembly) | `src/platform/web/build.sh` (Emscripten) |
 
 ## 원본 프로젝트
 
