@@ -49,6 +49,12 @@ cd "$WINTMP" && /mnt/c/Windows/System32/cmd.exe /c '%TEMP%\olbuild\src\platform\
 - **배포**: `OpenLara.exe`와 `OpenLara.pdb`, Linux 바이너리를 TR1·TR2 게임 폴더에 복사하고 md5로 확인합니다. PDB가 실행 파일과 같은 빌드여야 크래시 로그에 함수 이름과 줄 번호가 나옵니다.
 - 게임이 실행 중이면 복사가 Permission denied로 실패합니다. 게임을 닫고 다시 복사합니다.
 
+**릴리즈**
+
+- Windows, Linux x64, 웹 묶음은 로컬에서 만들어 `gh release create <태그>`로 올립니다. 웹 묶음에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`가 들어갑니다.
+- 태그가 올라가면 `.github/workflows/release.yml`이 macOS(Apple Silicon)와 Linux ARM64를 빌드해 같은 릴리즈에 추가합니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
+- 러너 이름은 GitHub가 주기적으로 없앱니다(`macos-14`가 없어져 작업이 시작도 못 하고 취소된 적이 있음). 작업이 단계 없이 취소되면 러너 이름부터 확인합니다.
+
 ## 3. 실행 옵션과 환경 변수
 
 ```

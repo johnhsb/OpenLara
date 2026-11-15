@@ -10,7 +10,7 @@ The detailed change list below is in Korean.*
 
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
 
-- **다운로드**: [Releases](https://github.com/johnhsb/OpenLara/releases) (Windows x64, Linux x64, 웹)
+- **다운로드**: [Releases](https://github.com/johnhsb/OpenLara/releases) (Windows x64, Linux x64·ARM64, macOS, 웹)
 - **변경 사항 전체**: [docs/CHANGES.md](docs/CHANGES.md)
 - **개발 지원 문서** (빌드, 테스트 위치, 크래시 분석, 시행착오): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
 
@@ -82,6 +82,8 @@ python3 serve.py --tr1 <Tomb Raider 1 폴더> --tr2 <Tomb Raider 2 폴더>
 | Linux / WSL | `src/platform/sdl2/build.sh` (SDL2, GLES3) |
 | macOS | `src/platform/osx/build.sh` (`-d`는 디버그) |
 | 웹 (WebAssembly) | `src/platform/web/build.sh` (Emscripten) |
+
+macOS와 Linux ARM64 릴리즈는 GitHub Actions(`.github/workflows/release.yml`)가 버전 태그를 올릴 때 빌드해 릴리즈에 추가합니다.
 
 ## 원본 프로젝트
 
