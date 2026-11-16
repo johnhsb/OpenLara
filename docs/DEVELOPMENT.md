@@ -80,8 +80,8 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 | `OL_DUMP_TEXTURES=1` | 레벨의 원본 타일을 파일로 저장 |
 | `GALLIUM_DRIVER=llvmpipe` | (WSL, Mesa) 소프트웨어 렌더링. 자동 테스트는 이것으로 돌립니다(5장) |
 
-- 세이브와 설정: Windows `%APPDATA%\OpenLara\tr1`, `tr2`; Linux `~/.openlara/tr1`, `tr2`.
-- 키: `F` FPS 표시, `F12` 스크린샷(실행 폴더에 `screenshot_NNNN.jpg`).
+- 세이브와 설정, 스크린샷: Windows `%APPDATA%\OpenLara\tr1`, `tr2`; Linux `~/.openlara/tr1`, `tr2`; macOS `~/Library/Application Support/OpenLara/tr1`, `tr2`.
+- 키: `F` FPS 표시, `F12` 스크린샷(세이브 폴더에 `screenshot_NNNN.jpg`, 저장한 경로는 로그에 남음).
 - 화면의 FPS 줄은 로그에도 남습니다: `FPS: 120 DIP: 20 TRI: 4384 RT: 2` (드로 콜, 삼각형, 렌더 타깃 전환 수).
 
 ## 4. 테스트 위치

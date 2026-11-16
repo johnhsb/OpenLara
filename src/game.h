@@ -408,11 +408,11 @@ namespace Game {
     }
 
 #ifdef _GAPI_GL
-    // saves the back buffer as screenshot_NNNN.jpg in the working directory
+    // saves the back buffer as screenshot_NNNN.jpg in the save folder of the game
     void saveScreenshot() {
-        char name[32];
+        char name[sizeof(saveDir) + 32];
         for (int i = 0; i < 10000; i++) {
-            sprintf(name, "screenshot_%04d.jpg", i);
+            sprintf(name, "%sscreenshot_%04d.jpg", saveDir, i);
             FILE *f = fopen(name, "rb");
             if (!f) break;
             fclose(f);
