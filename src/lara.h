@@ -477,6 +477,7 @@ struct Lara : Character {
     bool        hitTouch;   // a creature pushes her, the sound of it comes once till they part
     vec3        collisionOffset;
     vec3        flowVelocity;
+    bool        flowActive;     // a current of TR3 holds her this frame
     float       statsDistDelta;
 
     Camera      *camera;
@@ -706,6 +707,8 @@ struct Lara : Character {
         swampFall  = 0.0f;
         hitDir     = -1;
         hitTouch   = false;
+        flowActive = false;
+        flowVelocity = vec3(0.0f);
         damageTime = LARA_DAMAGE_TIME;
         hitTime    = 0.0f;
 
@@ -5989,7 +5992,20 @@ struct Lara : Character {
     }
 
     virtual void updateVelocity() {
-        flowVelocity = vec3(0);
+        if (level->version & TR::VER_TR3) {
+        // the current of TR3 lets her go slowly, a sixteenth of its speed a frame
+            if (stand != STAND_UNDERWATER && stand != STAND_ONWATER) {
+                flowVelocity = vec3(0);
+                flowActive   = false;
+            } else if (flowActive) {
+                flowActive = false;
+            } else {
+                flowVelocity = flowVelocity * powf(15.0f / 16.0f, Core::deltaTime * 30.0f);
+                if (flowVelocity.length2() < SQR(4.0f / 256.0f))
+                    flowVelocity = vec3(0);
+            }
+        } else
+            flowVelocity = vec3(0);
 
         if (zipline) {
             velocity = vec3(0.0f);
@@ -6557,6 +6573,24 @@ struct Lara : Character {
 
     virtual void applyFlow(TR::Camera &sink) {
         if (stand != STAND_UNDERWATER && stand != STAND_ONWATER) return;
+
+        if (level->version & TR::VER_TR3) {
+        // the current of TR3 runs straight for its sink at four times its strength a frame, it takes her up by a
+        // sixteenth of the difference a frame and brings her to the height of the sink the same way
+            if (dozy)
+                return;
+            vec3  d   = vec3(float(sink.x) - pos.x, 0.0f, float(sink.z) - pos.z);
+            float len = d.length();
+            vec3  v   = len > 1.0f ? d * (float(sink.speed) * 4.0f / len) : vec3(0.0f);
+            float k   = 1.0f - powf(15.0f / 16.0f, Core::deltaTime * 30.0f);
+            flowVelocity.x += (v.x - flowVelocity.x) * k;
+            flowVelocity.z += (v.z - flowVelocity.z) * k;
+            flowVelocity.y  = (float(sink.y) - pos.y) / 16.0f;
+            flowActive = true;
+            if (stand == STAND_ONWATER)
+                goUnderwater();
+            return;
+        }
 
         vec3 target = vec3(float(sink.x), float(sink.y), float(sink.z));
 
