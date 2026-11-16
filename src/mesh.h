@@ -1623,6 +1623,43 @@ struct MeshBuilder {
         addSprite(dynIndices, dynVertices, dynICount, dynVCount, 0, center.x, center.y, center.z, false, false, sprite, color, color);
     }
 
+    void addDynSpriteSized(int spriteIndex, const short3 &center, int16 size, const Color32 &color) { // a square of the sprite of the size (a half) given
+        dynCheck(1 * 6);
+
+        TR::TextureInfo sprite = level->spriteTextures[spriteIndex];
+        sprite.l = sprite.t = -size;
+        sprite.r = sprite.b = size;
+
+        addSprite(dynIndices, dynVertices, dynICount, dynVCount, 0, center.x, center.y, center.z, false, false, sprite, color, color);
+    }
+
+    void addDynSpriteTri(int spriteIndex, const short3 &a, const short3 &b, const short3 &c, const Color32 &color) { // a triangle in the world with the sprite on it: a at the middle of its left side, b and c at its right corners
+        dynCheck(2 * 6);
+
+        const TR::TextureInfo &sprite = level->spriteTextures[spriteIndex];
+
+        addQuad(dynIndices, dynICount, dynVCount, 0, NULL, NULL, true, false);
+
+        Vertex *quad = &dynVertices[dynVCount];
+        quad[0].coord = short4(a.x, a.y, a.z, 0);
+        quad[1].coord = short4(b.x, b.y, b.z, 0);
+        quad[2].coord = quad[3].coord = short4(c.x, c.y, c.z, 0);
+
+        int16 u0 = sprite.texCoordAtlas[0].x, u1 = sprite.texCoordAtlas[1].x;
+        int16 v0 = sprite.texCoordAtlas[0].y, v1 = sprite.texCoordAtlas[1].y;
+        quad[0].texCoord = short4(u0, int16((int(v0) + int(v1)) / 2), 0, 0);
+        quad[1].texCoord = short4(u1, v0, 0, 0);
+        quad[2].texCoord = quad[3].texCoord = short4(u1, v1, 0, 0);
+
+        for (int i = 0; i < 4; i++) {
+            quad[i].normal = short4(0, 0, 0, 0);
+            quad[i].color  = ubyte4(255, 255, 255, 255);
+            quad[i].light  = ubyte4(color.r, color.g, color.b, color.a);
+        }
+
+        dynVCount += 4;
+    }
+
     void renderRoomSprites(int roomIndex) {
     #ifndef MERGE_SPRITES
         Core::mModel.identity();

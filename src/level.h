@@ -1424,6 +1424,8 @@ struct Level : IGame {
             case TR::Entity::TRAP_LAVA_EMITTER     : return new TrapLavaEmitter(this, index);
             case TR::Entity::FLAME                 : return new Flame(this, index);
             case TR::Entity::TRAP_FLAME_EMITTER    : return new TrapFlameEmitter(this, index);
+            case TR::Entity::PARTICLE_FIRE_2       : return new TorchFlame(this, index);
+            case TR::Entity::ENEMY_PIRANHAS        : return new PiranhaShoal(this, index);
             case TR::Entity::BOAT                  : return new Boat(this, index);
             case TR::Entity::EARTHQUAKE            : return new Earthquake(this, index);
             case TR::Entity::MUTANT_EGG_SMALL      :
@@ -2984,7 +2986,11 @@ struct Level : IGame {
 
         bool isModel;
 
-        if (entity.type != TR::Entity::TRAP_LAVA_EMITTER) {
+        if (entity.type == TR::Entity::ENEMY_PIRANHAS) { // drawn by itself, blended
+            if (mesh->transparent != 1)
+                return;
+            isModel = false;
+        } else if (entity.type != TR::Entity::TRAP_LAVA_EMITTER && entity.type != TR::Entity::PARTICLE_FIRE_2) {
             isModel = entity.modelIndex > 0;
             if (isModel) {
                 if (!mesh->models[controller->getModel()->index].geometry[mesh->transparent].count) return;

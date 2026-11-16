@@ -6704,6 +6704,9 @@ namespace TR {
             if (!simpleItems)
                 type = convToInv(type);
 
+            if ((version & VER_TR3) && (type == Entity::PARTICLE_FIRE_2 || type == Entity::ENEMY_PIRANHAS))
+                type = Entity::MISC_SPRITES; // the fire is made of the puffs of these, the fish wear a piece of them
+
         //#ifndef _DEBUG
             if ((type >= Entity::AI_GUARD && type <= Entity::AI_CHECK) || 
                 (type >= Entity::GLOW_2 && type <= Entity::ENEMY_BAT_SWARM) ||

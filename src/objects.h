@@ -1442,5 +1442,6 @@ struct Bullet : Controller {
 
 #include "objects_tr1.h"
 #include "objects_tr2.h"
+#include "objects_tr3.h"
 
 #endif

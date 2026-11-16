@@ -82,6 +82,7 @@
     <ClInclude Include="..\..\objects.h" />
     <ClInclude Include="..\..\objects_tr1.h" />
     <ClInclude Include="..\..\objects_tr2.h" />
+    <ClInclude Include="..\..\objects_tr3.h" />
     <ClInclude Include="..\..\gapi\c3d.h">
       <Filter>gapi</Filter>
     </ClInclude>
