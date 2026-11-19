@@ -6412,6 +6412,10 @@ struct Lara : Character {
 
         if (state == STATE_WALK || state == STATE_BACK)
             maxDescent = maxAscent;
+    // a slide goes up to 2 clicks (bad_neg = -STEP_L * 2 in the original), so it takes Lara out of a pit at the foot
+    // of a slope onto the ledge around it (as the corner of room 84 of The Deck, 394 above its lowest point)
+        if (stand == STAND_SLIDE)
+            maxAscent = 256 * 2;
         if (stand == STAND_GROUND && isCrouchState()) {
             maxHeight = LARA_HEIGHT_DUCK;
             if (isCrawlState()) {
