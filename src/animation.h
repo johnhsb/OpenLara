@@ -53,7 +53,18 @@ struct Animation {
             initOverrides();
         }
 
-        if (anims) setAnim(0);
+        if (anims) {
+            setAnim(0);
+            return;
+        }
+
+        // a model with no animations (the inventory model of the prayer wheel of Barkhang in TR2) still has
+        // a frame of its own to stand in, the original draws it from there
+        frameA = frameB = (model && model->frame / 2 < uint32(level->frameDataSize)) ? (TR::AnimFrame*)&level->frameData[model->frame / 2] : NULL;
+        isEnded = true;
+        isPrepareToNext = false;
+        rot = 0.0f;
+        offset = jump = vec3(0.0f);
     }
 
     inline operator TR::Animation* () const { return anims + index; }
@@ -66,6 +77,7 @@ struct Animation {
     }
 
     void update() {
+        if (!anims) return;
         if (!isEnded) {
             time += dir * Core::deltaTime;
             isEnded = time <= 0.0f || time >= timeMax;
@@ -76,6 +88,7 @@ struct Animation {
 
     int setAnim(int animIndex, int animFrame = 0, bool lerpToNext = true) {
         ASSERT(model);
+        if (!anims) return state = 0;
         TR::Animation *anim = anims + animIndex;
         isEnded     = isPrepareToNext = false;
         offset      = jump = vec3(0.0f);
@@ -111,7 +124,7 @@ struct Animation {
 
     void updateInfo() {
         ASSERT(model);
-        ASSERT(anims);
+        if (!anims) return;
         TR::Animation *anim = anims + index;
 
     //    framePrev  = frameIndex;
@@ -152,6 +165,7 @@ struct Animation {
     }
 
     bool canSetState(int state) {
+        if (!anims) return false;
         TR::Animation *anim = anims + index;
 
         if (state == anim->state)
@@ -172,6 +186,7 @@ struct Animation {
 
     bool setState(int state, int animIndex = -1) {
         ASSERT(model);
+        if (!anims) return false;
         TR::Animation *anim = anims + index;
 
         if (state == anim->state)
@@ -248,6 +263,7 @@ struct Animation {
     }
 
     quat getJointRot(int joint) {
+        if (!frameA) return quat(0, 0, 0, 1); // a model with no animations (the inventory model of a pickup) stands as built
         return lerpAngle(frameA->getAngle(level->version, joint), frameB->getAngle(level->version, joint), delta);
     }
 
@@ -256,7 +272,8 @@ struct Animation {
 
         ASSERT(model);
         vec3 offset = isPrepareToNext ? this->offset : vec3(0.0f);
-        basis.translate(((vec3)frameA->pos).lerp(offset + frameB->pos, delta));
+        if (frameA) // none for a model with no animations, e.g. the prayer wheel of Barkhang (TR2) shown as a 3D pickup
+            basis.translate(((vec3)frameA->pos).lerp(offset + frameB->pos, delta));
 
         TR::Node *node = (int)model->node < level->nodesDataSize ? (TR::Node*)&level->nodesData[model->node] : NULL;
 

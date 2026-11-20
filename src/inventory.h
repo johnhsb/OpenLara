@@ -339,7 +339,7 @@ struct Inventory {
                 default                              : desc = Desc( STR_UNKNOWN,         PAGE_ITEMS,     -1                               ); break;
             }
 
-            if (desc.model > -1 && level->models[desc.model].animation != 0xFFFF) {
+            if (desc.model > -1) { // one with no animations stands in the frame of its model
                 anim = new Animation(level, &level->models[desc.model]);
                 anim->isEnded = true;
             } else
