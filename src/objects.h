@@ -103,9 +103,156 @@ struct Switch : Controller {
     }
 };
 
+// A key left in its hole (an addition of OpenLara, the originals draw nothing there).
+// Its pos is the point Lara puts it at: the hole + vec3(0, -590, 484) turned by the hole.
+// TR1 stands its inventory model up with angle.x. The models of TR2 and TR3 lie in all
+// axes (a key flat in XY or along Z, tilted ones, a card), so the pose comes from the mesh:
+// its longest axis goes into the wall with the narrow end (the blade) first, its broad
+// side stands upright, and the handle stays out of the plate of the hole.
 struct KeyItemInv : Controller {
-    KeyItemInv(IGame *game, int entity) : Controller(game, entity) {
-        angle.x = PI * 0.5f;
+    bool  posed;
+    vec3  axis[3]; // model axes in the space of the hole (x - right, y - down, z - into the wall)
+    vec3  shift;   // model origin in that space, from pos
+
+    KeyItemInv(IGame *game, int entity) : Controller(game, entity), posed(false) {
+        if (level->version & TR::VER_TR1) {
+            angle.x = PI * 0.5f;
+            return;
+        }
+        posed = initPose();
+    }
+
+    bool initPose() {
+        const TR::Model *model = getModel();
+        if (!model || !model->mCount) return false;
+        int index = level->meshOffsets[model->mStart];
+        if (!index && model->mStart) return false;
+        const TR::Mesh &mesh = level->meshes[index];
+        if (mesh.vCount < 3 || !mesh.vertices) return false;
+
+        vec3 c(0.0f);
+        for (int i = 0; i < mesh.vCount; i++)
+            c += vertex(mesh, i);
+        c *= 1.0f / mesh.vCount;
+
+        float m[3][3] = { {0} };
+        for (int i = 0; i < mesh.vCount; i++) {
+            vec3 d = vertex(mesh, i) - c;
+            for (int a = 0; a < 3; a++)
+                for (int b = 0; b < 3; b++)
+                    m[a][b] += d[a] * d[b];
+        }
+
+        vec3 e[3];
+        float ev[3];
+        eigen(m, ev, e);
+
+        int order[3] = { 0, 1, 2 };
+        for (int i = 0; i < 2; i++)
+            for (int j = i + 1; j < 3; j++)
+                if (ev[order[j]] > ev[order[i]]) swap(order[i], order[j]);
+
+        vec3 L = e[order[0]].normal(); // length
+        vec3 W = e[order[1]].normal(); // breadth
+
+        float lo = INF, hi = -INF;
+        for (int i = 0; i < mesh.vCount; i++) {
+            float t = (vertex(mesh, i) - c).dot(L);
+            lo = min(lo, t);
+            hi = max(hi, t);
+        }
+        float length = hi - lo;
+        if (length < 1.0f) return false;
+
+        // the blade is the end that is narrower across the breadth
+        float wMin[2] = { INF, INF }, wMax[2] = { -INF, -INF };
+        for (int i = 0; i < mesh.vCount; i++) {
+            vec3  d = vertex(mesh, i) - c;
+            float t = d.dot(L);
+            float w = d.dot(W);
+            for (int k = 0; k < 2; k++) {
+                if (k == 0 ? (t < lo + length * 0.25f) : (t > hi - length * 0.25f)) {
+                    wMin[k] = min(wMin[k], w);
+                    wMax[k] = max(wMax[k], w);
+                }
+            }
+        }
+        if (wMax[0] - wMin[0] < wMax[1] - wMin[1]) {
+            L  = -L;
+            hi = -lo;
+        }
+        vec3 T = W.cross(L);
+
+        // model axes in the hole space: x = T, y = W, z = L (rotation, no mirror)
+        axis[0] = vec3(T.x, W.x, L.x);
+        axis[1] = vec3(T.y, W.y, L.y);
+        axis[2] = vec3(T.z, W.z, L.z);
+
+        // the plate of the hole is 68 units thick with its face at z = 443, the slot at y = -571
+        // (pos is at 0, -590, 484): the blade end goes 40% of the length into it
+        vec3 tip = vec3(0.0f, 19.0f, -41.0f + length * 0.4f);
+        shift = tip - vec3(c.dot(T), c.dot(W), c.dot(L) + hi);
+        return true;
+    }
+
+    static vec3 vertex(const TR::Mesh &mesh, int i) {
+        const short4 &v = mesh.vertices[i].coord;
+        return vec3(float(v.x), float(v.y), float(v.z));
+    }
+
+    // eigenvectors of a symmetric 3x3 (Jacobi rotations)
+    static void eigen(float a[3][3], float val[3], vec3 vec[3]) {
+        float v[3][3] = { {1, 0, 0}, {0, 1, 0}, {0, 0, 1} };
+        for (int iter = 0; iter < 50; iter++) {
+            int p = 0, q = 1;
+            if (fabsf(a[0][2]) > fabsf(a[p][q])) { p = 0; q = 2; }
+            if (fabsf(a[1][2]) > fabsf(a[p][q])) { p = 1; q = 2; }
+            if (fabsf(a[p][q]) < 1e-6f) break;
+            float th = 0.5f * atan2f(2.0f * a[p][q], a[q][q] - a[p][p]);
+            float c = cosf(th), s = sinf(th);
+            for (int k = 0; k < 3; k++) {
+                float kp = a[k][p], kq = a[k][q];
+                a[k][p] = c * kp - s * kq;
+                a[k][q] = s * kp + c * kq;
+            }
+            for (int k = 0; k < 3; k++) {
+                float pk = a[p][k], qk = a[q][k];
+                a[p][k] = c * pk - s * qk;
+                a[q][k] = s * pk + c * qk;
+            }
+            for (int k = 0; k < 3; k++) {
+                float kp = v[k][p], kq = v[k][q];
+                v[k][p] = c * kp - s * kq;
+                v[k][q] = s * kp + c * kq;
+            }
+        }
+        for (int i = 0; i < 3; i++) {
+            val[i] = a[i][i];
+            vec[i] = vec3(v[0][i], v[1][i], v[2][i]);
+        }
+    }
+
+    void updatePose() {
+        float ay = -angle.y;
+        vec3 r = axis[0].rotateY(ay);
+        vec3 u = axis[1].rotateY(ay);
+        vec3 d = axis[2].rotateY(ay);
+        vec3 o = pos + shift.rotateY(ay);
+
+        lockMatrix = true;
+        matrix.identity();
+        matrix.right()  = vec4(r, 0.0f);
+        matrix.up()     = vec4(u, 0.0f);
+        matrix.dir()    = vec4(d, 0.0f);
+        matrix.offset() = vec4(o, 1.0f);
+
+        joints[0]   = Basis(matrix);
+        jointsFrame = Core::stats.frame;
+    }
+
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {
+        if (posed) updatePose();
+        Controller::render(frustum, mesh, type, caustics);
     }
 };
 

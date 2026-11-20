@@ -3100,6 +3100,7 @@ struct Lara : Character {
                         keyItem->pos     = keyHole->pos + vec3(0, -590, 484).rotateY(-keyHole->angle.y);
                         keyItem->angle.x = PI * 0.5f;
                         keyItem->angle.y = keyHole->angle.y;
+                        keyItem->flags.invisible = true;
                     }
 
                     animation.setState(actionState);
@@ -5786,8 +5787,10 @@ struct Lara : Character {
                     if (animation.isFrameActive(state == STATE_USE_PUZZLE ? PUZZLE_FRAME : KEY_FRAME)) {
                         keyHole->activate();
                         if (keyItem) {
-                            if (state == STATE_USE_KEY)
+                            if (state == STATE_USE_KEY) {
                                 keyItem->lockMatrix = false;
+                                keyItem->flags.invisible = false; // TR2 and TR3 show it from here, posed by KeyItemInv
+                            }
                             else
                                 game->removeEntity(keyItem);
                         }
@@ -5930,7 +5933,11 @@ struct Lara : Character {
                 camera->mode = Camera::MODE_LOOK;
         }
 
-        if (keyItem) {
+        if (keyItem && !(level->version & TR::VER_TR1)) {
+            // the hand of TR2 and TR3 holds nothing (as in the original), the alignment below is for
+            // the models of TR1; the key shows in its hole from KEY_FRAME on
+            keyItem->flags.invisible = true;
+        } else if (keyItem) {
             keyItem->flags.invisible = animation.frameIndex < (state == STATE_USE_KEY ? 70 : 30);
             keyItem->lockMatrix = true;
             mat4 &m = keyItem->matrix;
