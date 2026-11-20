@@ -718,8 +718,16 @@ struct Vehicle : Controller {
     static int tatan(int x, int y) { return int(atan2f(float(y), float(x)) * (32768.0f / PI)); }
 
     int getHeight(int16 &room, const Pos &p) {
-        TR::Room::Sector *sector = level->getSector(room, vec3(float(p.x), float(p.y), float(p.z)));
-        return int(level->getFloor(sector, vec3(float(p.x), float(p.y), float(p.z))));
+        vec3 v(float(p.x), float(p.y), float(p.z));
+        TR::Room::Sector *sector = level->getSector(room, v);
+        int height = int(level->getFloor(sector, v));
+    // the original takes the floors of the objects the triggers of the sector name too (a closed trapdoor is the
+    // bridge over the gap in Tibetan Foothills), the floor of the room alone dropped the snowmobile through it
+        TR::Level::FloorInfo info;
+        getFloorInfo(room, v, info);
+        if (info.floor < height && !level->isAbyss(int(info.floor)))
+            height = int(info.floor);
+        return height;
     }
 
     // pushes the vehicle back out of a wall, returns the extra rotation
