@@ -684,6 +684,40 @@ struct TrapBoulder : Controller {
         return fabsf(up.ceiling - info.floor) < h;
     }
 
+    // a ball that has stopped drops straight down when its floor goes away under it (an addition of TRX, #4808, the
+    // originals leave it in the air): the ice of Tibetan Foothills breaks under the snowballs (a flip of the rooms).
+    // The stop animation of a TR2 ball ends with the kill command, so the flip wakes it up (Level::updateBodies)
+    bool isFloorGone() {
+        if (!flags.unused) return false;
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), pos, info);
+        return info.floor != TR::NO_FLOOR * 256.0f && pos.y < info.floor;
+    }
+
+    // true while it falls
+    bool fallStopped() {
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), pos, info);
+        if (info.floor == TR::NO_FLOOR * 256.0f || pos.y >= info.floor) {
+            velocity.y = 0.0f;
+            return false;
+        }
+
+        if (velocity.y == 0.0f)
+            velocity.y = -10.0f; // the hop the original gives a ball that sets off falling
+        applyGravity(velocity.y);
+        pos.y += velocity.y * (30.0f * Core::deltaTime);
+
+        bool falls = true;
+        if (pos.y >= info.floor) {
+            pos.y      = info.floor;
+            velocity.y = 0.0f;
+            falls      = false;
+        }
+        level->getSector(roomIndex, pos); // the room under it
+        return falls;
+    }
+
     virtual void update() {
         if (flags.active == 0) {
             if (state != STATE_FALL) {
@@ -701,6 +735,8 @@ struct TrapBoulder : Controller {
         bool tr2 = (level->version & TR::VER_TR2) != 0;
 
         if (flags.unused) {
+            if (fallStopped())
+                return; // the stop animation (with its kill command) goes on once it lands
             if (tr2 && settles()) { // it plays its stop animation and stays
                 animation.setState(STATE_STOP_TR2);
                 updateAnimation(true);

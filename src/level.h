@@ -541,6 +541,13 @@ struct Level : IGame {
         if (!bodiesFall)
             return;
         bodiesFall = false;
+        // so do the balls that have stopped, their stop animation took them off the update list
+        for (int i = 0; i < level.entitiesCount; i++) {
+            TR::Entity &e = level.entities[i];
+            TrapBoulder *b = (TrapBoulder*)e.controller;
+            if (b && e.isBoulder() && b->flags.state != TR::Entity::asActive && b->isFloorGone())
+                b->activate();
+        }
         for (int i = 0; i < level.entitiesCount; i++) {
             TR::Entity &e = level.entities[i];
             Character *c = (Character*)e.controller;
