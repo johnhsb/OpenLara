@@ -1,7 +1,7 @@
 # OpenLara (johnhsb fork)
 
 Classic Tomb Raider open-source engine — [XProger/OpenLara](https://github.com/XProger/OpenLara)의 포크입니다.
-업스트림(`3b268ca`, 2026-07) 위에 **커밋 229개**를 더해, Tomb Raider II를 처음부터 끝까지 플레이할 수 있게 하고
+업스트림(`3b268ca`, 2026-07) 위에 **커밋 253개**를 더해, Tomb Raider II를 처음부터 끝까지 플레이할 수 있게 하고
 원작과 다른 동작을 바로잡았으며, 그래픽 옵션과 데스크톱 빌드를 보강했습니다.
 
 *A fork of XProger's OpenLara that makes Tomb Raider II playable from start to end, brings many behaviours back to
@@ -13,6 +13,7 @@ The detailed change list below is in Korean.*
 - **다운로드**: [Releases](https://github.com/johnhsb/OpenLara/releases) (Windows x64, Linux x64·ARM64, macOS, 웹)
 - **변경 사항 전체**: [docs/CHANGES.md](docs/CHANGES.md)
 - **개발 지원 문서** (빌드, 테스트 위치, 크래시 분석, 시행착오): [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **브랜치**: `main`은 TR1·TR2(버그 수정과 릴리즈), [`tr3`](https://github.com/johnhsb/OpenLara/tree/tr3)는 Tomb Raider III 구현 중
 
 게임 데이터는 포함되어 있지 않습니다. 정식으로 구입한 Tomb Raider 1 / 2 PC판의 데이터가 필요합니다.
 
@@ -24,6 +25,7 @@ The detailed change list below is in Korean.*
 | **원작 재현** | 점프 높이와 모서리 잡기 판정, 트리거 규칙, 적 AI·명중률, 카메라, 충돌 처리 등을 원작 동작에 맞춤 |
 | **그래픽** | 업스케일 텍스처 팩, 노멀 맵, 원경 안개, 구름과 해가 있는 하늘, 불·폭발·조명탄의 동적 조명, 라라 얼굴 텍스처 |
 | **편의 기능** | 상호작용 오브젝트 강조, FPS 표시(F), 스크린샷(F12), 게임별 세이브 폴더, 시작 위치 지정 실행 옵션 |
+| **Tomb Raider III** | `tr3` 브랜치에서 구현 중 (아직 플레이 지원 안 함) |
 | **플랫폼** | 64비트 Windows(MSVC) 빌드, WSL GPU 렌더링, Linux 대소문자 무시 데이터 탐색, macOS 최신 Xcode 빌드 |
 | **한국어** | TR2 컷신 한국어·영어 자막, 자막 싱크 편집기, 한글 글리프 생성기 |
 
@@ -55,7 +57,8 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 | `--activate=index[,index...]` | 시작 1초 뒤 작동시킬 엔티티 |
 | `-d dir`, `-f` (Linux) | 데이터 폴더, 전체 화면 |
 
-세이브와 설정은 게임별 폴더에 저장됩니다 (Windows: `%APPDATA%\OpenLara\tr1`, `tr2`; Linux: `~/.openlara/tr1`, `tr2`).
+세이브와 설정, F12 스크린샷은 게임별 폴더에 저장됩니다 (Windows: `%APPDATA%\OpenLara\tr1`, `tr2`; Linux: `~/.openlara/tr1`, `tr2`;
+macOS: `~/Library/Application Support/OpenLara/tr1`, `tr2`).
 
 ### 웹 버전
 
