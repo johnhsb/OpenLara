@@ -1,6 +1,6 @@
 # 개발 지원 문서
 
-OpenLara 포크(TR1·TR2)를 고치고 확인할 때 필요한 정보입니다: 빌드와 배포, 실행 옵션, 테스트 위치, 테스트 하네스,
+OpenLara 포크(TR1·TR2, TR3 진행 중)를 고치고 확인할 때 필요한 정보입니다: 빌드와 배포, 실행 옵션, 테스트 위치, 테스트 하네스,
 크래시 분석, 그동안의 시행착오. 무엇이 바뀌었는지는 [CHANGES.md](CHANGES.md)에 있습니다.
 
 | 장 | 내용 |
@@ -20,6 +20,8 @@ OpenLara 포크(TR1·TR2)를 고치고 확인할 때 필요한 정보입니다: 
 
 ## 1. 작업 원칙
 
+- **브랜치**: `main`은 TR1·TR2 버그 수정용이고 릴리즈는 여기서 냅니다. TR3 전용 신규 기능은 `tr3` 브랜치에서 구현합니다.
+  TR3 작업 중 찾은 공용 버그는 `main`에 먼저 커밋한 뒤 `tr3`로 병합합니다. 병합은 `main` → `tr3` 한 방향입니다.
 - **원작 동작이 기준**입니다. TRX(GPLv3)는 동작을 확인하는 참고로만 보고 코드를 옮기지 않습니다. 커밋 메시지에 "As the original does"와 원작 함수명(Object_Collision, ItemPushLara, GetHeight 등)을 남겨 근거를 기록합니다.
 - **TR1과 TR2 규칙이 다르면 버전으로 분기**합니다 (`level->version & TR::VER_TR1`). TR1 원작과 다른 동작을 TR1에 퍼뜨리지 않습니다 (예: 매복 숨김은 TR2+만).
 - **공통 코드는 공통 헤더, 게임 전용은 전용 헤더**: `enemy.h`/`objects.h`는 공용, `enemy_tr1.h`/`objects_tr1.h`, `enemy_tr2.h`/`objects_tr2.h`는 각 게임 전용.
@@ -46,12 +48,13 @@ cd "$WINTMP" && /mnt/c/Windows/System32/cmd.exe /c '%TEMP%\olbuild\src\platform\
 
 - `cmd.exe`는 전체 경로로 부릅니다(WSL의 PATH에 없을 수 있음).
 - 배치 파일은 `/Zi /DEBUG`로 빌드해 PDB를 만들고, 로컬 인증서가 있으면 서명합니다.
-- **배포**: `OpenLara.exe`와 `OpenLara.pdb`, Linux 바이너리를 TR1·TR2 게임 폴더에 복사하고 md5로 확인합니다. PDB가 실행 파일과 같은 빌드여야 크래시 로그에 함수 이름과 줄 번호가 나옵니다.
+- **배포**: `OpenLara.exe`와 `OpenLara.pdb`, Linux 바이너리를 게임 폴더에 복사하고 md5로 확인합니다. `main` 빌드는 TR1·TR2 폴더에,
+  `tr3` 빌드는 TR3 폴더에 넣습니다. PDB가 실행 파일과 같은 빌드여야 크래시 로그에 함수 이름과 줄 번호가 나옵니다.
 - 게임이 실행 중이면 복사가 Permission denied로 실패합니다. 게임을 닫고 다시 복사합니다.
 
 **릴리즈**
 
-- Windows, Linux x64, 웹 묶음은 로컬에서 만들어 `gh release create <태그>`로 올립니다. 웹 묶음에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`가 들어갑니다.
+- 릴리즈는 `main`에서 냅니다. Windows, Linux x64, 웹 묶음은 로컬에서 만들어 `gh release create <태그>`로 올립니다. 웹 묶음에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`가 들어갑니다.
 - 태그가 올라가면 `.github/workflows/release.yml`이 macOS(Apple Silicon·인텔 겸용, `build.sh --universal`)와 Linux ARM64를 빌드해 같은 릴리즈에 추가합니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
 - 러너 이름은 GitHub가 주기적으로 없앱니다(`macos-14`가 없어져 작업이 시작도 못 하고 취소된 적이 있음). 작업이 단계 없이 취소되면 러너 이름부터 확인합니다.
 
