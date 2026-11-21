@@ -1358,7 +1358,7 @@ struct Inventory {
                 if (chosen) {
                     if (phaseChoose == 1.0f) {
                         chosen  = false;
-                        item->anim->dir = 1.0f;
+                        if (item->anim) item->anim->dir = 1.0f;
                         item->angle     = 0.0f;
                     }
                 } else
@@ -1399,7 +1399,7 @@ struct Inventory {
             angle = clampAngle(angle);
         }
 
-        if (ready && chosen && phaseChoose == 1.0f && item->anim->isEnded) {
+        if (ready && chosen && phaseChoose == 1.0f && (!item->anim || item->anim->isEnded)) { // one with no model of the level has none
             TR::Entity::Type type = item->type;
             
             switch (type) {

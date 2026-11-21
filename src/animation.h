@@ -63,6 +63,9 @@ struct Animation {
         frameA = frameB = (model && model->frame / 2 < uint32(level->frameDataSize)) ? (TR::AnimFrame*)&level->frameData[model->frame / 2] : NULL;
         isEnded = true;
         isPrepareToNext = false;
+        state = frameIndex = framePrev = 0;
+        framesCount = 1;
+        timeMax = 0.0f;
         rot = 0.0f;
         offset = jump = vec3(0.0f);
     }
@@ -106,6 +109,7 @@ struct Animation {
     }
 
     void playNext() {
+        if (!anims) return;
         setAnim(next, anims[index].nextFrame);
     }
 
@@ -215,11 +219,13 @@ struct Animation {
     }
 
     float getSpeed() {
+        if (!anims) return 0.0f;
         TR::Animation *anim = anims + index;
         return anim->speed + anim->accel * (time * 30.0f);
     }
 
     float getDist() {
+        if (!anims) return 0.0f;
         TR::Animation *anim = anims + index;
         float t = time * anim->frameRate * 30.0f;
         return anim->speed + anim->accel * t * t * 0.5f;

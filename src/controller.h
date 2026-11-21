@@ -1226,6 +1226,9 @@ struct Controller {
             }
         }
 
+        if (!animation.anims)
+            return; // a model with no animations (the prayer wheel of Barkhang shown as a 3D pickup) has no commands
+
         TR::Animation *anim = animation;
 
     // apply animation commands
