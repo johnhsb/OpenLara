@@ -694,15 +694,7 @@ struct Inventory {
         add(TR::Entity::INV_CONTROLS);
 
         if (!level->isTitle() && !level->isCutsceneLevel() && !level->isHome()) {
-            if (!TR::isEmptyLevel(level->id)) {
-                add(TR::Entity::INV_PISTOLS, UNLIMITED_AMMO);
-            }
-
-            if (level->id == TR::LVL_TR2_HOUSE) // no weapons, no ammo, only the key of the house (the dagger comes with her start)
-                add(TR::Entity::INV_KEY_ITEM_1);
-
-            if (level->id == TR::LVL_TR2_SKIDOO || level->id == TR::LVL_TR2_MONASTRY) // the Seraph of the Deck comes along (the script gives it)
-                add(TR::Entity::INV_PUZZLE_4);
+            addStartItems();
         #ifdef _DEBUG
             addWeapons();
             add(TR::Entity::MEDIKIT_BIG);
@@ -728,6 +720,27 @@ struct Inventory {
             add(TR::Entity::INV_COMPASS);
             add(TR::Entity::INV_STOPWATCH);
         }
+    }
+
+    // the items the script of the original gives at the start of a level. The save of a level start keeps only the
+    // items that go from level to level (no keys, no puzzles) and its load takes away what reset() gave, so the level
+    // gives them again after that load; one she already has is not given twice
+    void addStartItems() {
+        TR::Level *level = game->getLevel();
+        if (level->isTitle() || level->isCutsceneLevel() || level->isHome())
+            return;
+
+        // the pistols come back after a level that takes the guns away (TR1 10B after 10A, TR2 the platform after the rig)
+        if (!TR::isEmptyLevel(level->id) && contains(TR::Entity::INV_PISTOLS) == -1)
+            add(TR::Entity::INV_PISTOLS, UNLIMITED_AMMO);
+
+        // no weapons, no ammo, only the key of the house (the dagger comes with her start)
+        if (level->id == TR::LVL_TR2_HOUSE && contains(TR::Entity::INV_KEY_ITEM_1) == -1)
+            add(TR::Entity::INV_KEY_ITEM_1);
+
+        // the Seraph of the Deck comes along to Tibet and the monastery
+        if ((level->id == TR::LVL_TR2_SKIDOO || level->id == TR::LVL_TR2_MONASTRY) && contains(TR::Entity::INV_PUZZLE_4) == -1)
+            add(TR::Entity::INV_PUZZLE_4);
     }
 
     void addWeapons() {

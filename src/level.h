@@ -1187,7 +1187,10 @@ struct Level : IGame {
 
         saveResult = SAVE_RESULT_SUCCESS;
         if (loadSlot != -1 && saveSlots[loadSlot].getLevelID() == level.id) {
-            parseSaveSlot(saveSlots[loadSlot]);
+            const SaveSlot &slot = saveSlots[loadSlot];
+            parseSaveSlot(slot);
+            if (!slot.isCheckpoint()) // a level start: give again what the script gives, the load took it away
+                inventory->addStartItems();
             loadSlot = -1;
         }
 
