@@ -68,7 +68,7 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 |---|---|
 | 첫 인자 (Linux는 `-l`) | 시작할 레벨 파일 |
 | `--pos=room,x,y,z,angle` | 라라의 시작 위치, 각도는 도 (Windows, macOS) |
-| `--give=item[,item...]` | 시작할 때 인벤토리에 넣을 아이템. `KEY_ITEM_1..4`, `PUZZLE_1..4` 또는 타입 번호(TR2는 1000을 더한 값, 예: 1140) |
+| `--give=item[,item...]` | 시작할 때 인벤토리에 넣을 아이템 (Windows, macOS). `KEY_ITEM_1..4`, `PUZZLE_1..4` 또는 타입 번호(TR2는 1000을 더한 값, 예: 1140). 같은 이름을 반복하면 그 수만큼 들어감 |
 | `--activate=index[,index...]` | 레벨 시작 1초 뒤 작동시킬 엔티티 번호 |
 | `-d dir`, `-f` (Linux) | 데이터 폴더, 전체 화면 |
 | `--high-dpi` (Windows) | 고해상도 DPI 인식 |
@@ -83,6 +83,8 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 | `OL_DUMP_TEXTURES=1` | 레벨의 원본 타일을 파일로 저장 |
 | `GALLIUM_DRIVER=llvmpipe` | (WSL, Mesa) 소프트웨어 렌더링. 자동 테스트는 이것으로 돌립니다(5장) |
 
+- **`--give`와 세이브**: 아이템은 라라가 처음 업데이트될 때 들어갑니다(`Lara::update`, [lara.h](../src/lara.h)). 타이틀 레벨에는 라라가 없으므로, 레벨 없이 실행해 메뉴에서 세이브(체크포인트 포함)를 불러오면 불러온 레벨에 들어갑니다. 세이브를 불러오는 과정이 인벤토리를 다시 채운 뒤라서 지워지지 않습니다. 사용자의 세이브에 퀘스트 아이템이 빠져 진행이 막혔을 때는 세이브 파일을 고치지 말고 이 방법을 먼저 안내합니다(예: 바르캉 수도원의 세라프 `OpenLara.exe --give=PUZZLE_4`).
+- Linux(SDL2) 빌드에는 `--pos`, `--give`, `--activate`가 없습니다. 자동 테스트는 환경 변수로 시작 위치를 줍니다(5장).
 - 세이브와 설정, 스크린샷: Windows `%APPDATA%\OpenLara\tr1`, `tr2`; Linux `~/.openlara/tr1`, `tr2`; macOS `~/Library/Application Support/OpenLara/tr1`, `tr2`.
 - 키: `F` FPS 표시, `F12` 스크린샷(세이브 폴더에 `screenshot_NNNN.jpg`, 저장한 경로는 로그에 남음).
 - 화면의 FPS 줄은 로그에도 남습니다: `FPS: 120 DIP: 20 TRI: 4384 RT: 2` (드로 콜, 삼각형, 렌더 타깃 전환 수).

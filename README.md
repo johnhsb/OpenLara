@@ -53,9 +53,16 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 |---|---|
 | 첫 인자 (Linux는 `-l`) | 시작할 레벨 파일 |
 | `--pos=room,x,y,z,angle` | 라라의 시작 위치 (Windows, macOS) |
-| `--give=item[,item...]` | 시작할 때 인벤토리에 넣을 아이템 |
+| `--give=item[,item...]` | 시작할 때 인벤토리에 넣을 아이템 (Windows, macOS) |
 | `--activate=index[,index...]` | 시작 1초 뒤 작동시킬 엔티티 |
 | `-d dir`, `-f` (Linux) | 데이터 폴더, 전체 화면 |
+
+`--give`는 세이브를 불러와도 적용됩니다. 레벨을 지정하지 않고 실행한 뒤 메뉴에서 세이브를 불러오면, 그 레벨에 아이템이 들어옵니다.
+세이브에 열쇠나 퍼즐 아이템이 없어 진행이 막혔을 때 쓸 수 있습니다. 예를 들어 바르캉 수도원의 세라프는 `PUZZLE_4`입니다.
+
+```
+OpenLara.exe --give=PUZZLE_4
+```
 
 세이브와 설정, F12 스크린샷은 게임별 폴더에 저장됩니다 (Windows: `%APPDATA%\OpenLara\tr1`, `tr2`; Linux: `~/.openlara/tr1`, `tr2`;
 macOS: `~/Library/Application Support/OpenLara/tr1`, `tr2`).
