@@ -12,3 +12,4 @@ cl /nologo /O2 /Oi /GL /MT /Zi /EHs-c- /GR- /W1 /utf-8 /DNOMINMAX /D_CRT_SECURE_
 rem signs it with the certificate "OpenLara Local Build" of the current user when it is there (a PC that trusts it runs it with no warning)
 signtool sign /q /n "OpenLara Local Build" /s My /fd SHA256 OpenLara.exe > nul 2>&1 && echo SIGNED || echo NOT SIGNED
 echo BUILD OK
+exit /b 0
