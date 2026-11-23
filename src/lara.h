@@ -2702,6 +2702,11 @@ struct Lara : Character {
             getFloorInfo(room, dst, info);
         }
 
+        // not out onto a steep slope: the original put her on it at the wall of the sector ahead, in the floor
+        // (fix_water_exit of TRX), she gets out where the floor ahead is fit to stand on
+        if (abs(info.slantX) > 2 || abs(info.slantZ) > 2)
+            return false;
+
         int h = int(pos.y - info.floor);
 
         if (h >= -int(LARA_SURF_FLOOR) && h <= (256 + 128) && (state == STATE_SURF_TREAD || animation.setState(STATE_SURF_TREAD)) && animation.setState(STATE_STOP)) {
