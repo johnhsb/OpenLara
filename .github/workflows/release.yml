@@ -1,4 +1,4 @@
-# Builds the versions that the local Windows build does not make (Linux x64 and ARM64, web, macOS) and adds them to a release.
+# Builds all the versions (Windows x64, Linux x64 and ARM64, web, macOS) and adds them to a release.
 # It runs for a new version tag, or by hand for the tag of an existing release.
 name: release
 
@@ -54,6 +54,36 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$TAG" "$NAME" --clobber
+
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        shell: cmd
+        run: call src\platform\win\build_msvc.bat
+      - name: Pack
+        shell: pwsh
+        run: |
+          $tag = if ($env:TAG) { $env:TAG } else { 'build' }
+          $name = "OpenLara-$tag-windows-x64.zip"
+          $pdb = "OpenLara-$tag-windows-x64-pdb.zip"   # for the crash logs of this build (function names, lines)
+          Compress-Archive -Path src/platform/win/OpenLara.exe, LICENSE -DestinationPath $name
+          Compress-Archive -Path src/platform/win/OpenLara.pdb -DestinationPath $pdb
+          Get-ChildItem $name, $pdb
+          "NAME=$name" >> $env:GITHUB_ENV
+          "PDB=$pdb" >> $env:GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: |
+            ${{ env.NAME }}
+            ${{ env.PDB }}
+      - name: Add to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$env:TAG" "$env:NAME" "$env:PDB" --clobber
 
   web:
     runs-on: ubuntu-24.04
