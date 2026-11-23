@@ -1,4 +1,4 @@
-# Builds the versions that the local Windows and WSL builds do not make (macOS, Linux ARM64) and adds them to a release.
+# Builds the versions that the local Windows and WSL builds do not make (web, macOS, Linux ARM64) and adds them to a release.
 # It runs for a new version tag, or by hand for the tag of an existing release.
 name: release
 
@@ -40,6 +40,40 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: linux-arm64
+          path: ${{ env.NAME }}
+      - name: Add to the release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$NAME" --clobber
+
+  web:
+    runs-on: ubuntu-24.04
+    env:
+      EMSDK_VERSION: '7.0.1'   # as in pages.yml
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Emscripten
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
+      - name: Build
+        run: |
+          source "$HOME/emsdk/emsdk_env.sh"
+          src/platform/web/build.sh
+      - name: Pack
+        run: |
+          NAME=OpenLara-${TAG:-build}-web.zip
+          W=src/platform/web
+          mkdir -p pack/OpenLara-web
+          cp $W/out/index.html $W/out/OpenLara.js $W/out/OpenLara.wasm $W/serve.py $W/README.txt LICENSE pack/OpenLara-web/
+          (cd pack && zip -r ../$NAME OpenLara-web)
+          unzip -l $NAME
+          echo "NAME=$NAME" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
           path: ${{ env.NAME }}
       - name: Add to the release
         if: env.TAG != ''

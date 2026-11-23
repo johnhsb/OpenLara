@@ -54,9 +54,9 @@ cd "$WINTMP" && /mnt/c/Windows/System32/cmd.exe /c '%TEMP%\olbuild\src\platform\
 
 **릴리즈**
 
-- 릴리즈는 `main`에서 냅니다. Windows, Linux x64, 웹 묶음은 로컬에서 만들어 `gh release create <태그>`로 올립니다. 웹 묶음에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`가 들어갑니다.
+- 릴리즈는 `main`에서 냅니다. Windows, Linux x64 묶음은 로컬에서 만들어 `gh release create <태그>`로 올립니다.
 - `main`에 push하면 `.github/workflows/pages.yml`이 웹 버전을 데이터 없이 빌드해 GitHub Pages(<https://johnhsb.github.io/OpenLara/>)에 올립니다. 손으로는 `gh workflow run pages.yml --ref main`.
-- 태그가 올라가면 `.github/workflows/release.yml`이 macOS(Apple Silicon·인텔 겸용, `build.sh --universal`)와 Linux ARM64를 빌드해 같은 릴리즈에 추가합니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
+- 태그가 올라가면 `.github/workflows/release.yml`이 웹(Emscripten, `pages.yml`과 같은 버전), macOS(Apple Silicon·인텔 겸용, `build.sh --universal`), Linux ARM64를 빌드해 같은 릴리즈에 추가합니다. 웹 묶음 `OpenLara-<태그>-web.zip`의 `OpenLara-web/`에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`, `README.txt`(`src/platform/web/README.txt`), `LICENSE`가 들어갑니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
 - 러너 이름은 GitHub가 주기적으로 없앱니다(`macos-14`가 없어져 작업이 시작도 못 하고 취소된 적이 있음). 작업이 단계 없이 취소되면 러너 이름부터 확인합니다.
 
 ## 3. 실행 옵션과 환경 변수

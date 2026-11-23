@@ -6,6 +6,7 @@
 A game folder is the one that holds data (DATA) and audio or music. The files are read from there as the
 page asks for them (level/1/LEVEL1.PHD, audio/2/track_05.ogg...), nothing is copied or changed.
 The page (index.html, OpenLara.js, OpenLara.wasm) is served from the folder of this script.
+With no game folder, the page opens one in the browser ("Open Game Folder").
 """
 import argparse
 import http.server
@@ -83,8 +84,7 @@ def main():
             sys.exit('no data folder in %s' % folder)
         GAMES[game] = os.path.abspath(folder)
     if not GAMES:
-        parser.print_help()
-        sys.exit(1)
+        print('no game folder given: press "Open Game Folder" on the page to open one in the browser')
     if not os.path.isfile(os.path.join(HERE, 'OpenLara.wasm')):
         sys.exit('OpenLara.wasm is not next to this script (build it with build.sh, or run the script of the release)')
 

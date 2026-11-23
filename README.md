@@ -75,6 +75,7 @@ macOS: `~/Library/Application Support/OpenLara/tr1`, `tr2`).
 **Forget Game Data**로 지웁니다.
 
 **이 컴퓨터에서 서버로 실행**: 릴리즈의 웹 묶음(`OpenLara-…-web.zip`)을 풀고, 게임 폴더를 지정해 서버를 띄웁니다. Python 3이 필요합니다.
+게임 폴더 없이 `python3 serve.py`로 띄운 뒤 페이지의 Open Game Folder를 써도 됩니다.
 
 ```
 python3 serve.py --tr1 <Tomb Raider 1 폴더> --tr2 <Tomb Raider 2 폴더>
