@@ -12,7 +12,7 @@ em++ main.cpp ../../libs/stb_vorbis/stb_vorbis.c ../../libs/tinf/tinflate.c \
     -Wno-invalid-source-encoding -Wno-deprecated-register \
     -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAX_WEBGL_VERSION=2 \
     -sEXPORTED_FUNCTIONS=_main,_malloc,_free \
-    -sEXPORTED_RUNTIME_METHODS=ccall,getValue,writeArrayToMemory,stringToNewUTF8 \
+    -sEXPORTED_RUNTIME_METHODS=ccall,getValue,writeArrayToMemory,stringToNewUTF8,addRunDependency,removeRunDependency \
     $EM_EXTRA -o out/OpenLara.js
 
 cp index.html out/

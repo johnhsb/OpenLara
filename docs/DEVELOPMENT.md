@@ -55,6 +55,7 @@ cd "$WINTMP" && /mnt/c/Windows/System32/cmd.exe /c '%TEMP%\olbuild\src\platform\
 **릴리즈**
 
 - 릴리즈는 `main`에서 냅니다. Windows, Linux x64, 웹 묶음은 로컬에서 만들어 `gh release create <태그>`로 올립니다. 웹 묶음에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`가 들어갑니다.
+- `main`에 push하면 `.github/workflows/pages.yml`이 웹 버전을 데이터 없이 빌드해 GitHub Pages(<https://johnhsb.github.io/OpenLara/>)에 올립니다. 손으로는 `gh workflow run pages.yml --ref main`.
 - 태그가 올라가면 `.github/workflows/release.yml`이 macOS(Apple Silicon·인텔 겸용, `build.sh --universal`)와 Linux ARM64를 빌드해 같은 릴리즈에 추가합니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
 - 러너 이름은 GitHub가 주기적으로 없앱니다(`macos-14`가 없어져 작업이 시작도 못 하고 취소된 적이 있음). 작업이 단계 없이 취소되면 러너 이름부터 확인합니다.
 
@@ -213,6 +214,10 @@ cd src/platform/web/out && python3 -m http.server 8765 --bind 127.0.0.1
 
 - 주소: `http://127.0.0.1:8765/`, 레벨 지정은 `?level=level/2/WALL.TR2`처럼 줍니다. 빌드 스크립트가 데이터 파일을 대문자 이름으로 `out/level/N`, `out/audio/N`에 링크합니다.
 - 웹은 파일을 비동기로 내려받아 메모리 파일 시스템에 넣습니다. **동기 `Stream`으로 여는 파일은 미리 내려받지 않으면 없는 것으로 처리됩니다.** 첫 레벨은 내려받은 뒤에 `Game::init`을 부르도록 했고, 텍스처 팩과 라라 얼굴 텍스처는 이 이유로 웹에서 적용되지 않습니다(현재 구조 유지).
+- **게임 폴더 열기**: 페이지의 Open Game Folder는 고른 폴더의 파일을 `build.sh`의 링크와 같은 이름(`level/N/대문자이름`, `audio/N/MAIN.SFX`,
+  `audio/N/*.ogg`, `music/TrackNN.ogg` → `audio/N/track_NN.ogg`)으로 IndexedDB `openlara-data`에 넣고 페이지를 다시 엽니다.
+  게임이 없는 파일을 열 때(`osDownload`) 이 저장소를 먼저 보고(`olReadLocal` → `local_file_read`), 없으면 전처럼 내려받은 파일 캐시(`db`)와 서버를 봅니다.
+  TR1이 없고 TR2만 있으면 TR2 타이틀로 시작합니다. 게임 판별은 `DATA` 폴더의 `.TR2`/`.PHD` 파일로 합니다.
 - 화면 확인은 헤드리스 Chromium(`--headless=new --use-angle=swiftshader`)을 CDP로 몰아 스크린샷을 찍었습니다. `--screenshot` 옵션은 로딩이 끝나기 전에 찍힙니다.
 - 확인한 것: TR1 타이틀, TR1 첫 레벨, TR2 만리장성 화면. 확인하지 못한 것: 키 입력, 소리와 음악, 세이브, 레벨 전환.
 

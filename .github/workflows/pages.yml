@@ -1,0 +1,55 @@
+# Builds the web version and puts it on GitHub Pages, without any game data: the page opens the game folder of the player
+# (index.html keeps its files in the browser). It runs for a push to main, or by hand.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  EMSDK_VERSION: '7.0.1'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Emscripten
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
+      - name: Build
+        run: |
+          source "$HOME/emsdk/emsdk_env.sh"
+          src/platform/web/build.sh
+      - name: Pack
+        run: |
+          mkdir site
+          cp src/platform/web/out/index.html src/platform/web/out/OpenLara.js src/platform/web/out/OpenLara.wasm site/
+          touch site/.nojekyll
+          ls -l site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

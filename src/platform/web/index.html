@@ -15,6 +15,12 @@
 <canvas id="canvas" width="1280" height="720" tabindex="0" oncontextmenu="event.preventDefault()"></canvas>
 <div id="bar">
     <span id="status">Starting...</span><br><br>
+    <input type="file" id="gameDir" style="display:none" webkitdirectory multiple>
+    <button onclick="document.getElementById('gameDir').click()">Open Game Folder</button>
+    <button id="forgetData">Forget Game Data</button>
+    <span id="dataInfo"></span><br>
+    <small>The folder of Tomb Raider or Tomb Raider II for PC (with its DATA folder), or a folder that holds both.
+    The files stay in this browser and are not sent anywhere.</small><br><br>
     <button id="goFS">Fullscreen</button>
     <input type="file" id="browseFile" style="display:none" accept=".phd,.psx,.tr2,.tr4">
     <button onclick="document.getElementById('browseFile').click()">Browse Level</button> (.PHD, .PSX, .TR2)<br><br>
@@ -29,7 +35,132 @@
     var canvasElement = document.getElementById('canvas');
     var proc;
 
+    // the files of the game folders opened on the page, kept in the browser under the names the game asks for
+    // (level/2/WALL.TR2, audio/2/MAIN.SFX, audio/2/track_05.ogg...), as build.sh links them for a local server
+    var DATA_DB = 'openlara-data', DATA_STORE = 'files', dataDB = null;
+
+    function openDataDB() {
+        if (!dataDB) dataDB = new Promise(function(resolve) {
+            try {
+                var req = indexedDB.open(DATA_DB, 1);
+                req.onupgradeneeded = function() { req.result.createObjectStore(DATA_STORE); };
+                req.onsuccess = function() { resolve(req.result); };
+                req.onerror = function() { console.error(req.error); resolve(null); };
+            } catch (e) { console.error(e); resolve(null); }
+        });
+        return dataDB;
+    }
+
+    function dataRequest(mode, action) {
+        return openDataDB().then(function(db) {
+            if (!db) return null;
+            return new Promise(function(resolve) {
+                var req = action(db.transaction(DATA_STORE, mode).objectStore(DATA_STORE));
+                req.onsuccess = function() { resolve(req.result); };
+                req.onerror = function() { resolve(null); };
+            });
+        });
+    }
+
+    // called by the game for a file it does not have yet, Module._local_file_read(stream, 0, 0) lets it look further
+    function olReadLocal(name, stream) {
+        dataRequest('readonly', function(store) { return store.get(name); })
+            .then(function(blob) { return blob ? blob.arrayBuffer() : null; })
+            .catch(function(e) { console.error(e); return null; })
+            .then(function(buf) {
+                if (!buf || !buf.byteLength) return Module._local_file_read(stream, 0, 0);
+                var data = Module._malloc(buf.byteLength);
+                Module.writeArrayToMemory(new Uint8Array(buf), data);
+                Module._local_file_read(stream, data, buf.byteLength);
+            });
+    }
+
+    // the name the game asks for of a file of a game folder, null for the files it does not use
+    function gameFileName(game, dir, name) {
+        if (name[0] == '.' || name.indexOf(':') >= 0) return null;
+        if (dir == 'data')
+            return (name.toUpperCase() == 'MAIN.SFX' ? 'audio/' : 'level/') + game + '/' + name.toUpperCase();
+        if (dir == 'audio' && /\.ogg$/i.test(name))
+            return 'audio/' + game + '/' + name;
+        var track = dir == 'music' && /^track(\d+)\.ogg$/i.exec(name); // the music pack of the PC version of TR2
+        if (track)
+            return 'audio/' + game + '/track_' + track[1] + '.ogg';
+        return null;
+    }
+
+    // keeps the files of the games in the folder (one game, or a folder of several), the page starts again with them
+    function importGameFolder(files) {
+        var roots = {}; // the folder of a game -> { game, files }
+        for (var i = 0; i < files.length; i++) {
+            var path = (files[i].webkitRelativePath || files[i].name).split('/');
+            var name = path.pop(), dir = (path.pop() || '').toLowerCase();
+            if (dir != 'data' && dir != 'audio' && dir != 'music') continue;
+            var root = path.join('/').toLowerCase();
+            var r = roots[root] || (roots[root] = { game: 0, files: [] });
+            r.files.push({ dir: dir, name: name, file: files[i] });
+            if (dir == 'data' && /\.tr2$/i.test(name)) r.game = 2;
+            if (dir == 'data' && /\.phd$/i.test(name) && !r.game) r.game = 1;
+        }
+
+        var items = [], games = [];
+        for (var root in roots) {
+            var r = roots[root];
+            if (!r.game) continue;
+            games.push('TR' + r.game);
+            r.files.forEach(function(f) {
+                var key = gameFileName(r.game, f.dir, f.name);
+                if (key) items.push({ key: key, file: f.file });
+            });
+        }
+        if (!items.length) {
+            Module.setStatus('No game found: open the folder of Tomb Raider or Tomb Raider II, the one with the DATA folder');
+            return Promise.resolve(false);
+        }
+
+        Module.setStatus('Keeping ' + items.length + ' files of ' + games.join(', ') + ' in the browser...');
+        return openDataDB().then(function(db) {
+            if (!db) throw new Error('the browser storage (IndexedDB) is not available');
+            return new Promise(function(resolve, reject) {
+                var tx = db.transaction(DATA_STORE, 'readwrite'), store = tx.objectStore(DATA_STORE);
+                items.forEach(function(item) { store.put(item.file, item.key); });
+                tx.oncomplete = function() { resolve(true); };
+                tx.onerror = tx.onabort = function() { reject(tx.error); };
+            });
+        }).catch(function(e) {
+            Module.setStatus('Could not keep the files: ' + e);
+            return false;
+        });
+    }
+
+    document.getElementById('gameDir').addEventListener('change', function(event) {
+        importGameFolder(event.target.files).then(function(done) { if (done) location.href = location.pathname; });
+    });
+
+    document.getElementById('forgetData').addEventListener('click', function() {
+        openDataDB().then(function(db) {
+            if (db) db.close();
+            dataDB = null;
+            var req = indexedDB.deleteDatabase(DATA_DB);
+            req.onsuccess = req.onerror = req.onblocked = function() { location.href = location.pathname; };
+        });
+    });
+
     var Module = {
+        // the title of the game kept in the browser, TR1 when there are both (or none: the files of a local server)
+        preRun: [function() {
+            Module.addRunDependency('gamedata');
+            dataRequest('readonly', function(store) { return store.getAllKeys(); }).then(function(keys) {
+                keys = keys || [];
+                var count = function(game) { return keys.filter(function(k) { return k.indexOf('level/' + game + '/') == 0; }).length; };
+                var tr1 = count(1), tr2 = count(2), info = [];
+                if (tr1) info.push('TR1');
+                if (tr2) info.push('TR2');
+                document.getElementById('dataInfo').textContent = info.length ? 'In this browser: ' + info.join(', ') : '';
+                if (!tr1 && keys.indexOf('level/2/TITLE.TR2') >= 0)
+                    Module.startLevel = 'level/2/TITLE.TR2';
+                Module.removeRunDependency('gamedata');
+            });
+        }],
         print:    function(text) { console.log(text); },
         printErr: function(text) { console.error(text); },
         canvas:   canvasElement,

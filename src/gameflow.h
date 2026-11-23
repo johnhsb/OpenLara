@@ -1383,6 +1383,9 @@ namespace TR {
                 CHECK_FILE("DELDATA/JAPTIT.RAW");   // PSX JAP
                 CHECK_FILE("BINDATA/USATIT.BIN");   // SEGA
                 CHECK_FILE("BINDATA/TITLE1.BIN");   // SEGA
+            #ifdef WEB_PC_DATA
+                return "level/1/TITLEH.PCX";        // WEB, the data of the PC version
+            #endif
                 return "level/1/AMERTIT.PNG";       // WEB
             case LVL_TR1_GYM :
                 CHECK_FILE("DELDATA/GYMLOAD.RAW");
@@ -1427,6 +1430,9 @@ namespace TR {
                 CHECK_FILE("pix/title.pcx");        // PC
                 CHECK_FILE("PIXUS/TITLEUS.RAW");    // PSX US
                 CHECK_FILE("PIXJAP/TITLEJAP.RAW");  // PSX US
+            #ifdef WEB_PC_DATA
+                return "level/2/TITLE.PCX";         // WEB, the data of the PC version
+            #endif
                 return "level/2/TITLEUS.PNG";       // WEB
             case LVL_TR2_ASSAULT :
             case LVL_TR2_HOUSE   :

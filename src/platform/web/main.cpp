@@ -48,8 +48,19 @@ void onExists(void *arg, int exists) {
         emscripten_async_wget_data(((Stream*)arg)->name, arg, onLoadAndStore, onError);
 }
 
+// the files of a game folder opened on the page (index.html keeps them in the browser) come first,
+// then the files downloaded before, then the server
 void osDownload(Stream *stream) {
-    emscripten_idb_async_exists(IDB, stream->name, stream, onExists, onError);
+    EM_ASM({ olReadLocal(UTF8ToString($0), $1); }, stream->name, stream);
+}
+
+extern "C" void EMSCRIPTEN_KEEPALIVE local_file_read(Stream *stream, void *data, int size) {
+    if (data) {
+        onLoad(stream, data, size);
+        free(data);
+    } else {
+        emscripten_idb_async_exists(IDB, stream->name, stream, onExists, onError);
+    }
 }
 
 void onCacheStore(void *arg) {
@@ -154,7 +165,7 @@ bool gameReady = false;
 void startGame(Stream *stream, void *userData) {
     if (!stream) {
         LOG("! can't load the level to start with\n");
-        EM_ASM(Module.setStatus('Level file not found'));
+        EM_ASM(Module.setStatus('Level file not found: open the folder of your Tomb Raider or Tomb Raider II game'));
         return;
     }
     char name[256];
@@ -373,7 +384,7 @@ int main() {
     emscripten_run_script("getLanguage()");
     // ?level=level/2/WALL.TR2 in the address starts with that level instead of the title
     char *lvlName = (char*)EM_ASM_PTR({
-        var name = new URLSearchParams(location.search).get('level');
+        var name = new URLSearchParams(location.search).get('level') || Module.startLevel;
         return name ? stringToNewUTF8(name) : 0;
     });
 

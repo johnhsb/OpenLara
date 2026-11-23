@@ -69,7 +69,12 @@ macOS: `~/Library/Application Support/OpenLara/tr1`, `tr2`).
 
 ### 웹 버전
 
-릴리즈의 웹 묶음(`OpenLara-…-web.zip`)을 풀고, 게임 폴더를 지정해 이 컴퓨터에서 서버를 띄웁니다. Python 3이 필요합니다.
+**바로 실행**: <https://johnhsb.github.io/OpenLara/> 를 열고 **Open Game Folder**로 PC판 Tomb Raider나 Tomb Raider II 폴더(`DATA`
+폴더가 있는 곳, 두 게임이 든 상위 폴더도 됨)를 고르면 시작합니다. 게임 데이터는 사이트에 없습니다. 고른 폴더의 레벨과 음악은
+브라우저 저장소(IndexedDB)에만 들어가고 어디로도 보내지 않으며, 다음 방문 때는 다시 고르지 않아도 됩니다.
+**Forget Game Data**로 지웁니다.
+
+**이 컴퓨터에서 서버로 실행**: 릴리즈의 웹 묶음(`OpenLara-…-web.zip`)을 풀고, 게임 폴더를 지정해 서버를 띄웁니다. Python 3이 필요합니다.
 
 ```
 python3 serve.py --tr1 <Tomb Raider 1 폴더> --tr2 <Tomb Raider 2 폴더>
