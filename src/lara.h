@@ -984,6 +984,13 @@ struct Lara : Character {
             stand = STAND_AIR;
     }
 
+    // the floor under her is a slope too steep to stand on (a big slope of the original)
+    bool isFloorSteep() {
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), pos, info);
+        return abs(info.slantX) > 2 || abs(info.slantZ) > 2;
+    }
+
     // on her feet on the floor of a water room in a state of no swimming
     bool isWadingOnFloor() {
         switch (state) {
@@ -3455,6 +3462,8 @@ struct Lara : Character {
                         animation.setAnim(ANIM_SWIM_STAND);
                         return STAND_WADE;
                     }
+                } else if (stand == STAND_ONWATER && isFloorSteep()) {
+                    return STAND_ONWATER; // she does not stand up on a steep slope, she swims on over it (as the original does)
                 } else if (stand == STAND_ONWATER || stand == STAND_GROUND) {
                     // from the surface she steps up out of the water onto a floor close under it, deeper she wades on (TR2+)
                     if (stand == STAND_ONWATER && waterDepth < LARA_SURF_HEIGHT - 128 && (level->version & TR::VER_VERSION) > TR::VER_TR1)
