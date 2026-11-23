@@ -67,6 +67,20 @@ OpenLara.exe --give=PUZZLE_4
 세이브와 설정, F12 스크린샷은 게임별 폴더에 저장됩니다 (Windows: `%APPDATA%\OpenLara\tr1`, `tr2`; Linux: `~/.openlara/tr1`, `tr2`;
 macOS: `~/Library/Application Support/OpenLara/tr1`, `tr2`).
 
+### Linux
+
+Linux 묶음(x64, ARM64)은 glibc 2.34 이상인 배포판에서 실행됩니다(Ubuntu 22.04, Debian 12, Raspberry Pi OS 12, Fedora 35 이후).
+필요한 라이브러리는 SDL2, EGL·GLES(그래픽 드라이버), ALSA, udev입니다. 묶음의 `install-deps.sh`가 빠진 라이브러리를 찾아
+배포판의 패키지 관리자(apt, dnf, zypper, pacman)로 설치합니다. 설치 명령을 먼저 보여 주고 물어본 뒤 실행합니다.
+
+```
+./install-deps.sh           # 확인하고, 빠진 것이 있으면 설치 명령을 보여 주고 물어본 뒤 설치
+./install-deps.sh --check   # 확인만 (0: 모두 있음, 1: 빠진 라이브러리 있음, 2: 이 시스템에서 실행할 수 없음)
+./install-deps.sh --yes     # 묻지 않고 설치
+```
+
+glibc가 더 오래된 배포판이나 musl 배포판(Alpine)에서는 패키지로 해결되지 않으므로, `src/platform/sdl2/build.sh`로 직접 빌드합니다.
+
 ### 웹 버전
 
 **바로 실행**: <https://johnhsb.github.io/OpenLara/> 를 열고 **Open Game Folder**로 PC판 Tomb Raider나 Tomb Raider II 폴더(`DATA`
@@ -99,7 +113,7 @@ python3 serve.py --tr1 <Tomb Raider 1 폴더> --tr2 <Tomb Raider 2 폴더>
 | macOS | `src/platform/osx/build.sh` (`-d`는 디버그, `-u`는 인텔 겸용) |
 | 웹 (WebAssembly) | `src/platform/web/build.sh` (Emscripten) |
 
-macOS와 Linux ARM64 릴리즈는 GitHub Actions(`.github/workflows/release.yml`)가 버전 태그를 올릴 때 빌드해 릴리즈에 추가합니다.
+Linux(x64, ARM64), 웹, macOS 릴리즈는 GitHub Actions(`.github/workflows/release.yml`)가 버전 태그를 올릴 때 빌드해 릴리즈에 추가합니다.
 
 ## 원본 프로젝트
 
