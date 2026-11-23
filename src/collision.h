@@ -17,10 +17,11 @@ struct Collision {
 
     vec2 slantAxis; // when set, only the slant along this axis counts as steep (e.g. along the wall while hanging)
     bool ledge;     // the hands on a ledge: its floor only counts, not the ceiling over it (as in the original)
+    bool slopesAreWalls; // a steep slope going up ahead is a wall (slopes_are_walls of the original, while wading)
 
-    Collision() : side(NONE) {}
+    Collision() : side(NONE), ledge(false), slopesAreWalls(false) {}
 
-    Collision(Controller *controller, int roomIndex, vec3 &pos, const vec3 &offset, const vec3 &velocity, float radius, float angle, int minHeight, int maxHeight, int maxAscent, int maxDescent, const vec2 &slantAxis = vec2(0.0f), bool ledge = false) : slantAxis(slantAxis), ledge(ledge) {
+    Collision(Controller *controller, int roomIndex, vec3 &pos, const vec3 &offset, const vec3 &velocity, float radius, float angle, int minHeight, int maxHeight, int maxAscent, int maxDescent, const vec2 &slantAxis = vec2(0.0f), bool ledge = false, bool slopesAreWalls = false) : slantAxis(slantAxis), ledge(ledge), slopesAreWalls(slopesAreWalls) {
         if (velocity.x != 0.0f || velocity.z != 0.0f) // the way it moves, whichever, or is pushed (the facing of a standing one)
             angle = normalizeAngle(PI2 + vec2(velocity.z, velocity.x).angle());
         pos += velocity;
@@ -103,7 +104,8 @@ struct Collision {
         bool lowCeiling = !ledge && ((info.ceiling == info.floor) || (info.floor - info.ceiling < height) || (info.ceiling > pos.y));
 
         if (lowCeiling || (pos.y - info.floor > maxAscent) || (info.floor - pos.y > maxDescent) ||
-            (maxAscent == maxDescent && (maxAscent <= 256 + 128) && steep)) {
+            (maxAscent == maxDescent && (maxAscent <= 256 + 128) && steep) ||
+            (slopesAreWalls && side != NONE && steep && info.floor < pos.y)) {
             this->side = side;
             return true;
         }

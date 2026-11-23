@@ -5355,7 +5355,7 @@ struct Lara : Character {
         else if (newState == STATE_STEP_RIGHT)
             ext += PI * 0.5f;
         vec3 p = pos;
-        collision  = Collision(this, getRoomIndex(), p, vec3(0.0f), vec3(0.0f), LARA_RADIUS * 1.1f, ext, 0, LARA_HEIGHT, maxAscent, maxDescent);
+        collision  = Collision(this, getRoomIndex(), p, vec3(0.0f), vec3(0.0f), LARA_RADIUS * 1.1f, ext, 0, LARA_HEIGHT, maxAscent, maxDescent, vec2(0.0f), false, stand == STAND_WADE);
         if (collision.side == Collision::FRONT)
             return STATE_STOP;
         return newState;
@@ -6476,7 +6476,9 @@ struct Lara : Character {
 
     // while hanging only the slope along the wall matters (as in the original), a ledge may be steep towards/away from Lara
         vec2 slantAxis = standHang ? vec2(cosf(angle.y), -sinf(angle.y)) : vec2(0.0f);
-        collision = Collision(this, room, pos, offset, vel, radius, angleExt, minHeight, maxHeight, maxAscent, maxDescent, slantAxis, standHang);
+    // wading, a steep slope going up ahead is a wall (as in the original): she does not walk up it out of the water
+    // to slide back into it over and over
+        collision = Collision(this, room, pos, offset, vel, radius, angleExt, minHeight, maxHeight, maxAscent, maxDescent, slantAxis, standHang, stand == STAND_WADE);
 
         if (!standHang && (collision.side == Collision::LEFT || collision.side == Collision::RIGHT)) {
             float rot = TURN_WALL_Y * Core::deltaTime;
