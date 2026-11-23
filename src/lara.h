@@ -896,7 +896,7 @@ struct Lara : Character {
         data.extra.lara.stamina     = 0.0f;
         data.extra.lara.poison      = 0.0f;
         data.extra.lara.freeze      = 0.0f;
-        data.extra.lara.reserved    = 0;
+        data.extra.lara.stand       = uint16(stand + 1);
         data.extra.lara.itemWeapon  = wpnCurrent;
         data.extra.lara.itemHands   = getItemHands();
         data.extra.lara.itemBack    = getItemBack();
@@ -968,12 +968,36 @@ struct Lara : Character {
         if (itemHolster != TR::Entity::NONE)
             meshSwap(1, level->extra.weapons[itemHolster], JOINT_MASK_LEG_L1 | JOINT_MASK_LEG_R1);
 
+        // in the water she takes back the way she was in it (the original keeps water_status): a wading Lara taken for a
+        // swimming one stays in her standing animation, which leads to no swimming state, and cannot move any more
         if (getRoom().flags.water) {
-            stand = STAND_UNDERWATER;
-            if (state == STATE_SURF_TREAD || state == STATE_SURF_SWIM || state == STATE_SURF_BACK || state == STATE_SURF_LEFT || state == STATE_SURF_RIGHT)
+            Stand saved = Stand(data.extra.lara.stand - 1);
+            if (data.extra.lara.stand && (saved == STAND_WADE || saved == STAND_ONWATER || saved == STAND_UNDERWATER))
+                stand = saved;
+            else if (state == STATE_SURF_TREAD || state == STATE_SURF_SWIM || state == STATE_SURF_BACK || state == STATE_SURF_LEFT || state == STATE_SURF_RIGHT)
                 stand = STAND_ONWATER;
+            else if (isWadingOnFloor())
+                stand = STAND_WADE; // a save made before the stand was kept: on her feet on the floor, not swimming
+            else
+                stand = STAND_UNDERWATER;
         } else
             stand = STAND_AIR;
+    }
+
+    // on her feet on the floor of a water room in a state of no swimming
+    bool isWadingOnFloor() {
+        switch (state) {
+            case STATE_TREAD :
+            case STATE_SWIM  :
+            case STATE_GLIDE :
+            case STATE_DIVE  :
+            case STATE_UNDERWATER_DEATH :
+                return false;
+            default : ;
+        }
+        TR::Level::FloorInfo info;
+        getFloorInfo(getRoomIndex(), pos, info);
+        return fabsf(info.floor - pos.y) < 16.0f; // the save keeps whole units
     }
 
     int getRoomByPos(const vec3 &pos) {

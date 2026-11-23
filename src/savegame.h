@@ -54,7 +54,7 @@ struct SaveEntity {
             float  stamina;
             float  poison;
             float  freeze;
-            uint16 reserved;
+            uint16 stand;   // her stand + 1 (in the water, wading or on the surface), 0 in a save made before it was kept
             uint16 itemWeapon;
             uint16 itemHands;
             uint16 itemBack;
