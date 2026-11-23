@@ -34,7 +34,7 @@ OpenLara 포크(TR1·TR2, TR3 진행 중)를 고치고 확인할 때 필요한 �
 
 | 대상 | 방법 | 결과물 |
 |---|---|---|
-| Windows x64 | 소스 트리를 Windows 쪽 임시 폴더(예: `%TEMP%\olbuild`)에 복사한 뒤 `src\platform\win\build_msvc.bat` | `OpenLara.exe`, `OpenLara.pdb` |
+| Windows x64 | 소스 트리를 Windows 쪽 임시 폴더(예: `%TEMP%\olbuild`)에 복사한 뒤 `src\platform\win\build_msvc.bat` (Visual Studio Community 18, 없으면 vswhere가 찾은 최신 버전) | `OpenLara.exe`, `OpenLara.pdb` |
 | Linux / WSL | `src/platform/sdl2/build.sh` (SDL2, GLES3) | `src/platform/sdl2/OpenLara` |
 | 웹 | `src/platform/web/build.sh [TR1 폴더] [TR2 폴더]` (Emscripten) | `src/platform/web/out/` |
 | macOS | `src/platform/osx/build.sh` (`-d`는 디버그, `-u`는 인텔 겸용) | `OpenLara.app` |
@@ -54,9 +54,10 @@ cd "$WINTMP" && /mnt/c/Windows/System32/cmd.exe /c '%TEMP%\olbuild\src\platform\
 
 **릴리즈**
 
-- 릴리즈는 `main`에서 냅니다. Windows 묶음은 로컬에서 만들어 `gh release create <태그>`로 올립니다.
+- 릴리즈는 `main`에서 냅니다. 커밋 수를 README와 CHANGES.md에 적고, 릴리즈 노트와 함께 `gh release create <태그> --target main`으로 릴리즈를 만들면 태그가 올라갑니다.
+  묶음은 모두 워크플로가 만듭니다. 로컬 빌드는 개발과 확인용입니다.
 - `main`에 push하면 `.github/workflows/pages.yml`이 웹 버전을 데이터 없이 빌드해 GitHub Pages(<https://johnhsb.github.io/OpenLara/>)에 올립니다. 손으로는 `gh workflow run pages.yml --ref main`.
-- 태그가 올라가면 `.github/workflows/release.yml`이 Linux x64·ARM64(Ubuntu 22.04 러너), 웹(Emscripten, `pages.yml`과 같은 버전), macOS(Apple Silicon·인텔 겸용, `build.sh --universal`)를 빌드해 같은 릴리즈에 추가합니다. Linux 묶음에는 `OpenLara`, `install-deps.sh`(`src/platform/sdl2/install-deps.sh`), `LICENSE`가 들어가고, 작업 중에 `install-deps.sh --check`를 돌립니다. 웹 묶음 `OpenLara-<태그>-web.zip`의 `OpenLara-web/`에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`, `README.txt`(`src/platform/web/README.txt`), `LICENSE`가 들어갑니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
+- 태그가 올라가면 `.github/workflows/release.yml`이 Windows x64(`windows-2025` 러너, `build_msvc.bat`, 서명 없음, PDB는 `…-windows-x64-pdb.zip`으로 따로), Linux x64·ARM64(Ubuntu 22.04 러너), 웹(Emscripten, `pages.yml`과 같은 버전), macOS(Apple Silicon·인텔 겸용, `build.sh --universal`)를 빌드해 같은 릴리즈에 추가합니다. Linux 묶음에는 `OpenLara`, `install-deps.sh`(`src/platform/sdl2/install-deps.sh`), `LICENSE`가 들어가고, 작업 중에 `install-deps.sh --check`를 돌립니다. 웹 묶음 `OpenLara-<태그>-web.zip`의 `OpenLara-web/`에는 `index.html`, `OpenLara.js`, `OpenLara.wasm`, `serve.py`, `README.txt`(`src/platform/web/README.txt`), `LICENSE`가 들어갑니다. 이미 있는 릴리즈에 다시 올릴 때는 `gh workflow run release.yml -f tag=<태그>`, 태그 없이 돌리면 빌드만 합니다.
 - **Linux x64를 로컬(WSL)에서 빌드하지 않는 이유**: 빌드한 시스템의 glibc 버전이 실행 조건이 됩니다. v1.0.5까지의 x64 묶음은 WSL(Ubuntu 24.04)에서 빌드해
   glibc 2.38을 요구했고 Ubuntu 22.04·Debian 12에서 실행되지 않았습니다. 22.04 러너에서 빌드하면 glibc 2.34까지만 요구합니다.
 - `install-deps.sh`는 실행 파일 옆에 있으면 `ldd`로 빠진 라이브러리와 glibc 버전 부족을 찾고, 없으면 `ldconfig -p`로 찾습니다. apt는 패키지 이름
