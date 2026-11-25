@@ -1,7 +1,7 @@
 # OpenLara (johnhsb fork)
 
 Classic Tomb Raider open-source engine — [XProger/OpenLara](https://github.com/XProger/OpenLara)의 포크입니다.
-업스트림(`3b268ca`, 2026-07) 위에 **커밋 266개**를 더해, Tomb Raider II를 처음부터 끝까지 플레이할 수 있게 하고
+업스트림(`3b268ca`, 2026-07) 위에 **커밋 273개**를 더해, Tomb Raider II를 처음부터 끝까지 플레이할 수 있게 하고
 원작과 다른 동작을 바로잡았으며, 그래픽 옵션과 데스크톱 빌드를 보강했습니다.
 
 *A fork of XProger's OpenLara that makes Tomb Raider II playable from start to end, brings many behaviours back to
