@@ -200,6 +200,7 @@ struct ShotgunGoon : Human {
         jointHead  = 11;
         animDeath  = ANIM_DEATH;
         animation.setAnim(ANIM_WAIT);
+        ai         = AI_FIXED; // the violent mood of the original: it attacks Lara anywhere in its zone
     }
 
     bool canShoot() {
@@ -561,6 +562,7 @@ struct Yeti : Enemy {
         jointChest = 7;
         jointHead  = 15;
         nextState  = STATE_EMPTY;
+        ai         = AI_FIXED; // the violent mood of the original: it attacks Lara anywhere in its zone
     }
 
     // a blow of the hands touching her, a killing one plays the yeti kill
@@ -748,6 +750,7 @@ struct BirdGuardian : Enemy {
     BirdGuardian(IGame *game, int entity) : Enemy(game, entity, 200, 341, 0.0f, 1.0f) {
         jointChest = -1;
         jointHead  = 15;
+        ai         = AI_FIXED; // the violent mood of the original: it attacks Lara anywhere in its zone
     }
 
     // either fist touching her hurts her once a punch
@@ -1311,8 +1314,10 @@ struct Mercenary : Human {
         jointHead  = 9;
         jointGun   = 17;
         animDeath  = rifle ? 9 : 14;
-        if (rifle)
+        if (rifle) {
             health = 50;
+            ai     = AI_FIXED; // the violent mood of the original ("bandit_2"): it attacks Lara anywhere in its zone
+        }
 
         // the third ones have no animations of their own, they play the ones of the second (as in the original)
         int index = level->getModelIndex(TR::Entity::ENEMY_MERCENARY_2);
@@ -2757,6 +2762,7 @@ struct SpiderGiant : Enemy {
         stepHeight =  256;
         dropHeight = -512;
         jointChest = jointHead = -1;
+        ai         = AI_FIXED; // the violent mood of the original: it attacks Lara anywhere in its zone
     }
 
     virtual int getStateGround() {
@@ -3127,6 +3133,7 @@ struct SkidooDriver : Human {
         rider.setAnim(0);
         animation.setModel(getModel());
         animation.setAnim(0);
+        ai         = AI_FIXED; // the violent mood of the original: it attacks Lara anywhere in its zone
     }
 
     bool isLeft() const {
@@ -3801,6 +3808,7 @@ struct Dragon : Enemy {
 
     Dragon(IGame *game, int entity) : Enemy(game, entity, DRAGON_HEALTH, DRAGON_RADIUS, 300.0f, 1.0f), back(NULL), phase(0), goal(-1), turnRate(0.0f), stepTime(0.0f) {
         jointHead = -1;
+        ai = AI_FIXED; // the violent mood of the original: it attacks Lara anywhere in its zone
     }
 
     bool isGone() const {
