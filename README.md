@@ -64,6 +64,13 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 OpenLara.exe --give=PUZZLE_4
 ```
 
+얼음 궁전의 새 괴물과 다시 싸우려면, 레벨을 처음부터 열고 탈리온 옆에서 시작합니다. 탈리온을 주우면 괴물이 깨어나고, 쓰러뜨리면 레벨이 끝납니다.
+무기(`SHOTGUN`, `M16`, `GRENADE` 등)와 메디킷(`MEDIKIT_BIG`)도 `--give`로 줄 수 있습니다.
+
+```
+OpenLara.exe data/icecave.tr2 --pos=127,58880,9984,30208,270 --give=M16,M16,M16,GRENADE,GRENADE,MEDIKIT_BIG,MEDIKIT_BIG
+```
+
 세이브와 설정, F12 스크린샷은 게임별 폴더에 저장됩니다 (Windows: `%APPDATA%\OpenLara\tr1`, `tr2`; Linux: `~/.openlara/tr1`, `tr2`;
 macOS: `~/Library/Application Support/OpenLara/tr1`, `tr2`).
 

@@ -34,17 +34,24 @@ static struct LaraStartPos {
     vec3  pos;
     float angle;
     int   activate[8];   // entities to trigger once the level starts (for testing), -1 ends the list
-    int   give[8];       // items to put into the inventory once the level starts (for testing), NONE ends the list
+    int   give[16];      // items to put into the inventory once the level starts (for testing), NONE ends the list
     float wait;          // seconds since the start, the entities are triggered a moment in (heard after the loading)
 } laraStartPos = { false, 0, vec3(0.0f), 0.0f, { -1 }, { TR::Entity::NONE }, 0.0f };
 
-// the item of a name given for testing: a key or a puzzle item (KEY_ITEM_1..4, PUZZLE_1..4) or a type number
+// the item of a name given for testing: a key, puzzle or quest item, a weapon, a medikit, flares or a type number
 static TR::Entity::Type laraStartItem(const char *name) {
     static const struct { const char *name; TR::Entity::Type type; } items[] = {
         { "KEY_ITEM_1", TR::Entity::KEY_ITEM_1 }, { "KEY_ITEM_2", TR::Entity::KEY_ITEM_2 },
         { "KEY_ITEM_3", TR::Entity::KEY_ITEM_3 }, { "KEY_ITEM_4", TR::Entity::KEY_ITEM_4 },
         { "PUZZLE_1",   TR::Entity::PUZZLE_1   }, { "PUZZLE_2",   TR::Entity::PUZZLE_2   },
         { "PUZZLE_3",   TR::Entity::PUZZLE_3   }, { "PUZZLE_4",   TR::Entity::PUZZLE_4   },
+        { "QUEST_ITEM_1", TR::Entity::QUEST_ITEM_1 }, { "QUEST_ITEM_2", TR::Entity::QUEST_ITEM_2 },
+    // weapons with a clip of ammo (several names of one give more), the medikits and the flares
+        { "SHOTGUN",     TR::Entity::SHOTGUN     }, { "MAGNUMS", TR::Entity::MAGNUMS }, { "UZIS", TR::Entity::UZIS },
+        { "AUTOPISTOLS", TR::Entity::AUTOPISTOLS }, { "HARPOON", TR::Entity::HARPOON },
+        { "M16",         TR::Entity::M16         }, { "GRENADE", TR::Entity::GRENADE },
+        { "MEDIKIT_SMALL", TR::Entity::MEDIKIT_SMALL }, { "MEDIKIT_BIG", TR::Entity::MEDIKIT_BIG },
+        { "FLARES",      TR::Entity::FLARES      },
     };
     for (int i = 0; i < COUNT(items); i++)
         if (!strcmp(name, items[i].name))

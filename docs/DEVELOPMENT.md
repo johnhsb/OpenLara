@@ -75,7 +75,7 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 |---|---|
 | 첫 인자 (Linux는 `-l`) | 시작할 레벨 파일 |
 | `--pos=room,x,y,z,angle` | 라라의 시작 위치, 각도는 도 (Windows, macOS) |
-| `--give=item[,item...]` | 시작할 때 인벤토리에 넣을 아이템 (Windows, macOS). `KEY_ITEM_1..4`, `PUZZLE_1..4` 또는 타입 번호(TR2는 1000을 더한 값, 예: 1140). 같은 이름을 반복하면 그 수만큼 들어감 |
+| `--give=item[,item...]` | 시작할 때 인벤토리에 넣을 아이템 (Windows, macOS). `KEY_ITEM_1..4`, `PUZZLE_1..4`, `QUEST_ITEM_1..2`, 무기 `SHOTGUN` `MAGNUMS` `UZIS` `AUTOPISTOLS` `HARPOON` `M16` `GRENADE`(탄창 하나와 함께), `MEDIKIT_SMALL` `MEDIKIT_BIG` `FLARES` 또는 타입 번호(TR2는 1000을 더한 값, 예: 1140). 같은 이름을 반복하면 그 수만큼 들어감(모두 15개까지) |
 | `--activate=index[,index...]` | 레벨 시작 1초 뒤 작동시킬 엔티티 번호 |
 | `-d dir`, `-f` (Linux) | 데이터 폴더, 전체 화면 |
 | `--high-dpi` (Windows) | 고해상도 DPI 인식 |
@@ -109,6 +109,7 @@ OpenLara.exe data/venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2
 | 석상 검병 (다른 위치) | `floating.tr2 --pos=1,73216,-2816,50688,90 --activate=2` |
 | 부유섬 허공 낙하 | `floating.tr2 --pos=1,76288,-3000,57856,180` |
 | 바르톨리와 드래곤 | `xian.tr2 --pos=18,47616,-7168,39424,90 --activate=43,45 --give=1140,1147,1147,1147` |
+| 얼음 궁전 새 괴물 (탈리온 옆, 탈리온을 주우면 창이 깨지고 깨어남, 죽으면 레벨 끝) | `icecave.tr2 --pos=127,58880,9984,30208,270 --give=M16,M16,M16,GRENADE,GRENADE,MEDIKIT_BIG,MEDIKIT_BIG` |
 | 얼음 궁전 큰 그릇 | `icecave.tr2 --pos=28,34304,5888,48640,270 --activate=34` |
 | 난파선 갑판의 경사 구덩이 (미끄러져 턱 위로 빠져나옴) | `deck.tr2 --pos=84,30619,1905,29595,90` |
 | 베니스 (README 예시) | `venice.tr2 --pos=73,37376,3840,18944,0 --give=KEY_ITEM_2` |
