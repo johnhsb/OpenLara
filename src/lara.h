@@ -2676,7 +2676,9 @@ struct Lara : Character {
                     }
                 }
                 return false;
-            default : return false;
+            // an item she can't use from the inventory (the Talion, the gong hammer, the Scion...) stays in it,
+            // a false here would take it away (as the original, choosing it does nothing)
+            default : return true;
         }
         return true;
     }
