@@ -816,6 +816,13 @@ struct BirdGuardian : Enemy {
         return animation.setAnim(ANIM_DEATH);
     }
 
+    // the level ends at the last frame of its death (hard-coded in the original, its animation has no command for it;
+    // TRX adds one by guardian_death_commands.bin). The kill command of that animation stops its update there too
+    virtual void doCustomCommand(int curFrame, int prevFrame) {
+        if (animation.index == ANIM_DEATH && curFrame >= animation.framesCount - 1)
+            game->loadNextLevel();
+    }
+
     virtual void updatePosition() {
         if (state == STATE_DEATH) {
             animation.overrideMask = 0;
