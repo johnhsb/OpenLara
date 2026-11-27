@@ -38,7 +38,7 @@ The detailed change list below is in Korean.*
 | ![물 커스틱](docs/screenshots/tr1-caustics.jpg) 물 커스틱 (TR1) | ![마이다스의 손](docs/screenshots/tr1-midas-hand.jpg) 강조 표시된 마이다스의 손 (TR1) |
 | ![스피드보트](docs/screenshots/tr2-venice-speedboat.jpg) 스피드보트와 항적 (TR2) | ![FPS 표시](docs/screenshots/tr2-venice-room-fps.jpg) 그림자와 FPS 표시 (TR2) |
 | ![티베트 산기슭 절벽](docs/screenshots/tr2-tibet-cliffs.jpg) 티베트 산기슭의 절벽 (TR2) | ![티베트 산기슭 스노모빌](docs/screenshots/tr2-tibet-snowmobile.jpg) 티베트 산기슭의 스노모빌 (TR2) |
-| ![용암](docs/screenshots/tr2-xian-lava.jpg) 흐르는 용암, 거품과 분출 (TR2 Temple of Xian) | ![바르톨리의 은신처 지붕](docs/screenshots/tr2-venice-roofs.jpg) 바르톨리의 은신처 지붕 (TR2) |
+| ![용암](docs/screenshots/tr2-xian-lava.jpg) 흐르는 용암, 거품과 분출 (TR2 Temple of Xian) | ![용암에 빠진 라라](docs/screenshots/tr2-xian-lava-death.jpg) 용암에 빠져 불타는 라라, 셰이더 불꽃 (TR2 Temple of Xian) |
 
 ## 실행
 

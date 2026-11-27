@@ -108,6 +108,10 @@
 
 *Temple of Xian의 용암 웅덩이. 흐르는 용암과 껍질 조각, 터지는 거품, 분출기의 방울과 불빛.*
 
+![용암에 빠진 라라](screenshots/tr2-xian-lava-death.jpg)
+
+*용암 웅덩이 안. 물속 표현 대신 붉은빛이 덮이고, 불타는 라라를 셰이더 불꽃이 감쌉니다.*
+
 ## 4. 편의 기능
 
 ![마이다스의 손](screenshots/tr1-midas-hand.jpg)
