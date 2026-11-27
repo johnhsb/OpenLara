@@ -682,6 +682,7 @@ struct MeshRange {
     E( WATER_RAYS     ) \
     E( WATER_MASK     ) \
     E( WATER_COMPOSE  ) \
+    E( WATER_LAVA     ) \
     /* filter types */ \
     E( FILTER_UPSCALE          ) \
     E( FILTER_DOWNSAMPLE       ) \
@@ -752,6 +753,16 @@ namespace Core {
 
     float getBump() {
         return envBump >= 0.0f ? envBump : settings.effects.bump * 0.1f;
+    }
+
+// the pits of lava (water rooms with a floor of lava) get a molten, glowing, flowing surface of their own in place of the
+// crust faces of the level, with the water at its best and by GL (the other APIs draw the crust)
+    bool lavaShader() {
+    #if defined(_GAPI_GL) && !defined(FFP)
+        return settings.detail.water > Settings::MEDIUM;
+    #else
+        return false;
+    #endif
     }
 
     enum Pass { passCompose, passShadow, passAmbient, passSky, passWater, passFilter, passGUI, passMAX } pass;

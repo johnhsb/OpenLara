@@ -811,7 +811,7 @@ struct MeshBuilder {
 
     void roomRemoveWaterSurfaces(TR::Room &room, int &iCount, int &vCount) {
         for (int i = 0; i < room.data.fCount; i++)
-            room.data.faces[i].water = false;
+            room.data.faces[i].water = room.data.faces[i].lava = false;
 
         if (Core::settings.detail.water == Core::Settings::LOW)
             return;
@@ -835,6 +835,20 @@ struct MeshBuilder {
             int yb = abs(s.floor * 256 - a.y);
 
             if (yt > 0 && yb > 0) continue;
+
+            if (level->isLavaFloor(int(&room - level->rooms), room.info.x + (int(a.x) + int(b.x) + int(c.x)) / 3, room.info.z + (int(a.z) + int(b.z) + int(c.z)) / 3)) {
+                if (!Core::lavaShader())
+                    continue; // the crust over a pit of lava stays
+                f.lava = true; // the lava shader draws the surface
+                if (f.triangle) {
+                    iCount -= 3;
+                    vCount -= 3;
+                } else {
+                    iCount -= 6;
+                    vCount -= 4;
+                }
+                continue;
+            }
 
             if (isWaterSurface(yt, s.roomAbove, room.flags.water) ||
                 isWaterSurface(yb, s.roomBelow, room.flags.water)) {
@@ -1039,7 +1053,7 @@ struct MeshBuilder {
             ASSERT(f.flags.texture < level->objectTexturesCount);
             TR::TextureInfo &t = level->objectTextures[f.flags.texture];
 
-            if (f.water) continue;
+            if (f.water || f.lava) continue;
 
             CHECK_ROOM_NORMAL(f);
 
@@ -1076,7 +1090,7 @@ struct MeshBuilder {
                 TR::Face        &f = d.faces[j];
                 TR::TextureInfo &t = level->objectTextures[f.flags.texture];
 
-                if (f.water) continue;
+                if (f.water || f.lava) continue;
 
                 if (!(blendMask & getBlendMask(t.attribute)))
                     continue;

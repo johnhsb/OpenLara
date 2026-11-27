@@ -48,7 +48,7 @@ vec3 calcNormal(vec2 tc, float base) {
 		vMaskCoord = (coord.xy * 0.5 + 0.5) * uRoomSize.zw;
 	#endif
 
-		#if defined(WATER_MASK) || defined(WATER_COMPOSE)
+		#if defined(WATER_MASK) || defined(WATER_COMPOSE) || defined(WATER_LAVA)
 
 			float height = 0.0;
 
@@ -212,7 +212,7 @@ vec3 calcNormal(vec2 tc, float base) {
 		color.xyz = mix(UNDERWATER_COLOR * 0.2, color.xyz, fog);
 	}
 
-#ifdef WATER_COMPOSE
+#if defined(WATER_COMPOSE) || defined(WATER_LAVA)
 	float hash12(vec2 p) { // https://www.shadertoy.com/view/4djSRW (no sin, the same on every GPU)
 		vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 		p3 += dot(p3, p3.yzx + 33.33);
@@ -226,6 +226,9 @@ vec3 calcNormal(vec2 tc, float base) {
 		return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x),
 				   mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
 	}
+#endif
+
+#ifdef WATER_COMPOSE
 
 	// the white foam on the steepest waves (the wake of the boat, a splash): the most where the water still moves fast
 	// (just behind the boat), less as the waves calm down, in soft patches of a noise fixed in the water
@@ -284,6 +287,86 @@ vec3 calcNormal(vec2 tc, float base) {
 	}
 #endif
 
+
+#ifdef WATER_LAVA
+	uniform vec4 uFogParams;
+
+	float fbm(vec2 p) {
+		float v = 0.0;
+		float a = 0.5;
+		for (int i = 0; i < 4; i++) {
+			v += valueNoise(p) * a;
+			p = p * 2.03 + vec2(17.1, 9.7);
+			a *= 0.5;
+		}
+		return v;
+	}
+
+	// the plates of the crust (1) drifting on the molten lava (0), and the swell of both
+	float lavaCrust(vec2 q, float t) {
+		return smoothstep(0.43, 0.5, fbm(q * 1.1 + vec2(t * 0.011, -t * 0.007)));
+	}
+
+	float lavaHeight(vec2 q, float t) {
+		float crust  = lavaCrust(q, t);
+		float molten = fbm(q * 2.6 - vec2(t * 0.05, t * 0.03));
+		return crust * (0.55 + 0.45 * fbm(q * 7.0)) + molten * 0.12;
+	}
+
+	// the hot glow: dark red at the edge of the crust, orange to yellow in the open lava
+	vec3 lavaGlow(float x) {
+		vec3 c = mix(vec3(0.22, 0.01, 0.0), vec3(0.95, 0.22, 0.02), smoothstep(0.0, 0.7, x));
+		return c + vec3(0.5, 0.5, 0.15) * smoothstep(0.7, 1.0, x);
+	}
+
+	vec4 lava() {
+		float t = uParam.x;
+		vec2  p = vCoord.xz * (1.0 / 1024.0);
+
+	// the lava flows slowly, it warps itself
+		vec2 w = vec2(fbm(p * 0.7 + vec2(t * 0.020, t * 0.013)),
+		              fbm(p * 0.7 + vec2(5.2, 1.3) - vec2(t * 0.017, t * 0.011)));
+		vec2 q = p * 1.6 + (w - 0.5) * 1.4;
+
+		float crust  = lavaCrust(q, t);
+		float molten = fbm(q * 2.6 - vec2(t * 0.05, t * 0.03));
+
+	// the relief of the crust for the light
+		float e  = 0.02;
+		float h  = lavaHeight(q, t);
+		float hx = lavaHeight(q + vec2(e, 0.0), t);
+		float hz = lavaHeight(q + vec2(0.0, e), t);
+		vec3 normal = normalize(vec3((h - hx) * 6.0, 1.0, (h - hz) * 6.0));
+
+		vec3 viewVec = normalize(vViewVec);
+
+	// the open lava glows by itself and pulses slowly, the cracks near the edges of the crust glow dimmer
+		float heat  = 0.2 + 0.8 * molten * molten * 1.6;
+		heat *= 0.9 + 0.1 * sin(t * 1.7 + molten * 12.0);
+	// bright threads where the lava runs fastest
+		float vein  = 1.0 - smoothstep(0.0, 0.09, abs(fbm(q * 3.2 + w * 2.0 - vec2(t * 0.04, 0.0)) - 0.5));
+		vein *= vein * (0.5 + 0.5 * molten); // soft and uneven, brighter where the lava is hotter
+		heat = clamp(heat + vein * 0.25, 0.0, 1.0) * (1.0 - crust);
+		float edge  = crust * (1.0 - crust) * 4.0; // the rim of a plate, half molten
+		vec3  glow  = lavaGlow(heat) * (1.0 - crust) + lavaGlow(0.55) * edge * 0.5;
+
+	// the crust is dark rock lit from the lava under it, with a dull sheen
+		float shade = 0.35 + 0.65 * clamp(dot(normal, normalize(vec3(0.3, 1.0, 0.2))), 0.0, 1.0);
+		vec3  rock  = vec3(0.09, 0.035, 0.025) * shade * (0.7 + 0.6 * fbm(q * 9.0));
+		float sheen = pow(max(0.0, dot(reflect(-viewVec, normal), vec3(0.0, 1.0, 0.0))), 16.0) * 0.08;
+		rock += vec3(1.0, 0.35, 0.1) * sheen;
+
+		vec3 color = mix(glow, rock, crust) + glow * crust * 0.15;
+
+	// the haze of the distance, as on the rooms
+		float fog = max(0.0, length((uViewPos.xyz - vCoord) * uFogParams.w) - FOG_START_DIST * uFogParams.w);
+		fog *= fog;
+		color = mix(uFogParams.xyz, color, clamp(1.0 / exp(fog), 0.0, 1.0));
+
+		return vec4(color, 1.0);
+	}
+#endif
+
 	vec4 process() {
 		#ifdef WATER_DROP
 			return drop();
@@ -307,6 +390,10 @@ vec3 calcNormal(vec2 tc, float base) {
 
 		#ifdef WATER_COMPOSE
 			return compose();
+		#endif
+
+		#ifdef WATER_LAVA
+			return lava();
 		#endif
 
 		return vec4(1.0, 0.0, 1.0, 1.0);

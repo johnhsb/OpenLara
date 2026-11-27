@@ -105,6 +105,8 @@ struct ShaderCache {
             compile(Core::passWater, Shader::WATER_CAUSTICS, fx, RS_COLOR_WRITE);
         }
         compile(Core::passWater, Shader::WATER_COMPOSE,  fx, RS_COLOR_WRITE | RS_DEPTH_TEST);
+        if (Core::lavaShader())
+            compile(Core::passWater, Shader::WATER_LAVA, fx, RS_COLOR_WRITE | RS_DEPTH_TEST | RS_DEPTH_WRITE);
     }
 
     void prepareFilter(int fx) {
@@ -476,7 +478,7 @@ struct WaterCache {
             for (int z = 0; z < r.zSectors; z++)
                 for (int x = 0; x < r.xSectors; x++) {
                     TR::Room::Sector &s = r.sectors[x * r.zSectors + z];
-                    if (s.roomAbove != TR::NO_ROOM && !level->rooms[s.roomAbove].flags.water) {
+                    if (s.roomAbove != TR::NO_ROOM && !level->rooms[s.roomAbove].flags.water && !level->isLavaFloor(to, r.info.x + x * 1024 + 512, r.info.z + z * 1024 + 512)) {
                         minX = min(minX, x);
                         minZ = min(minZ, z);
                         maxX = max(maxX, x);
@@ -510,7 +512,7 @@ struct WaterCache {
                 for (int x = minX; x < maxX; x++) {
                     TR::Room::Sector &s = r.sectors[x * r.zSectors + z];
 
-                    bool hasWater = s.roomAbove != TR::NO_ROOM && !level->rooms[s.roomAbove].flags.water;
+                    bool hasWater = s.roomAbove != TR::NO_ROOM && !level->rooms[s.roomAbove].flags.water && !level->isLavaFloor(to, r.info.x + x * 1024 + 512, r.info.z + z * 1024 + 512);
                     if (hasWater) {
                         TR::Room &rt = level->rooms[s.roomAbove];
                         int xt = int(r.info.x + x * 1024 - rt.info.x) / 1024;

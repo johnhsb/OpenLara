@@ -76,6 +76,7 @@ struct Level : IGame {
     ZoneCache    *zoneCache;
     AmbientCache *ambientCache;
     WaterCache   *waterCache;
+    Array<vec4>  lavaSurfaces; // the middle of each sector of the surface over a pit of lava, w - the room under it
 
     Sound::Sample *sndTrack, *sndWater;
     bool waitTrack;
@@ -532,6 +533,7 @@ struct Level : IGame {
         if (water && waterCache) waterCache->flipMap();
         mesh->flipMap();
         level.flipMap();
+        initLava();
         updateBlocks(true);
         bodiesFall = true;
     }
@@ -1136,6 +1138,7 @@ struct Level : IGame {
             zoneCache    = new ZoneCache(this);
             ambientCache = Core::settings.detail.lighting > Core::Settings::MEDIUM ? new AmbientCache(this) : NULL;
             waterCache   = Core::settings.detail.water    > Core::Settings::LOW    ? new WaterCache(this)   : NULL;
+            initLava();
 
             if (ambientCache) { // at first calculate ambient cube for Lara
                 AmbientCache::Cube cube;
@@ -3663,6 +3666,51 @@ struct Level : IGame {
         underwaterFogParams = oldUnderwaterFogParams;
     }
 
+    // the sectors of the surfaces over the pits of lava, the surface of a water room where the floor at the bottom is lava
+    void initLava() {
+        lavaSurfaces.clear();
+        for (int r = 0; r < level.roomsCount; r++) {
+            const TR::Room &room = level.rooms[r];
+            if (!room.flags.water) continue;
+            for (int x = 0; x < room.xSectors; x++)
+                for (int z = 0; z < room.zSectors; z++) {
+                    const TR::Room::Sector &s = room.sectors[x * room.zSectors + z];
+                    if (s.roomAbove == TR::NO_ROOM || level.rooms[s.roomAbove].flags.water)
+                        continue;
+                    int wx = room.info.x + x * 1024 + 512;
+                    int wz = room.info.z + z * 1024 + 512;
+                    if (level.isLavaFloor(r, wx, wz))
+                        lavaSurfaces.push(vec4(float(wx), float(s.ceiling * 256), float(wz), float(r)));
+                }
+        }
+    }
+
+    // the molten surface of the visible pits of lava, a quad on each sector (opaque, it hides the pit under it)
+    void renderLava() {
+        Core::Pass pass = Core::pass;
+        bool bound = false;
+        for (int i = 0; i < lavaSurfaces.length; i++) {
+            const vec4 &s = lavaSurfaces[i];
+            if (!level.rooms[int(s.w)].flags.visible) continue;
+            if (!bound) {
+                setShader(Core::passWater, Shader::WATER_LAVA);
+                Core::setFog(levelFogParams);
+                Core::setBlendMode(bmNone);
+                Core::setDepthWrite(true);
+                Core::setCullMode(cmNone);
+                bound = true;
+            }
+            vec4 posScale[2] = { vec4(s.x, s.y, s.z, 0.0f), vec4(512.0f, 1.0f, 512.0f, 1.0f) };
+            Core::active.shader->setParam(uPosScale, posScale[0], 2);
+            mesh->renderQuad();
+        }
+        if (bound) {
+            Core::setCullMode(cmFront);
+            Core::pass = pass;
+            setupBinding();
+        }
+    }
+
     virtual void renderView(int roomIndex, bool water, bool showUI, int roomsCount = 0, RoomDesc *roomsList = NULL) {
         PROFILE_MARKER("VIEW");
 
@@ -3749,6 +3797,8 @@ struct Level : IGame {
         prepareRooms(roomsList, roomsCount);
 
         renderOpaque(roomsList, roomsCount);
+        if (Core::pass == Core::passCompose && Core::lavaShader())
+            renderLava();
         renderTransparent(roomsList, roomsCount);
 
         if (camera->isUnderwater())

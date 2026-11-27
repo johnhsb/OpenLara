@@ -1741,7 +1741,7 @@ namespace TR {
 
         short3 normal;
         uint16 vertices[4];
-        uint8  triangle:1, colored:1, water:1, flip:5;
+        uint8  triangle:1, colored:1, water:1, lava:1, flip:4; // lava: a face of the crust over a pit of lava, drawn by the lava shader
 
         Face() : triangle(0), colored(0), water(0), flip(0) {
             flags.value   = 0;
@@ -6781,6 +6781,26 @@ namespace TR {
 
                 default : LOG("unknown func to skip: %d\n", func);
             }
+        }
+
+        // the floor at the bottom of the column of sectors at x, z kills as lava (the lava pits of TR2 are water rooms
+        // with a crust of lava over the surface, its faces stay as the original draws them, no water there)
+        bool isLavaFloor(int roomIndex, int x, int z) {
+            int dx, dz;
+            Room::Sector *s = &getSector(roomIndex, x, z, dx, dz);
+            while (s->roomBelow != NO_ROOM)
+                s = &getSector(s->roomBelow, x, z, dx, dz);
+            if (!s->floorIndex)
+                return false;
+            FloorData *fd = &floors[s->floorIndex];
+            FloorData::Command cmd;
+            do {
+                cmd = (*fd++).cmd;
+                if (cmd.func == FloorData::LAVA)
+                    return true;
+                floorSkipCommand(fd, cmd.func);
+            } while (!cmd.end);
+            return false;
         }
 
         int getNextRoom(const Room::Sector *sector) const {
