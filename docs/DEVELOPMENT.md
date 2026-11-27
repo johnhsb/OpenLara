@@ -152,6 +152,8 @@ HOME=$S/home GALLIUM_DRIVER=llvmpipe timeout 30 stdbuf -oL $S/t/platform/sdl2/Op
 
 - 강제 입력은 `Input::state`를 직접 읽는 코드(스위치, 퍼즐 판정)에는 닿지 않습니다. 인벤토리도 조작할 수 없습니다.
 - 프레임률에 따라 달라지는 문제(점프 높이, 잡기)는 30/60/120/144 Hz 네 가지로 모두 확인합니다.
+- Linux 빌드는 OpenGL ES 3(셰이더는 WebGL2와 같은 `#version 300 es`)로 돕니다. WebGL1(`#version 100`)에서 셰이더가 도는지는
+  `build.sh`의 GLES2 줄(`-D_GAPI_GLES2`)로 따로 빌드해 화면을 찍어 확인합니다 (용암 셰이더를 이렇게 확인함).
 
 **레벨·세이브 파일을 직접 읽기**
 

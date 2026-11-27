@@ -23,7 +23,7 @@ The detailed change list below is in Korean.*
 |---|---|
 | **Tomb Raider II** | 적 30여 종, 탈것(스피드보트·스노모빌), 함정과 장치, 무기·조명탄·사다리·집라인, 보스(바르톨리와 드래곤), 엔딩까지 구현 |
 | **원작 재현** | 점프 높이와 모서리 잡기 판정, 트리거 규칙, 적 AI·명중률, 카메라, 충돌 처리 등을 원작 동작에 맞춤 |
-| **그래픽** | 업스케일 텍스처 팩, 노멀 맵, 원경 안개, 구름과 해가 있는 하늘, 불·폭발·조명탄의 동적 조명, 라라 얼굴 텍스처 |
+| **그래픽** | 업스케일 텍스처 팩, 노멀 맵, 원경 안개, 구름과 해가 있는 하늘, 불·폭발·조명탄의 동적 조명, 흐르는 용암과 분출 효과, 라라 얼굴 텍스처 |
 | **편의 기능** | 상호작용 오브젝트 강조, FPS 표시(F), 스크린샷(F12), 게임별 세이브 폴더, 시작 위치 지정 실행 옵션 |
 | **Tomb Raider III** | `tr3` 브랜치에서 구현 중 (아직 플레이 지원 안 함) |
 | **플랫폼** | 64비트 Windows(MSVC) 빌드, WSL GPU 렌더링, Linux 대소문자 무시 데이터 탐색, macOS 최신 Xcode 빌드 |
@@ -38,6 +38,7 @@ The detailed change list below is in Korean.*
 | ![물 커스틱](docs/screenshots/tr1-caustics.jpg) 물 커스틱 (TR1) | ![마이다스의 손](docs/screenshots/tr1-midas-hand.jpg) 강조 표시된 마이다스의 손 (TR1) |
 | ![스피드보트](docs/screenshots/tr2-venice-speedboat.jpg) 스피드보트와 항적 (TR2) | ![FPS 표시](docs/screenshots/tr2-venice-room-fps.jpg) 그림자와 FPS 표시 (TR2) |
 | ![티베트 산기슭 절벽](docs/screenshots/tr2-tibet-cliffs.jpg) 티베트 산기슭의 절벽 (TR2) | ![티베트 산기슭 스노모빌](docs/screenshots/tr2-tibet-snowmobile.jpg) 티베트 산기슭의 스노모빌 (TR2) |
+| ![용암](docs/screenshots/tr2-xian-lava.jpg) 흐르는 용암, 거품과 분출 (TR2 Temple of Xian) | |
 
 ## 실행
 
