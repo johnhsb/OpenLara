@@ -319,6 +319,48 @@ vec3 calcNormal(vec2 tc, float base) {
 		return c + vec3(0.5, 0.5, 0.15) * smoothstep(0.7, 1.0, x);
 	}
 
+	// the bubbles of the molten lava: a dome swells, it bursts and a ring of glow runs out from it (a few in a cell of
+	// 0.4 of a sector, each on a cycle of its own); xyz - the colour of a dome, w - how much of the pixel it covers,
+	// glow - the light of the bursts to add
+	vec4 lavaBubbles(vec2 p, float t, vec3 viewVec, inout vec3 glow) {
+		vec2 g  = p * 2.5;
+		vec2 gi = floor(g);
+		vec4 res = vec4(0.0);
+		for (int y = -1; y <= 1; y++)
+			for (int x = -1; x <= 1; x++) {
+				vec2  cell = gi + vec2(float(x), float(y));
+				float h    = hash12(cell);
+				if (h < 0.45) continue; // no bubble in this cell
+				float period = 2.5 + 3.0 * hash12(cell + 7.3);
+				float phase  = fract(t / period + h * 7.0);
+				vec2  c      = cell + 0.2 + 0.6 * vec2(hash12(cell + 1.7), hash12(cell + 3.1));
+				vec2  d      = g - c;
+				float dist   = length(d);
+				float rmax   = 0.18 + 0.17 * hash12(cell + 5.9);
+				if (phase < 0.8) { // swelling
+					float r = rmax * smoothstep(0.0, 0.8, phase);
+					if (dist < r) {
+						float z = sqrt(1.0 - dist * dist / (r * r));
+						vec3  n = normalize(vec3(d.x / r, z * 1.2, d.y / r));
+						float shade = 0.45 + 0.55 * clamp(dot(n, normalize(vec3(0.3, 1.0, 0.2))), 0.0, 1.0);
+						float spec  = pow(max(0.0, dot(reflect(-viewVec, n), vec3(0.0, 1.0, 0.0))), 24.0);
+					// a skin of darker lava, hot at the rim where it stretches thin
+						vec3 skin = lavaGlow(0.35 + 0.4 * (1.0 - z)) * shade + vec3(1.0, 0.6, 0.25) * spec * 0.35;
+						res = vec4(skin, smoothstep(r, r * 0.85, dist));
+					}
+				} else { // burst: a ring runs out and fades
+					float k = (phase - 0.8) / 0.2;
+					float r = rmax * (1.0 + k * 1.5);
+					float ring = 1.0 - smoothstep(0.0, 0.05 + 0.05 * k, abs(dist - r));
+					ring *= (1.0 - k);
+					glow += lavaGlow(0.85) * ring * 0.6;
+					// the hole left in the middle glows bright for a moment
+					glow += lavaGlow(1.0) * (1.0 - smoothstep(0.0, rmax * 0.8, dist)) * (1.0 - k) * 0.5;
+				}
+			}
+		return res;
+	}
+
 	vec4 lava() {
 		float t = uParam.x;
 		vec2  p = vCoord.xz * (1.0 / 1024.0);
@@ -357,6 +399,12 @@ vec3 calcNormal(vec2 tc, float base) {
 		rock += vec3(1.0, 0.35, 0.1) * sheen;
 
 		vec3 color = mix(glow, rock, crust) + glow * crust * 0.15;
+
+	// the bubbles come up in the open lava only
+		vec3  burst  = vec3(0.0);
+		vec4  bubble = lavaBubbles(p, t, viewVec, burst);
+		float open   = 1.0 - smoothstep(0.1, 0.5, crust);
+		color = mix(color, bubble.xyz, bubble.w * open) + burst * open;
 
 	// the haze of the distance, as on the rooms
 		float fog = max(0.0, length((uViewPos.xyz - vCoord) * uFogParams.w) - FOG_START_DIST * uFogParams.w);

@@ -497,6 +497,9 @@ struct MuzzleFlash : Controller {
 #define LAVA_V_SPEED          -165
 #define LAVA_H_SPEED          32
 #define LAVA_EMITTER_RANGE    (1024 * 10)
+#define LAVA_BLOB_COOL        1.6f    // seconds a blob takes to cool from yellow to dark red
+#define LAVA_SPARK_LIFE       0.6f
+#define LAVA_LIGHT_RADIUS     3072.0f
 
 struct TrapLavaEmitter : Controller {
 
@@ -505,11 +508,21 @@ struct TrapLavaEmitter : Controller {
         vec3  velocity;
         int16 roomIndex;
         int8  frame;
+        bool  spark;    // a spark that only shows, it neither hurts nor bounces
+        float age;
 
         void update(TR::Level *level, Controller *lara) {
             Controller::applyGravity(velocity.y);
             vec3 opos = pos;
             pos += velocity * (30.0f * Core::deltaTime);
+            age += Core::deltaTime;
+
+            if (spark) {
+                TR::Room::Sector *sector = level->getSector(roomIndex, pos);
+                if (age > LAVA_SPARK_LIFE || pos.y > level->getFloor(sector, pos))
+                    frame = -1;
+                return;
+            }
 
             if (lara->collide(Sphere(pos, 0.0f))) {
                 lara->hit(LAVA_PARTICLE_DAMAGE);
@@ -556,8 +569,10 @@ struct TrapLavaEmitter : Controller {
 
     Array<Particle> particles;
     int             spriteIndex;
+    EffectLight     light;
+    float           flicker;
 
-    TrapLavaEmitter(IGame *game, int entity) : Controller(game, entity) {
+    TrapLavaEmitter(IGame *game, int entity) : Controller(game, entity), flicker(0.0f) {
         spriteIndex = level->getModelIndex(TR::Entity::LAVA_PARTICLE);
         if (spriteIndex) {
             level->spriteSequences[-(spriteIndex + 1)].transp = 2; // fix blending mode to additive
@@ -584,7 +599,19 @@ struct TrapLavaEmitter : Controller {
                 part.velocity  = vec3(d.x, randf() * LAVA_V_SPEED, d.y);
                 part.roomIndex = getRoomIndex();
                 part.frame     = rand() % level->spriteSequences[-(spriteIndex + 1)].sCount;
+                part.spark     = false;
+                part.age       = 0.0f;
                 particles.push(part);
+
+            // sparks fly off with the blob, faster and lighter (they only show)
+                for (int i = rand() % 3; i > 0; i--) {
+                    vec2 s;
+                    sincos(PI * 2.0f * randf(), &s.x, &s.y);
+                    part.velocity = vec3(s.x * LAVA_H_SPEED * 2.0f * randf(), (0.5f + randf()) * LAVA_V_SPEED * 0.8f, s.y * LAVA_H_SPEED * 2.0f * randf());
+                    part.spark    = true;
+                    part.age      = randf() * LAVA_SPARK_LIFE * 0.3f;
+                    particles.push(part);
+                }
 
                 game->playSound(TR::SND_LAVA, pos, Sound::PAN);
                 timer += 1.0f / 30.0f;
@@ -601,18 +628,55 @@ struct TrapLavaEmitter : Controller {
                 i--;
             }
         }
+
+    // the glow of the burst lights the pit, it flickers with the blobs in the air
+        if (particles.length) {
+            flicker += Core::deltaTime;
+            float f = 0.75f + 0.15f * sinf(flicker * 13.0f) + 0.1f * sinf(flicker * 31.0f + 1.3f);
+            float s = min(1.0f, particles.length / 24.0f) * f;
+            light.set(level, entity, getRoomIndex(), pos - vec3(0.0f, 384.0f, 0.0f), vec3(1.0f, 0.42f, 0.1f) * s, LAVA_LIGHT_RADIUS);
+        } else
+            light.off(level, entity);
+    }
+
+    // the colour of a blob as it cools: white hot yellow, orange, dark red
+    static Color32 blobColor(float age, float alpha) {
+        float t = clamp(age / LAVA_BLOB_COOL, 0.0f, 1.0f);
+        vec3 c = t < 0.35f ? vec3(1.0f, 0.9f, 0.55f).lerp(vec3(1.0f, 0.5f, 0.12f), t / 0.35f)
+                           : vec3(1.0f, 0.5f, 0.12f).lerp(vec3(0.55f, 0.08f, 0.0f), (t - 0.35f) / 0.65f);
+        c = c * (alpha * 255.0f);
+        return Color32(uint8(clamp(int(c.x), 0, 255)), uint8(clamp(int(c.y), 0, 255)), uint8(clamp(int(c.z), 0, 255)), 255);
     }
 
     virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {
+    // (additive) a blob is a hot core in a soft glow with a trail along its way that fades, a spark a small streak
+        int sStart = level->spriteSequences[-(spriteIndex + 1)].sStart;
         for (int i = 0; i < particles.length; i++) {
             Particle &part = particles[i];
 
-            uint8 intensity = clamp(int(part.frame * 0.18f * 255.0f), 0, 255);
-            Color32 color(intensity, intensity, intensity, 255);
+            int   sprite = sStart + part.frame;
+            const TR::TextureInfo &tex = level->spriteTextures[sprite];
+            float size   = float(max(tex.r - tex.l, tex.b - tex.t)) * 0.5f;
+            if (size < 8.0f) size = 8.0f;
 
-            vec3 p = part.pos - Core::viewPos.xyz();
+            vec3  p      = part.pos - Core::viewPos.xyz();
+            vec3  step   = part.velocity * -1.2f; // back along the way, a frame and a bit
 
-            mesh->addDynSprite(level->spriteSequences[-(spriteIndex + 1)].sStart + part.frame, short3(int16(p.x), int16(p.y), int16(p.z)), false, false, color, color);
+            if (part.spark) {
+                float a = 1.0f - part.age / LAVA_SPARK_LIFE;
+                for (int j = 0; j < 3; j++) {
+                    vec3 q = p + step * float(j) * 0.7f;
+                    mesh->addDynSpriteSized(sprite, short3(int16(q.x), int16(q.y), int16(q.z)), int16(size * 0.35f * (1.0f - j * 0.25f)), blobColor(part.age * 0.5f, a * (1.0f - j * 0.3f)));
+                }
+                continue;
+            }
+
+            for (int j = 3; j > 0; j--) { // the trail
+                vec3 q = p + step * float(j);
+                mesh->addDynSpriteSized(sprite, short3(int16(q.x), int16(q.y), int16(q.z)), int16(size * (1.0f - j * 0.18f)), blobColor(part.age + j * 0.15f, 0.45f - j * 0.1f));
+            }
+            mesh->addDynSpriteSized(sprite, short3(int16(p.x), int16(p.y), int16(p.z)), int16(size * 3.0f), blobColor(part.age, 0.3f));  // the glow
+            mesh->addDynSpriteSized(sprite, short3(int16(p.x), int16(p.y), int16(p.z)), int16(size), blobColor(part.age, 1.0f));         // the core
         }
     }
 };
