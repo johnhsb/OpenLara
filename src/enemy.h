@@ -7,6 +7,7 @@
 #define STALK_BOX       (1024 * 3)
 #define ESCAPE_BOX      (1024 * 5)
 #define ATTACK_BOX      STALK_BOX
+#define FLY_OVER_WATER  128.0f  // a flyer going for Lara in the water keeps this high over its surface
 
 #define MAX_SHOT_DIST   (64 * 1024)
 #define MAX_CARRIED     8       // the pickups an enemy carries
@@ -639,8 +640,10 @@ struct Enemy : Character {
     }
 
     // the height a flyer heads for, as the original takes it: on its way it keeps its own height, only lifted a block
-    // over the floors of the boxes it goes through, on the box of Lara it goes for her top (her feet out of the air)
-    // and on a box it is only sent to for a step and a half over the floor
+    // over the floors of the boxes it goes through, on the box of Lara it goes for her top and on a box it is only
+    // sent to for a step and a half over the floor
+    // (the original goes for her top on dry land only, for her feet in the water: in the water she stands in it dives
+    // to her feet on the bottom, here it goes for her head out of the water, over the surface, as to her swimming on it)
     void updateFlyHeight() {
         if (targetBox == TR::NO_BOX) {
             flyHeight = pos.y;
@@ -650,8 +653,10 @@ struct Enemy : Character {
         if (box == targetBox || !path || path->index >= path->count - 1) {
             if (targetBox == target->box) {
                 flyHeight = target->pos.y;
-                if (target->stand != STAND_UNDERWATER && target->stand != STAND_ONWATER && target->stand != STAND_WADE)
+                if (target->stand != STAND_UNDERWATER)
                     flyHeight += target->getBoundingBoxLocal().min.y;
+                if ((target->stand == STAND_WADE || target->stand == STAND_ONWATER) && !(target->waterLevel == 0.0f && target->waterDepth == 0.0f))
+                    flyHeight = min(flyHeight, target->waterLevel - FLY_OVER_WATER);
             } else
                 flyHeight = float(level->boxes[targetBox].floor - 384);
             return;
