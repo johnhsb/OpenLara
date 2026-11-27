@@ -2492,6 +2492,8 @@ struct Lara : Character {
         if ((level->version & TR::VER_VERSION) > TR::VER_TR2) {
             return; // TODO
         }
+        if (getRoom().lava)
+            return; // no breath in the lava
         int count = rand() % 3;
         if (!count) return;
         game->playSound(TR::SND_BUBBLE, pos, Sound::PAN);

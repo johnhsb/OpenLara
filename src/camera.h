@@ -124,8 +124,9 @@ struct Camera : ICamera {
         }
     }
 
-    bool isUnderwater() {
-        return level->rooms[getRoomIndex()].flags.water;
+    bool isUnderwater() { // in a pit of lava it is not under water (no water fog, tint nor sound)
+        const TR::Room &room = level->rooms[getRoomIndex()];
+        return room.flags.water && !room.lava;
     }
 
     vec3 getViewPoint(bool useBounds = true) {

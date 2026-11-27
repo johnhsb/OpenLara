@@ -612,9 +612,11 @@ struct Level : IGame {
         }
     #endif
 
+        bool water = room.flags.water && !room.lava; // a pit of lava is drawn as dry land
+
         vec4 material;
         if (Core::pass == Core::passAmbient) {
-            if (room.flags.water) {
+            if (water) {
                 material = vec4(underwaterColor, 1.0f);
             } else {
                 material = vec4(1.0f);
@@ -623,22 +625,22 @@ struct Level : IGame {
             material = vec4(diffuse, ambient, specular, alpha);
         }
         
-        setShader(Core::pass, type, (Core::pass == Core::passAmbient) ? false : room.flags.water, alphaTest);
+        setShader(Core::pass, type, (Core::pass == Core::passAmbient) ? false : water, alphaTest);
 
-        if (room.flags.water) {
+        if (water) {
             Core::setFog(underwaterFogParams);
         } else {
             Core::setFog(levelFogParams);
         }
 
         #ifdef _GAPI_SW
-            GAPI::setPalette(room.flags.water ? GAPI::swPaletteWater : GAPI::swPaletteColor);
+            GAPI::setPalette(water ? GAPI::swPaletteWater : GAPI::swPaletteColor);
             GAPI::setShading(true);
         #endif
 
         Core::setMaterial(material.x, material.y, material.z, material.w);
 
-        if (room.flags.water) {
+        if (water) {
             if (waterCache) {
                 waterCache->bindCaustics(roomIndex);
             }
@@ -1130,6 +1132,8 @@ struct Level : IGame {
 
         initShadow();
 
+        initLava();
+
         if (!(lastTitle = level.isTitle())) {
             ASSERT(players[0] != NULL);
             player = players[0];
@@ -1138,7 +1142,6 @@ struct Level : IGame {
             zoneCache    = new ZoneCache(this);
             ambientCache = Core::settings.detail.lighting > Core::Settings::MEDIUM ? new AmbientCache(this) : NULL;
             waterCache   = Core::settings.detail.water    > Core::Settings::LOW    ? new WaterCache(this)   : NULL;
-            initLava();
 
             if (ambientCache) { // at first calculate ambient cube for Lara
                 AmbientCache::Cube cube;
@@ -3662,6 +3665,9 @@ struct Level : IGame {
         renderRooms(roomsList, roomsCount, 2);
         renderEntities(2);
 
+        if (Core::pass == Core::passCompose && Core::lavaShader())
+            renderFlames();
+
         levelFogParams = oldLevelFogParams;
         underwaterFogParams = oldUnderwaterFogParams;
     }
@@ -3670,18 +3676,95 @@ struct Level : IGame {
     void initLava() {
         lavaSurfaces.clear();
         for (int r = 0; r < level.roomsCount; r++) {
-            const TR::Room &room = level.rooms[r];
+            TR::Room &room = level.rooms[r];
+            room.lava = false;
             if (!room.flags.water) continue;
             for (int x = 0; x < room.xSectors; x++)
                 for (int z = 0; z < room.zSectors; z++) {
                     const TR::Room::Sector &s = room.sectors[x * room.zSectors + z];
-                    if (s.roomAbove == TR::NO_ROOM || level.rooms[s.roomAbove].flags.water)
-                        continue;
                     int wx = room.info.x + x * 1024 + 512;
                     int wz = room.info.z + z * 1024 + 512;
-                    if (level.isLavaFloor(r, wx, wz))
+                    if (s.floor == TR::NO_FLOOR || !level.isLavaFloor(r, wx, wz))
+                        continue;
+                    room.lava = true;
+                    if (s.roomAbove != TR::NO_ROOM && !level.rooms[s.roomAbove].flags.water)
                         lavaSurfaces.push(vec4(float(wx), float(s.ceiling * 256), float(wz), float(r)));
                 }
+        }
+    }
+
+    // in a pit of lava the view goes red and dark (the rooms are drawn as on dry land, it hides them)
+    void renderLavaTint() {
+        Core::Pass pass = Core::pass;
+        setShader(Core::passGUI, Shader::DEFAULT);
+        Core::active.shader->setParam(uViewProj, GAPI::ortho(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f));
+        Core::active.shader->setParam(uMaterial, vec4(1.0f));
+        Core::whiteTex->bind(sDiffuse);
+
+        Index  indices[6] = { 0, 1, 2, 0, 2, 3 };
+        Vertex vertices[4];
+        vertices[0].coord = short4(0, 0, 0, 0);
+        vertices[1].coord = short4(1, 0, 0, 0);
+        vertices[2].coord = short4(1, 1, 0, 0);
+        vertices[3].coord = short4(0, 1, 0, 0);
+        for (int i = 0; i < 4; i++) {
+            vertices[i].texCoord = short4(0, 0, 0, 0);
+            vertices[i].light    = ubyte4(120, 22, 0, 200);
+        }
+
+        Core::setDepthTest(false);
+        Core::setBlendMode(bmAlpha);
+        mesh->renderBuffer(indices, COUNT(indices), vertices, COUNT(vertices));
+        Core::setBlendMode(bmNone);
+        Core::setDepthTest(true);
+
+        Core::pass = pass;
+        setupBinding();
+    }
+
+    // the flames of fire drawn by the flame shader in place of their sprites (added, after the additive geometry)
+    void renderFlames() {
+        Core::Pass pass = Core::pass;
+        bool bound = false;
+        for (Controller *c = Controller::first; c; c = c->next) {
+            if (c->getEntity().type != TR::Entity::FLAME) continue;
+            Flame *flame = (Flame*)c;
+
+            if ((flame->pos - camera->eye.pos).length2() > SQR(20.0f * 1024.0f)) continue;
+
+            TR::SpriteSequence &seq = flame->getSequence();
+            const TR::TextureInfo &sprite = level.spriteTextures[seq.sStart + clamp(flame->frame, 0, seq.sCount - 1)];
+
+            if (!bound) {
+                setShader(Core::passWater, Shader::WATER_FLAME);
+                Core::setBlendMode(bmAdd);
+                Core::setDepthWrite(false);
+                Core::setCullMode(cmNone);
+                bound = true;
+            }
+            vec4 posScale[2] = {
+                vec4(flame->pos + vec3(0.0f, (sprite.t + sprite.b) * 0.5f, 0.0f), 0.0f),
+                vec4((sprite.r - sprite.l) * 0.55f, (sprite.b - sprite.t) * 0.62f, float(flame->entity) * 0.731f, 0.0f)
+            };
+            Core::active.shader->setParam(uPosScale, posScale[0], 2);
+            mesh->renderQuad();
+
+        // its embers, small glowing dots (w = 1, z - how far they cooled)
+            for (int j = 0; j < flame->emberCount; j++) {
+                const Flame::Ember &e = flame->embers[j];
+                float k = e.age / e.life;
+                float s = 10.0f + 10.0f * (1.0f - k);
+                vec4 emberScale[2] = { vec4(e.pos, 0.0f), vec4(s, s, k, 1.0f) };
+                Core::active.shader->setParam(uPosScale, emberScale[0], 2);
+                mesh->renderQuad();
+            }
+        }
+        if (bound) {
+            Core::setCullMode(cmFront);
+            Core::setDepthWrite(true);
+            Core::setBlendMode(bmNone);
+            Core::pass = pass;
+            setupBinding();
         }
     }
 
@@ -3837,6 +3920,9 @@ struct Level : IGame {
             Core::validateRenderState();
             waterCache->blitTexture(screen);
         }
+
+        if (water && Core::pass == Core::passCompose && level.rooms[camera->getRoomIndex()].lava)
+            renderLavaTint();
 
         if (showUI) {
             renderUI();

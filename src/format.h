@@ -1874,6 +1874,7 @@ namespace TR {
         } dynLights[2]; // 1 is reserved for main light
         
         int32 dynLightsCount;
+        bool  lava;     // a water room that is a pit of lava: not drawn as under water (set by the level, not of the file)
 
         struct Portal {
             uint16 roomIndex;

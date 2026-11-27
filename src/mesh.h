@@ -836,6 +836,9 @@ struct MeshBuilder {
 
             if (yt > 0 && yb > 0) continue;
 
+            bool surface = isWaterSurface(yt, s.roomAbove, room.flags.water) || isWaterSurface(yb, s.roomBelow, room.flags.water);
+            if (!surface) continue;
+
             if (level->isLavaFloor(int(&room - level->rooms), room.info.x + (int(a.x) + int(b.x) + int(c.x)) / 3, room.info.z + (int(a.z) + int(b.z) + int(c.z)) / 3)) {
                 if (!Core::lavaShader())
                     continue; // the crust over a pit of lava stays
@@ -850,8 +853,7 @@ struct MeshBuilder {
                 continue;
             }
 
-            if (isWaterSurface(yt, s.roomAbove, room.flags.water) ||
-                isWaterSurface(yb, s.roomBelow, room.flags.water)) {
+            {
                 f.water = true;
 
                 room.waterLevelSurface = a.y;

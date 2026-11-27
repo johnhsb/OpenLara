@@ -683,6 +683,7 @@ struct MeshRange {
     E( WATER_MASK     ) \
     E( WATER_COMPOSE  ) \
     E( WATER_LAVA     ) \
+    E( WATER_FLAME    ) \
     /* filter types */ \
     E( FILTER_UPSCALE          ) \
     E( FILTER_DOWNSAMPLE       ) \

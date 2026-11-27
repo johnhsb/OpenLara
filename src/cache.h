@@ -107,6 +107,8 @@ struct ShaderCache {
         compile(Core::passWater, Shader::WATER_COMPOSE,  fx, RS_COLOR_WRITE | RS_DEPTH_TEST);
         if (Core::lavaShader())
             compile(Core::passWater, Shader::WATER_LAVA, fx, RS_COLOR_WRITE | RS_DEPTH_TEST | RS_DEPTH_WRITE);
+        if (Core::lavaShader())
+            compile(Core::passWater, Shader::WATER_FLAME, fx, RS_COLOR_WRITE | RS_DEPTH_TEST | RS_BLEND_ADD);
     }
 
     void prepareFilter(int fx) {

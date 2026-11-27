@@ -48,7 +48,16 @@ vec3 calcNormal(vec2 tc, float base) {
 		vMaskCoord = (coord.xy * 0.5 + 0.5) * uRoomSize.zw;
 	#endif
 
-		#if defined(WATER_MASK) || defined(WATER_COMPOSE) || defined(WATER_LAVA)
+		#ifdef WATER_FLAME
+		// a flame stands up facing the camera (turning about the vertical only): uPosScale[0] - the middle of it,
+		// uPosScale[1].xy - its half width and height
+			vec3 toView = uViewPos.xyz - uPosScale[0].xyz;
+			vec3 right  = normalize(vec3(toView.z, 0.0, -toView.x) + vec3(0.0001, 0.0, 0.0));
+			vCoord      = uPosScale[0].xyz + right * (coord.x * uPosScale[1].x) - vec3(0.0, coord.y * uPosScale[1].y, 0.0);
+			vTexCoord   = coord.xy;
+			vProjCoord  = uViewProj * vec4(vCoord, 1.0);
+			gl_Position = vProjCoord;
+		#elif defined(WATER_MASK) || defined(WATER_COMPOSE) || defined(WATER_LAVA)
 
 			float height = 0.0;
 
@@ -212,7 +221,7 @@ vec3 calcNormal(vec2 tc, float base) {
 		color.xyz = mix(UNDERWATER_COLOR * 0.2, color.xyz, fog);
 	}
 
-#if defined(WATER_COMPOSE) || defined(WATER_LAVA)
+#if defined(WATER_COMPOSE) || defined(WATER_LAVA) || defined(WATER_FLAME)
 	float hash12(vec2 p) { // https://www.shadertoy.com/view/4djSRW (no sin, the same on every GPU)
 		vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 		p3 += dot(p3, p3.yzx + 33.33);
@@ -225,6 +234,17 @@ vec3 calcNormal(vec2 tc, float base) {
 		f = f * f * (3.0 - 2.0 * f);
 		return mix(mix(hash12(i), hash12(i + vec2(1.0, 0.0)), f.x),
 				   mix(hash12(i + vec2(0.0, 1.0)), hash12(i + vec2(1.0, 1.0)), f.x), f.y);
+	}
+
+	float fbm(vec2 p) {
+		float v = 0.0;
+		float a = 0.5;
+		for (int i = 0; i < 4; i++) {
+			v += valueNoise(p) * a;
+			p = p * 2.03 + vec2(17.1, 9.7);
+			a *= 0.5;
+		}
+		return v;
 	}
 #endif
 
@@ -291,16 +311,6 @@ vec3 calcNormal(vec2 tc, float base) {
 #ifdef WATER_LAVA
 	uniform vec4 uFogParams;
 
-	float fbm(vec2 p) {
-		float v = 0.0;
-		float a = 0.5;
-		for (int i = 0; i < 4; i++) {
-			v += valueNoise(p) * a;
-			p = p * 2.03 + vec2(17.1, 9.7);
-			a *= 0.5;
-		}
-		return v;
-	}
 
 	// the plates of the crust (1) drifting on the molten lava (0), and the swell of both
 	float lavaCrust(vec2 q, float t) {
@@ -415,6 +425,50 @@ vec3 calcNormal(vec2 tc, float base) {
 	}
 #endif
 
+#ifdef WATER_FLAME
+	// a flame of fire (added to the colour of the scene): tongues of fire rise through a noise and sway at the top, a
+	// hot white yellow core, orange, red at the edges and the tips; uPosScale[1].z - a seed of its own
+	// an ember: a round glowing dot that cools from yellow to dark red (uPosScale[1].z) and fades
+	vec4 ember() {
+		float k = uPosScale[1].z;
+		float d = length(vTexCoord);
+		float a = 1.0 - smoothstep(0.0, 1.0, d);
+		a *= a;
+		vec3 c = mix(vec3(1.0, 0.85, 0.45), vec3(1.0, 0.42, 0.06), smoothstep(0.0, 0.45, k));
+		c = mix(c, vec3(0.45, 0.05, 0.0), smoothstep(0.45, 1.0, k));
+		return vec4(c * a * (1.0 - k * k) * 1.6, 1.0);
+	}
+
+	vec4 flame() {
+		if (uPosScale[1].w > 0.5)
+			return ember();
+
+		float t    = uParam.x;
+		float seed = uPosScale[1].z;
+		vec2  uv   = vTexCoord;            // x -1..1, y -1 (the bottom) .. 1 (the top)
+		float v    = uv.y * 0.5 + 0.5;
+
+		vec2  q  = vec2(uv.x * 1.3, v * 1.6 - t * 2.4) + seed;
+		float n  = fbm(q * 2.2);
+		float n2 = fbm(q * 4.5 + vec2(3.1, -t * 1.7));
+
+		float x     = uv.x + (n - 0.5) * 0.9 * v;    // the tongues sway more at the top
+		float width = mix(0.7, 0.12, pow(v, 0.7));
+		float body  = 1.0 - smoothstep(width * 0.45, width, abs(x));
+
+		float heat = body * (1.25 - v * 1.05) + (n2 - 0.5) * 0.6 * v;
+		heat *= smoothstep(0.0, 0.12, v);            // a soft bottom
+		heat  = clamp(heat, 0.0, 1.0);
+
+		vec3 c = mix(vec3(0.5, 0.06, 0.0), vec3(1.0, 0.38, 0.05), smoothstep(0.15, 0.5, heat));
+		c = mix(c, vec3(1.0, 0.8, 0.35), smoothstep(0.55, 0.85, heat));
+		c = mix(c, vec3(1.0, 0.97, 0.8), smoothstep(0.85, 1.0, heat));
+
+		float a = smoothstep(0.08, 0.4, heat);
+		return vec4(c * a * 1.1, 1.0);
+	}
+#endif
+
 	vec4 process() {
 		#ifdef WATER_DROP
 			return drop();
@@ -442,6 +496,10 @@ vec3 calcNormal(vec2 tc, float base) {
 
 		#ifdef WATER_LAVA
 			return lava();
+		#endif
+
+		#ifdef WATER_FLAME
+			return flame();
 		#endif
 
 		return vec4(1.0, 0.0, 1.0, 1.0);

@@ -316,6 +316,7 @@ struct TrapDartEmitter : Controller {
 
 #define FLAME_HEAT_DAMAGE 90
 #define FLAME_BURN_DAMAGE 150
+#define FLAME_EMBERS      12    // the embers in the air from a flame on a burning body
 
 struct Flame : Sprite {
 
@@ -343,9 +344,79 @@ struct Flame : Sprite {
     float sleepTime;
     EffectLight light;
 
-    Flame(IGame *game, int entity) : Sprite(game, entity, false, Sprite::FRAME_ANIMATED), owner(NULL), jointIndex(0), sleepTime(0.0f) {
+    // the embers that fly up from a burning body and the smoke it gives off (they only show)
+    struct Ember {
+        vec3  pos, vel;
+        float age, life;
+    } embers[FLAME_EMBERS];
+    int   emberCount;
+    float emberTimer, smokeTimer;
+
+    Flame(IGame *game, int entity) : Sprite(game, entity, false, Sprite::FRAME_ANIMATED), owner(NULL), jointIndex(0), sleepTime(0.0f), emberCount(0) {
         time = randf() * 3.0f;
+        emberTimer = randf() * 0.3f;
+        smokeTimer = randf() * 0.6f;
         activate();
+    }
+
+    void updateEmbers() {
+        float dt = Core::deltaTime;
+        for (int i = 0; i < emberCount; i++) {
+            Ember &e = embers[i];
+            e.age += dt;
+            if (e.age >= e.life) {
+                e = embers[--emberCount];
+                i--;
+                continue;
+            }
+            e.vel *= 1.0f - dt * 0.9f;
+            e.vel.x += sinf(e.age * 9.0f + e.life * 20.0f) * 300.0f * dt; // they flutter
+            e.pos += e.vel * dt;
+        }
+
+        if (jointIndex < 0) return; // a flame of a body only
+
+        emberTimer -= dt;
+        if (emberTimer <= 0.0f) {
+            emberTimer = 0.12f + randf() * 0.3f;
+            if (emberCount < FLAME_EMBERS) {
+                Ember &e = embers[emberCount++];
+                e.pos  = pos + vec3((randf() - 0.5f) * 80.0f, -150.0f - randf() * 100.0f, (randf() - 0.5f) * 80.0f); // at the tips of the flame
+                e.vel  = vec3((randf() - 0.5f) * 120.0f, -(250.0f + randf() * 350.0f), (randf() - 0.5f) * 120.0f);
+                e.age  = 0.0f;
+                e.life = 0.6f + randf() * 0.6f;
+            }
+        }
+
+    // the smoke from a few of the flames only, a column over the body
+        if (jointIndex % 4 == 0 && level->extra.smoke != -1) {
+            smokeTimer -= dt;
+            if (smokeTimer <= 0.0f) {
+                smokeTimer = 0.45f + randf() * 0.45f;
+                Sprite *smoke = (Sprite*)game->addEntity(TR::Entity::SMOKE, getRoomIndex(), pos - vec3(0.0f, 200.0f, 0.0f));
+                if (smoke)
+                    smoke->velocity = vec3(randf() - 0.5f, -(4.0f + randf() * 3.0f), randf() - 0.5f);
+            }
+        }
+    }
+
+    // the flame and its embers are drawn by the flame shader where there is one (Level::renderFlames), sprites otherwise
+    virtual void render(Frustum *frustum, MeshBuilder *mesh, Shader::Type type, bool caustics) {
+        if (Core::lavaShader())
+            return;
+
+        Sprite::render(frustum, mesh, type, caustics);
+
+        for (int i = 0; i < emberCount; i++) {
+            const Ember &e = embers[i];
+            float k = e.age / e.life;
+            vec3  c = k < 0.4f ? vec3(1.0f, 0.85f, 0.45f).lerp(vec3(1.0f, 0.45f, 0.08f), k / 0.4f)
+                               : vec3(1.0f, 0.45f, 0.08f).lerp(vec3(0.5f, 0.06f, 0.0f), (k - 0.4f) / 0.6f);
+            c = c * ((1.0f - k * k) * 255.0f);
+            vec3 p = e.pos - Core::viewPos.xyz();
+            int  s = getSequence().sStart + (i % max(int(getSequence().sCount), 1)); // a speck of the flame sprite
+            mesh->addDynSpriteSized(s, short3(int16(p.x), int16(p.y), int16(p.z)), int16(8.0f + 8.0f * (1.0f - k)), Color32(uint8(c.x), uint8(c.y), uint8(c.z), 255));
+        }
     }
 
     virtual ~Flame() {
@@ -375,6 +446,8 @@ struct Flame : Sprite {
             pos = lara->getJoint(jointIndex).pos;
             if (jointIndex == 0)
                 pos.y += 100.0f;
+
+            updateEmbers();
 
             lara->hit(FLAME_BURN_DAMAGE * Core::deltaTime, this);
         } else 
